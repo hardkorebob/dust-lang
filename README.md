@@ -30,7 +30,7 @@ It is an "ancient C" for the modern world, designed not to fight complexity, but
 Modern languages are a fortress of punctuation: `()`, `{}`, `[]`, `;`, `::`.  
 This syntax, while precise, creates cognitive overhead and visual noise. Dust replaces this complexity with the intuitive power of grammar, inspired by the timeless structure of Sanskrit.
 
-- **Identifiers are Nouns**: Variables are the "things" in our programs (`playera`, `messagee`).
+- **Identifiers are Nouns**: Variables are the "things" in our programs.
 - **Keywords are Verbs**: Control flow words are the "actions" (`if`, `for`, `return`).
 - **Suffixes are Case Endings**: A single, unambiguous letter at the end of a noun defines its complete set of properties—its **Type** and its **Semantic Role**.  
 
