@@ -1,17 +1,21 @@
 # The Dust Manifesto
 
-We begin as dust, and to dust we return. It is the alpha and the omega, the substrate of all creation. 
+We begin as dust, and to dust we return. 
+
+It is the alpha and the omega, the substrate of all creation. 
 
 It does not need to be invented; it needs only to be rediscovered.
 
-In the digital realm, we have forgotten this. We build towers of complexity, languages of fleeting abstraction that fight against their own nature. We seek to conquer rust, decay, and error with ever-more-intricate machinery.  
+In the digital realm, we have forgotten this. We build towers of complexity, languages of fleeting abstraction that fight against their own nature. 
+
+We seek to conquer rust, decay, and error with ever-more-intricate machinery.  
 
 **Dust offers a return to the source.**
 
-Dust is everywhere. Dust doesn't rust.  
 Dust is not something that settles on things; it is the fundamental material of things. It is ancient, ubiquitous, and enduring. It does not decay. It is the foundation.  
 
 **Dust is a systems programming language built on this principle.**  
+
 It is an "ancient C" for the modern world, designed not to fight complexity, but to transcend it through simplicity and clarity.  
 
 ---
