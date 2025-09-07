@@ -28,11 +28,9 @@ bool type_table_add(TypeTable* table, const char* type_name) {
         table->capacity *= 2;
         table->names = realloc(table->names, sizeof(char*) * table->capacity);
     }
-    // FIXED: Use our standard-compliant clone_string instead of strdup
     table->names[table->count++] = clone_string(type_name);
     return true;
 }
-// Returns the stored type name on success, NULL on failure.
 const char* type_table_lookup(const TypeTable* table, const char* type_name) {
     for (size_t i = 0; i < table->count; i++) {
         if (strcmp(table->names[i], type_name) == 0) {
