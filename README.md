@@ -12,7 +12,11 @@ We seek to conquer rust, decay, and error with ever-more-intricate machinery.
 
 **Dust offers a return to the source.**
 
-Dust is not something that settles on things; it is the fundamental material of things. It is ancient, ubiquitous, and enduring. It does not decay. It is the foundation.  
+Dust is not something that settles on things; it is the fundamental material of things. 
+
+It is ancient, ubiquitous, and enduring. 
+
+It does not decay. It is the foundation.  
 
 **Dust is a systems programming language built on this principle.**  
 
