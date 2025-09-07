@@ -16,7 +16,7 @@ printf("--------------------\n");
 }
 int find_max(int* arr, int size) {
 if ((size <= 0)) {
-return -(1);
+return -1;
 }
 int max_val = arr[0];
 int i = 1;
