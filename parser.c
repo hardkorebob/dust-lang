@@ -71,7 +71,6 @@ static void expect(Parser* p, TokenType type, const char* text, const char* erro
     }
 }
 
- --- Full Expression Parsing Logic ---
 static ASTNode* parse_primary(Parser* p) {
     if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "{") == 0) {
         return parse_initializer_list(p);
@@ -131,7 +130,7 @@ static ASTNode* parse_primary(Parser* p) {
 }
 
 static ASTNode* parse_ternary(Parser* p) {
-    ASTNode* condition = parse_logical_or(p); // Parse the condition part
+    ASTNode* condition = parse_logical_or(p);  Parse the condition part
 
     if (match_and_consume(p, TOKEN_OPERATOR, "?")) {
         ASTNode* ternary_node = create_node(AST_TERNARY_OP, "?");
