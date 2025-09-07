@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include "utils.h"
 
-// --- Forward Declarations ---
 static ASTNode* parse_statement(Parser* p);
 static ASTNode* parse_expression(Parser* p);
 static ASTNode* parse_block(Parser* p);
@@ -20,7 +19,6 @@ static ASTNode* parse_switch_statement(Parser* p);
 static ASTNode* parse_ternary(Parser* p); 
 static ASTNode* parse_logical_or(Parser* p); 
 
-// --- AST Node Management ---
 static ASTNode* create_node(ASTType type, const char* value) {
     ASTNode* node = calloc(1, sizeof(ASTNode));
     node->type = type;
@@ -73,9 +71,8 @@ static void expect(Parser* p, TokenType type, const char* text, const char* erro
     }
 }
 
-// --- Full Expression Parsing Logic ---
+ --- Full Expression Parsing Logic ---
 static ASTNode* parse_primary(Parser* p) {
-    // FIX: Allow initializer lists as a primary expression for struct assignments.
     if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "{") == 0) {
         return parse_initializer_list(p);
     }
@@ -96,8 +93,6 @@ static ASTNode* parse_primary(Parser* p) {
         expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' after 'sizeof'.");
         if (check(p, TOKEN_IDENTIFIER)) {
             Token* type_tok = advance(p);
-            // FIX: If sizeof has a type suffix (e.g., let_i), store the type info directly.
-            // Otherwise, store the identifier as a child (e.g., sizeof(Point)).
             if (type_tok->base_name) {
                 node->suffix_info = type_tok->suffix_info;
             } else {
@@ -176,7 +171,6 @@ static ASTNode* parse_switch_statement(Parser* p) {
             expect(p, TOKEN_PUNCTUATION, ":", "Expected ':' after case value.");
             add_child(node, case_node); // Add the case node to the switch
 
-            // SIMPLIFIED LOOP: Keep parsing statements until we hit the next label or the end
             while (true) {
                 if (check(p, TOKEN_EOF) ||
                     (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "}") == 0) ||
@@ -191,7 +185,6 @@ static ASTNode* parse_switch_statement(Parser* p) {
             expect(p, TOKEN_PUNCTUATION, ":", "Expected ':' after 'default'.");
             add_child(node, default_node); // Add the default node to the switch
 
-            // SIMPLIFIED LOOP for default
             while (true) {
                 if (check(p, TOKEN_EOF) ||
                     (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "}") == 0) ||
@@ -221,7 +214,6 @@ static ASTNode* parse_subscript(Parser* p) {
     return expr;
 }
 
-// ===== In parser.c, replace the existing function with this one =====
 
 static ASTNode* parse_member_access(Parser* p) {
     ASTNode* left = parse_subscript(p); // Start with the highest precedence part
@@ -246,10 +238,8 @@ static ASTNode* parse_member_access(Parser* p) {
             if (member->type != TOKEN_IDENTIFIER) {
                 parser_error(p, "Expected member name after '->'.");
             }
-            // The member token has the suffix info (e.g., secret_number_i)
             ASTNode* member_node = create_node(AST_IDENTIFIER, member->base_name ? member->base_name : member->text);
             if (member->base_name) {
-                // CRITICAL FIX: The SuffixInfo belongs to the final expression.
                 node->suffix_info = member->suffix_info;
             }
             add_child(node, member_node);
@@ -274,7 +264,6 @@ static ASTNode* parse_unary(Parser* p) {
 
 static ASTNode* parse_multiplicative(Parser* p) {
     ASTNode* left = parse_unary(p);
-    // ADDED '%' to this check
     while (check(p, TOKEN_OPERATOR) && (strcmp(p->current->text, "*") == 0 || strcmp(p->current->text, "/") == 0 || strcmp(p->current->text, "%") == 0)) {
         Token* op_tok = advance(p); ASTNode* op_node = create_node(AST_BINARY_OP, op_tok->text);
         add_child(op_node, left); add_child(op_node, parse_unary(p));
@@ -424,10 +413,8 @@ static ASTNode* parse_for_statement(Parser* p) {
     
     // 1. Parse the initializer
     if (match_and_consume(p, TOKEN_PUNCTUATION, ";")) {
-        // No initializer
         add_child(node, NULL); 
     } else {
-        // Allow either 'let' or a simple expression
         if (check(p, TOKEN_KEYWORD) && strcmp(p->current->text, "let") == 0) {
              token_free(advance(p));
              add_child(node, parse_var_decl(p));
@@ -504,7 +491,6 @@ static ASTNode* parse_statement(Parser* p) {
             advance(p); 
             return parse_for_statement(p); 
         }
-        // Add logic for break
         if (strcmp(p->current->text, "break") == 0) {
             advance(p);
             expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after 'break'.");
@@ -514,7 +500,6 @@ static ASTNode* parse_statement(Parser* p) {
             advance(p);
             return parse_switch_statement(p);
         }
-        // Add logic for continue
         if (strcmp(p->current->text, "continue") == 0) {
             advance(p);
             expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after 'continue'.");
@@ -551,8 +536,6 @@ static ASTNode* parse_struct_definition(Parser* p) {
         token_free(name_tok);
         return NULL;
     }
-
-    // CRITICAL FIX: Add the struct name to the type table!
     type_table_add((TypeTable*)p->type_table, name_tok->text);
 
     ASTNode* struct_node = create_node(AST_STRUCT_DEF, name_tok->text);
