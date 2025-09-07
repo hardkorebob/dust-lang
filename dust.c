@@ -1618,37 +1618,47 @@ static void emit_node(ASTNode* node) {
             }
             fprintf(output_file, ")");
             break;
-            
+
         case AST_STRUCT_DEF:
+            // Check for forward declaration (no children)
+            if (node->child_count == 0) {
+                 fprintf(output_file, "struct %s;", node->value);
+                 break;
+            }
+
             fprintf(output_file, "typedef struct %s %s;\n", node->value, node->value);
             fprintf(output_file, "struct %s {\n", node->value);
             for (int i = 0; i < node->child_count; i++) {
-                fprintf(output_file, "    ");
                 ASTNode* member = node->children[i];
                 if (member->type == AST_VAR_DECL) {
-                    const char* c_type = get_c_type(&member->suffix_info);
-                    fprintf(output_file, "%s %s", c_type, member->value);
-                    if (member->suffix_info.type == TYPE_ARRAY) {
+                    // --- FINAL, CORRECT LOGIC FOR STRUCT MEMBERS ---
+                    // 1. Print indentation, type, and name
+                    fprintf(output_file, "    %s %s", get_c_type(&member->suffix_info), member->value);
+
+                    // 2. If there's a child node, it MUST be the array size.
+                    //    (No initializers are allowed here).
+                    if (member->child_count > 0) {
                         fprintf(output_file, "[");
-                        if (member->child_count > 0) {
-                            emit_node(member->children[0]); // Emit array size
-                        }
+                        emit_node(member->children[0]); // Emit the size expression
                         fprintf(output_file, "]");
                     }
-                } else {
-                     emit_node(member); // For function pointers
+
+                    // 3. End the declaration
+                    fprintf(output_file, ";\n");
+
+                } else if (member->type == AST_FUNC_PTR_DECL) {
+                    // Function pointers are handled correctly by the main emitter
+                    emit_node(member);
                 }
-                fprintf(output_file, ";\n");
             }
             fprintf(output_file, "};");
             break;
-
         case AST_FUNC_PTR_DECL:
             if (node->child_count < 1) break; // Invalid signature
             
             // Child 0 is the return type
             const char* return_type = get_c_type(&node->children[0]->suffix_info);
-            fprintf(output_file, "    %s (*%s)(", return_type, node->value);
+            fprintf(output_file, "%s (*%s)(", return_type, node->value);
 
             // Children 1..N are the parameter types
             for (int i = 1; i < node->child_count; i++) {

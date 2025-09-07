@@ -4,13 +4,10 @@
 typedef struct Widget Widget;
 struct Widget {
     int id;
-    char name;
-        void (*on_destroy)();
-;
-        int (*on_update)(float);
-;
-        void (*on_event)(Widget*);
-;
+    char name[32];
+void (*on_destroy)();
+int (*on_update)(float);
+void (*on_event)(Widget*);
 };
 void widget_destroy() {
 printf("  -> Event: Widget destroyed.\n");

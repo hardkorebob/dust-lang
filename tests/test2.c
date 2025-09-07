@@ -20,7 +20,7 @@ printf("I'm thinking of a number between %d and %d.\n", MIN_NUMBER, MAX_NUMBER);
 int getPlayerGuess() {
 int guess = 0;
 printf("Enter your guess: ");
-scanf("%d", &(guess));
+scanf("%d", &guess);
 return guess;
 }
 void checkGuess(const Game* game, int guess) {
@@ -39,10 +39,10 @@ Game game;
 int secret = ((rand() % MAX_NUMBER) + MIN_NUMBER);
 (game.secret_number = secret);
 int player_guess = getPlayerGuess();
-checkGuess(&(game), player_guess);
+checkGuess(&game, player_guess);
 if ((player_guess != game.secret_number)) {
 int second_guess = getPlayerGuess();
-checkGuess(&(game), second_guess);
+checkGuess(&game, second_guess);
 }
 return 0;
 }

@@ -77,7 +77,7 @@ printf("a / b = %d\n", (a / b));
 printf("a %% b = %d\n", (a % b));
 bool is_equal = (a == 10);
 bool is_not_equal = (b != 4);
-if ((is_equal && !(is_not_equal))) {
+if ((is_equal && !is_not_equal)) {
 printf("Logical operators work!\n");
 }
 }
@@ -92,7 +92,7 @@ printf("Size of int: %zu bytes\n", sizeof(int));
 printf("Size of Point struct: %zu bytes\n", sizeof(Point));
 printf("Size of numbers array: %zu bytes\n", sizeof(numbers));
 Point my_point = { 100, 200 };
-Point* point_ptr = &(my_point);
+Point* point_ptr = &my_point;
 printf("Access via pointer: %d\n", point_ptr->x);
 print_point(point_ptr);
 }
