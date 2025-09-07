@@ -798,19 +798,79 @@ static ASTNode *parse_initializer_list(Parser *p);
 static ASTNode *parse_call(Parser *p);
 static ASTNode *parse_typedef(Parser *p);
 
+
 static ASTNode *parse_primary(Parser *p) {
   // Initializer lists
   if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "{") == 0) {
     return parse_initializer_list(p);
   }
-  if (check(p, TOKEN_IDENTIFIER)) {
-    Token *tok = advance(p);
+  
+  // Handle parentheses
+  if (match_and_consume(p, TOKEN_PUNCTUATION, "(")) {
+    ASTNode *expr = parse_expression(p);
+    expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after expression.");
+    return expr;
+  }
+  
+  // Handle identifiers (including complex expressions)
+    if (check(p, TOKEN_IDENTIFIER)) {
+    	Token *tok = advance(p);
+    
+    // Special case: handle cast_<type> syntax
+    if (tok->base_name && strcmp(tok->base_name, "cast") == 0) {
+      ASTNode *node = create_node(AST_CAST, NULL);
+      node->suffix_info = tok->suffix_info;
+      token_free(tok);
+      
+      expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' after cast type.");
+      add_child(node, parse_expression(p));
+      expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after cast expression.");
+      return node;
+    }
+    
     ASTNode *node = create_node(AST_IDENTIFIER,
                                 tok->base_name ? tok->base_name : tok->text);
     if (tok->base_name) {
       node->suffix_info = tok->suffix_info;
     }
     token_free(tok);
+    
+    // Check if this is followed by member access or subscript
+    while (check(p, TOKEN_PUNCTUATION) && 
+           (strcmp(p->current->text, ".") == 0 || 
+            strcmp(p->current->text, "->") == 0 ||
+            strcmp(p->current->text, "[") == 0)) {
+      if (match_and_consume(p, TOKEN_PUNCTUATION, ".")) {
+        ASTNode *access_node = create_node(AST_MEMBER_ACCESS, ".");
+        add_child(access_node, node);
+        
+        Token *member = advance(p);
+        if (member->type != TOKEN_IDENTIFIER) {
+          parser_error(p, "Expected member name after '.'.");
+        }
+        add_child(access_node, create_node(AST_IDENTIFIER, member->text));
+        token_free(member);
+        node = access_node;
+      } else if (match_and_consume(p, TOKEN_ARROW, "->")) {
+        ASTNode *access_node = create_node(AST_MEMBER_ACCESS, "->");
+        add_child(access_node, node);
+        
+        Token *member = advance(p);
+        if (member->type != TOKEN_IDENTIFIER) {
+          parser_error(p, "Expected member name after '->'.");
+        }
+        add_child(access_node, create_node(AST_IDENTIFIER, member->text));
+        token_free(member);
+        node = access_node;
+      } else if (match_and_consume(p, TOKEN_PUNCTUATION, "[")) {
+        ASTNode *subscript_node = create_node(AST_SUBSCRIPT, NULL);
+        add_child(subscript_node, node);
+        add_child(subscript_node, parse_expression(p));
+        expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after subscript index.");
+        node = subscript_node;
+      }
+    }
+    
     return node;
   }
   // Numbers
@@ -884,13 +944,6 @@ static ASTNode *parse_primary(Parser *p) {
     return node;
   }
 
-  // Parenthesized expression
-  if (match_and_consume(p, TOKEN_PUNCTUATION, "(")) {
-    ASTNode *expr = parse_expression(p);
-    expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after expression.");
-    return expr;
-  }
-
   parser_error(p, "Expected expression.");
   return NULL;
 }
@@ -918,12 +971,17 @@ static ASTNode *parse_call(Parser *p) {
 
 static ASTNode *parse_subscript(Parser *p) {
   ASTNode *expr = parse_primary(p);
-  while (match_and_consume(p, TOKEN_PUNCTUATION, "[")) {
-    ASTNode *node = create_node(AST_SUBSCRIPT, NULL);
-    add_child(node, expr);
-    add_child(node, parse_expression(p));
-    expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after subscript index.");
-    expr = node;
+  
+  while (true) {
+    if (match_and_consume(p, TOKEN_PUNCTUATION, "[")) {
+      ASTNode *node = create_node(AST_SUBSCRIPT, NULL);
+      add_child(node, expr);
+      add_child(node, parse_expression(p));
+      expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after subscript index.");
+      expr = node;
+    } else {
+      break;
+    }
   }
   return expr;
 }
@@ -961,6 +1019,14 @@ static ASTNode *parse_member_access(Parser *p) {
       add_child(node, member_node);
       token_free(member);
       left = node;
+    } else if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "[") == 0) {
+      // Handle array indexing after member access
+      advance(p); // Consume '['
+      ASTNode *subscript_node = create_node(AST_SUBSCRIPT, NULL);
+      add_child(subscript_node, left);
+      add_child(subscript_node, parse_expression(p));
+      expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after subscript index.");
+      left = subscript_node;
     } else {
       break;
     }
@@ -1162,19 +1228,25 @@ static ASTNode *parse_var_decl(Parser *p) {
   if (name->base_name) {
     node->suffix_info = name->suffix_info;
   }
-
-  // Array declaration with size
-  if (match_and_consume(p, TOKEN_PUNCTUATION, "[")) {
-    add_child(node, parse_expression(p)); // Child 0: array size
-    expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after array size.");
-
+  
+  // Check if this is an array declaration (has array type suffix)
+  if (node->suffix_info.type == TYPE_ARRAY) {
+    // Array declaration with size
+    if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "[") == 0) {
+      advance(p); // Consume '['
+      add_child(node, parse_expression(p));  // Child 0: array size
+      expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after array size.");
+    }
+    
     // Optional initializer for array
     if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
-      add_child(node, parse_initializer_list(p)); // Child 1: initializer
+      add_child(node, parse_initializer_list(p));  // Child 1: initializer
     }
-  } else if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
+  } else {
     // Regular variable initialization
-    add_child(node, parse_expression(p)); // Child 0: initializer
+    if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
+      add_child(node, parse_expression(p));  // Child 0: initializer
+    }
   }
 
   token_free(name);
