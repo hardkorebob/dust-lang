@@ -34,14 +34,13 @@ static void emit_function(ASTNode* node) {
         for (int i = 0; i < params_node->child_count; i++) {
             if (i > 0) fprintf(output_file, ", ");
             ASTNode* param = params_node->children[i];
-            // Just get the complete type string and print it. No more complex logic here.
             const char* param_type = get_c_type(&param->suffix_info);
             fprintf(output_file, "%s %s", param_type, param->value);
         }
     }
     fprintf(output_file, ") ");
     if (node->child_count > 1) {
-        emit_node(node->children[1]); // Body block
+        emit_node(node->children[1]);
     } else {
         fprintf(output_file, "{}\n");
     }
@@ -49,19 +48,15 @@ static void emit_function(ASTNode* node) {
 
 
 static void emit_var_decl(ASTNode* node) {
-    // Just get the complete type string and print it.
     const char* c_type = get_c_type(&node->suffix_info);
     fprintf(output_file, "%s %s", c_type, node->value);
-
-    // This handles array brackets and initializers.
     if (node->suffix_info.type == TYPE_ARRAY) {
         fprintf(output_file, "[");
         if (node->child_count > 0 && node->children[0]) {
-            emit_node(node->children[0]); // Size
+            emit_node(node->children[0]);
         }
         fprintf(output_file, "]");
     }
-    
     int initializer_index = (node->suffix_info.type == TYPE_ARRAY) ? 1 : 0;
     if (node->child_count > initializer_index) {
         fprintf(output_file, " = ");
@@ -261,7 +256,6 @@ static void emit_node(ASTNode* node) {
              break;
         default:
             if (node->child_count > 0) {
-                // For expression statements
                 if (node->type == AST_EXPRESSION) {
                      emit_node(node->children[0]);
                 }
