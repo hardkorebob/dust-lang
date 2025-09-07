@@ -47,7 +47,7 @@ static void emit_function(ASTNode* node) {
     }
 }
 
-// THIS FUNCTION IS NOW SIMPLE AND CORRECT
+
 static void emit_var_decl(ASTNode* node) {
     // Just get the complete type string and print it.
     const char* c_type = get_c_type(&node->suffix_info);
@@ -134,11 +134,11 @@ static void emit_node(ASTNode* node) {
             break;
         case AST_TERNARY_OP:
             fprintf(output_file, "(");
-            emit_node(node->children[0]); // Condition
+            emit_node(node->children[0]);
             fprintf(output_file, " ? ");
-            emit_node(node->children[1]); // True expr
+            emit_node(node->children[1]); 
             fprintf(output_file, " : ");
-            emit_node(node->children[2]); // False expr
+            emit_node(node->children[2]); 
             fprintf(output_file, ")");
             break;
         case AST_CALL:
@@ -203,10 +203,9 @@ static void emit_node(ASTNode* node) {
             fprintf(output_file, "]");
             break;
         case AST_MEMBER_ACCESS:
-            // The new logic is much simpler.
-            emit_node(node->children[0]); // Emit the object (e.g., "game")
-            fprintf(output_file, "%s", node->value); // Print the operator stored by the parser ("." or "->")
-            emit_node(node->children[1]); // Emit the member (e.g., "secret_number")
+            emit_node(node->children[0]); 
+            fprintf(output_file, "%s", node->value); 
+            emit_node(node->children[1]); 
             break;
         case AST_FOR:
             fprintf(output_file, "for (");
@@ -236,9 +235,8 @@ static void emit_node(ASTNode* node) {
             break;
         case AST_SWITCH:
             fprintf(output_file, "switch (");
-            emit_node(node->children[0]); // The expression
-            fprintf(output_file, ") {\n"); // Always print the opening brace
-            // Children from index 1 onwards are the case/default blocks
+            emit_node(node->children[0]);
+            fprintf(output_file, ") {\n"); 
             for (int i = 1; i < node->child_count; i++) {
                 emit_node(node->children[i]);
             }
@@ -246,9 +244,8 @@ static void emit_node(ASTNode* node) {
             break;
         case AST_CASE:
             fprintf(output_file, "case ");
-            emit_node(node->children[0]); // The case value
+            emit_node(node->children[0]); 
             fprintf(output_file, ":\n");
-            // Children from index 1 onwards are the statements for this case
             for (int i = 1; i < node->child_count; i++) {
                 emit_statement(node->children[i]);
             }
@@ -263,7 +260,6 @@ static void emit_node(ASTNode* node) {
              if (node->child_count > 0) emit_node(node->children[0]);
              break;
         default:
-             // This is a catch-all for simple expressions that don't need special handling
             if (node->child_count > 0) {
                 // For expression statements
                 if (node->type == AST_EXPRESSION) {
@@ -273,7 +269,6 @@ static void emit_node(ASTNode* node) {
             break;
     }
 }
-
 
 void codegen(ASTNode* ast, const TypeTable* table, FILE* out) {
     output_file = out;
