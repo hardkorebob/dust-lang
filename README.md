@@ -159,31 +159,6 @@ func lexer_create_Lexerp(source_cp) {
     return lex_Lexerp;
 }
 ```
-```
---- Dust Advanced Test Suite Running ---
-
-1. Initializing widget...
-Widget created with ID 101 and Name 'Login Button'.
-
-2. Assigning function pointers...
-Assignments successful.
-
-3. Calling functions via pointers...
-  -> Event: on widget ID 101, Name 'Login Button'.
-  -> Event: Widget updated with dt = 0.016000.
-  -> Event: Widget destroyed.
-
-Function pointer calls successful.
-
-4. Highlighting Missing Features...
-  - LACKING: Cannot declare local function pointers with 'let'.
-  - LACKING: No 'typedef' for simplifying complex types.
-  - LACKING: No 'enum' for defining states or constants.
-
---- Test Suite Complete ---
-
-
-```
 
 Will you please help me clean up all this Dust?
 
