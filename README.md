@@ -51,7 +51,8 @@ This makes the language transparent. The code you write is a direct representati
 ### 3. Simplicity is the Ultimate Safeguard
 Rust ensures safety through a sophisticated compiler that enforces complex ownership and lifetime rules. This is a valid and powerful approach.  
 
-Dust ensures safety through **radical simplicity**.  
+Dust ensures safety through **radical simplicity**.
+
 By eliminating syntactic ambiguity and making the role and type of every piece of data explicit in its name, the possibility for many classes of errors is removed at the design level.  
 
 The code is not just safe; it is **transparently correct**.
