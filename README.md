@@ -271,9 +271,7 @@ test7.c:9:33: note: expected ‘const Point *’ but argument is of type ‘Poin
 
 ```
 
-I need to clean up this dust to make it better! 
-
-Will you please help me?
+Will you please help me clean up all this Dust?
 
 <3 
 ---
