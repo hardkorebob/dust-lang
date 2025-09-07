@@ -1,4 +1,3 @@
-// ===== component_system.c (Definitive Final Version) =====
 #include "component_system.h"
 #include <stdio.h>
 #include <string.h>
@@ -8,7 +7,6 @@ const char* find_suffix_separator(const char* name) {
     return strrchr(name, '_');
 }
 
-// This function is now complete and correct.
 bool suffix_parse(const char* full_variable_name, const TypeTable* type_table, SuffixInfo* result_info) {
     *result_info = (SuffixInfo){TYPE_VOID, ROLE_NONE, false, false, NULL, false, TYPE_VOID, NULL};
     const char* separator = find_suffix_separator(full_variable_name);
@@ -76,8 +74,6 @@ bool suffix_parse(const char* full_variable_name, const TypeTable* type_table, S
 const char* get_c_type(const SuffixInfo* info) {
     static char type_buffer[256];
     char base_type_str[128] = "void";
-
-    // Step 1: Determine the base C type name (e.g., "int", "Game")
     DataType type_to_check = (info->type == TYPE_ARRAY) ? info->array_base_type : info->type;
     const char* user_name = (info->type == TYPE_ARRAY) ? info->array_user_type_name : info->user_type_name;
 
@@ -91,16 +87,11 @@ const char* get_c_type(const SuffixInfo* info) {
         default: break;
     }
 
-    // Step 2: Build the final, complete C type string
     if (info->type == TYPE_ARRAY) {
-        // An array passed as a parameter becomes a pointer in C. `int* name` or `int name[]` are valid.
-        // We will generate `int* name` for consistency.
         snprintf(type_buffer, sizeof(type_buffer), "%s*", base_type_str);
     } else if (info->type == TYPE_STRING) {
-        strcpy(type_buffer, base_type_str); // Already "char*"
+        strcpy(type_buffer, base_type_str); 
     } else {
-        // For all other types, add const and pointer qualifiers as needed.
-        // This correctly produces `Game*` for a `_Gameb` suffix.
         snprintf(type_buffer, sizeof(type_buffer), "%s%s%s",
             (info->is_const ? "const " : ""),
             base_type_str,
