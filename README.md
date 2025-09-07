@@ -78,127 +78,85 @@ The Dust compiler leverages a **component-based system** to look up the correct 
 ---
 
 ```c
-// ============================================================================
-// Dust Language - Advanced Test Suite
-// ============================================================================
-// This file tests the latest features: arrays and function pointers in structs.
-// It is designed to pass with the current compiler but also highlight missing
-// functionality through comments.
-//
-// To compile:
-// 1. ./dustc test_suite_advanced.dust
-// 2. gcc -o advanced_test test_suite_advanced.c
-// 3. ./advanced_test
-// ============================================================================
+// test9.dust - Demonstrating Dust's self-hosting capabilities
+// This implements a simple lexer/token system similar to the actual compiler
 
 #include <stdio.h>
-#include <string.h> // Needed for strcpy
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
-// --- 1. Struct Definition: The Core Test ---
-// This struct uses all the newly implemented features.
-struct Widget {
-    // A. Simple member
-    id_i;
+// Token types (would be enum in C)
+#define TOKEN_EOF 0
+#define TOKEN_IDENTIFIER 1
+#define TOKEN_NUMBER 2
+#define TOKEN_KEYWORD 3
+#define TOKEN_OPERATOR 4
 
-    // B. Array as a member (SUCCESS)
-    // PROOF: The compiler should correctly parse this array member.
-    name_c[32];
-
-    // C. Function pointer members (SUCCESS)
-    // PROOF: The compiler should parse these function pointer signatures.
-    
-    // A simple pointer: takes nothing, returns nothing (void).
-    on_destroy_fp(ret_v);
-
-    // A pointer with parameters and a return value.
-    on_update_fp(ret_i, delta_time_f);
-
-    // A pointer that takes a pointer to its own struct type. A great stress test!
-    on_event_fp(ret_v, self_Widgetp);
+// Token structure
+struct Token {
+    type_i;
+    text_cp;
+    line_i;
+    next_Tokenp;  // For linked list
 };
 
+// Lexer structure
+struct Lexer {
+    source_cp;
+    pos_i;
+    len_i;
+    line_i;
+};
 
-// --- 2. C Helper Functions ---
-// Since Dust cannot yet define functions to be assigned to pointers,
-// we define them here as plain C functions to prove the pointers work.
-// These functions will be linked with the Dust-generated code.
-
-func widget_destroy_v() {
-    printf("  -> Event: Widget destroyed.\n");
+// Create a new token - clean Dust!
+func make_token_Tokenp(type_i, text_cp, line_i) {
+    let tok_Tokenp = cast_Tokenp(malloc(sizeof(Token)));
+    if (tok_Tokenp == null) {
+        return null;
+    }
+    
+    tok_Tokenp->type = type_i;
+    tok_Tokenp->line = line_i;
+    tok_Tokenp->next = null;
+    
+    // Clone the text
+    if (text_cp != null) {
+        let len_i = strlen(text_cp);
+        tok_Tokenp->text = cast_cp(malloc(len_i + 1));
+        strcpy(tok_Tokenp->text, text_cp);
+    } else {
+        tok_Tokenp->text = null;
+    }
+    
+    return tok_Tokenp;
 }
 
-func widget_update_i(dt_f) {
-    printf("  -> Event: Widget updated with dt = %f.\n", dt_f);
-    return 1;
+// Free a token
+func token_free_v(tok_Tokenp) {
+    if (tok_Tokenp == null) {
+        return;
+    }
+    
+    if (tok_Tokenp->text != null) {
+        free(tok_Tokenp->text);
+    }
+    free(tok_Tokenp);
 }
 
-func widget_event_v(w_Widgetp) {
-    // We can access the widget's members through the pointer.
-    printf("  -> Event: on widget ID %d, Name '%s'.\n", w_Widgetp->id_i, w_Widgetp->name_c);
-}
-
-
-// --- 3. Main Program Entry Point ---
-
-func main_i() {
-    printf("--- Dust Advanced Test Suite Running ---\n\n");
-
-    // --- 4. Struct Initialization and Member Access ---
-    printf("1. Initializing widget...\n");
-    let ui_button_Widget;
-
-    // Test simple member assignment
-    ui_button_Widget.id_i = 101;
-
-    // Test array member assignment using a C library function
-    // This proves that the C code for the struct is correctly generated.
-    strcpy(ui_button_Widget.name_c, "Login Button");
-
-    printf("Widget created with ID %d and Name '%s'.\n\n", ui_button_Widget.id_i, ui_button_Widget.name_c);
-
-    // --- 5. Assigning to Function Pointers ---
-    printf("2. Assigning function pointers...\n");
-
-    // This is the most critical test. We are assigning our C helper functions
-    // to the function pointer members of the Dust struct.
-    ui_button_Widget.on_destroy_fp = &widget_destroy_v;
-    ui_button_Widget.on_update_fp = &widget_update_i;
-    ui_button_Widget.on_event_fp = &widget_event_v;
+// Create a lexer
+func lexer_create_Lexerp(source_cp) {
+    let lex_Lexerp = cast_Lexerp(malloc(sizeof(Lexer)));
+    if (lex_Lexerp == null) {
+        return null;
+    }
     
-    printf("Assignments successful.\n\n");
-
-    // --- 6. Calling Function Pointers ---
-    printf("3. Calling functions via pointers...\n");
+    lex_Lexerp->source = source_cp;
+    lex_Lexerp->pos = 0;
+    lex_Lexerp->len = strlen(source_cp);
+    lex_Lexerp->line = 1;
     
-    // If these lines work, our implementation is a success.
-    ui_button_Widget.on_event_fp(&ui_button_Widget);
-    ui_button_Widget.on_update_fp(0.016);
-    ui_button_Widget.on_destroy_fp();
-
-    printf("\nFunction pointer calls successful.\n\n");
-
-    // --- 7. Where We Are Lacking ---
-    printf("4. Highlighting Missing Features...\n");
-    
-    // LACKING FEATURE 1: Local function pointer variables.
-    // The following line will cause a PARSE ERROR because the `let` statement parser
-    // does not yet understand the function pointer `(...)` syntax.
-    // let my_callback_fp(ret_v, code_i);
-    printf("  - LACKING: Cannot declare local function pointers with 'let'.\n");
-
-    // LACKING FEATURE 2: Typedefs.
-    // In C, you would use typedef to make the `on_event` signature reusable.
-    // Dust has no equivalent yet.
-    // C example: typedef void (*event_handler_t)(struct Widget*);
-    printf("  - LACKING: No 'typedef' for simplifying complex types.\n");
-    
-    // LACKING FEATURE 3: Enums.
-    // This is a natural next step for state management.
-    // enum ButtonState { IDLE, HOVER, PRESSED };
-    printf("  - LACKING: No 'enum' for defining states or constants.\n");
-
-    printf("\n--- Test Suite Complete ---\n");
-    return 0;
+    return lex_Lexerp;
 }
 ```
 ```
