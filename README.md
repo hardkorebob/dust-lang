@@ -5,22 +5,18 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-// --- Structs and User-Defined Types ---
 struct Point {
     x_i;
     y_i;
 };
 
-// --- Function to print a Point ---
-// FIX: Parameter is now a borrowed pointer (_Pointb), which is const.
-// This is safer and more idiomatic for a print function.
+
 func print_point_v(p_Pointb) {
     // The -> operator is correct for pointers.
     printf("Point(x: %d, y: %d)\n", p_Point->x, p_Point->y);
 }
 
 
-// --- Testing Switch, Case, and Fallthrough ---
 func test_fallthrough_v(start_day_i) {
     printf("\n--- Testing Switch Fallthrough (starting from day %d) ---\n", start_day_i);
     switch (start_day_i) {
@@ -45,7 +41,6 @@ func test_fallthrough_v(start_day_i) {
 }
 
 
-// --- Testing Control Flow ---
 func test_control_flow_v() {
     printf("\n--- Testing Control Flow ---\n");
     
@@ -84,7 +79,6 @@ func test_control_flow_v() {
     printf("\n");
 }
 
-// --- Testing Operators and Expressions ---
 func test_operators_v() {
     printf("\n--- Testing Operators ---\n");
     let a_i = 10;
@@ -104,7 +98,6 @@ func test_operators_v() {
 }
 
 
-// --- Testing Pointers, Arrays, and sizeof ---
 func test_memory_features_v() {
     printf("\n--- Testing Memory Features ---\n");
 
@@ -118,21 +111,16 @@ func test_memory_features_v() {
     printf("Size of Point struct: %zu bytes\n", sizeof(Point));
     printf("Size of numbers array: %zu bytes\n", sizeof(numbers_ia));
     
-    // Pointers and Structs
     let my_point_Point = {100, 200};
 
-    // FIX: The suffix is now _Pointp to correctly signify a pointer type.
     let point_ptr_Point = &my_point_Point;
 
-    // Use the pointer to access the member
     printf("Access via pointer: %d\n", point_ptr_Point->x);
     
-    // Demonstrate passing a pointer to the print function
     print_point_v(point_ptr_Point);
 }
 
 
-// --- Main Entry Point ---
 func main_i() {
     printf("--- Comprehensive Language Test Suite ---\n");
 
