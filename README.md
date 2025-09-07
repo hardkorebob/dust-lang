@@ -88,7 +88,7 @@ struct Point {
 };
 
 
-func print_point_v(p_Pointb) {
+func print_point_v(p_Point) {
     printf("Point(x: %d, y: %d)\n", p_Point->x, p_Point->y);
 }
 
