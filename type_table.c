@@ -1,4 +1,3 @@
-//type_table.c
 #include "type_table.h"
 #include <stdlib.h>
 #include <string.h>
