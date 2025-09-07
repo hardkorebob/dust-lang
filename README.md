@@ -78,181 +78,149 @@ The Dust compiler leverages a **component-based system** to look up the correct 
 ---
 
 ```c
-//test7.dust
-// ===== test7.dust - DEFINITIVELY CORRECTED =====
-#include <stdio.h>
-#include <stdbool.h>
+// ============================================================================
+// Dust Language - Advanced Test Suite
+// ============================================================================
+// This file tests the latest features: arrays and function pointers in structs.
+// It is designed to pass with the current compiler but also highlight missing
+// functionality through comments.
+//
+// To compile:
+// 1. ./dustc test_suite_advanced.dust
+// 2. gcc -o advanced_test test_suite_advanced.c
+// 3. ./advanced_test
+// ============================================================================
 
-// --- Structs and User-Defined Types ---
-struct Point {
-    x_i;
-    y_i;
+#include <stdio.h>
+#include <string.h> // Needed for strcpy
+
+// --- 1. Struct Definition: The Core Test ---
+// This struct uses all the newly implemented features.
+struct Widget {
+    // A. Simple member
+    id_i;
+
+    // B. Array as a member (SUCCESS)
+    // PROOF: The compiler should correctly parse this array member.
+    name_c[32];
+
+    // C. Function pointer members (SUCCESS)
+    // PROOF: The compiler should parse these function pointer signatures.
+    
+    // A simple pointer: takes nothing, returns nothing (void).
+    on_destroy_fp(ret_v);
+
+    // A pointer with parameters and a return value.
+    on_update_fp(ret_i, delta_time_f);
+
+    // A pointer that takes a pointer to its own struct type. A great stress test!
+    on_event_fp(ret_v, self_Widgetp);
 };
 
 
-func print_point_v(p_Pointb) {
-    printf("Point(x: %d, y: %d)\n", p_Pointb->x, p_Pointb->y);
+// --- 2. C Helper Functions ---
+// Since Dust cannot yet define functions to be assigned to pointers,
+// we define them here as plain C functions to prove the pointers work.
+// These functions will be linked with the Dust-generated code.
+
+func widget_destroy_v() {
+    printf("  -> Event: Widget destroyed.\n");
+}
+
+func widget_update_i(dt_f) {
+    printf("  -> Event: Widget updated with dt = %f.\n", dt_f);
+    return 1;
+}
+
+func widget_event_v(w_Widgetp) {
+    // We can access the widget's members through the pointer.
+    printf("  -> Event: on widget ID %d, Name '%s'.\n", w_Widgetp->id_i, w_Widgetp->name_c);
 }
 
 
-// --- Testing Switch, Case, and Fallthrough ---
-func test_fallthrough_v(start_day_i) {
-    printf("\n--- Testing Switch Fallthrough (starting from day %d) ---\n", start_day_i);
-    switch (start_day_i) {
-        case 1:
-            printf("It's Monday. ");
-        case 2:
-            printf("It's a weekday. ");
-        case 3:
-            printf("Still a weekday. ");
-            break;
-        case 4:
-            printf("Thursday. ");
-        case 5:
-            printf("End of the work week! ");
-        case 6:
-        case 7:
-            printf("It's the weekend!\n");
-            break;
-        default:
-            printf("Invalid day provided.\n");
-    }
-}
+// --- 3. Main Program Entry Point ---
 
-
-// --- Testing Control Flow ---
-func test_control_flow_v() {
-    printf("\n--- Testing Control Flow ---\n");
-    
-    let temperature_i = 25;
-    if (temperature_i > 30) {
-        printf("It's hot.\n");
-    } else if (temperature_i > 20) {
-        printf("It's warm.\n");
-    } else {
-        printf("It's cool.\n");
-    }
-
-    printf("For loop: ");
-    for (let i_i = 0; i_i < 5; i_i = i_i + 1) {
-        if (i_i == 3) {
-            continue;
-        }
-        printf("%d ", i_i);
-    }
-    printf("\n");
-
-    printf("While loop: ");
-    let countdown_i = 3;
-    while (countdown_i > 0) {
-        printf("%d... ", countdown_i);
-        countdown_i = countdown_i - 1;
-    }
-    printf("Lift off!\n");
-    
-    printf("Do-While loop: ");
-    let num_i = 5;
-    do {
-        printf("%d ", num_i);
-        num_i = num_i - 1;
-    } while (num_i > 5);
-    printf("\n");
-}
-
-// --- Testing Operators and Expressions ---
-func test_operators_v() {
-    printf("\n--- Testing Operators ---\n");
-    let a_i = 10;
-    let b_i = 4;
-    printf("a = %d, b = %d\n", a_i, b_i);
-    printf("a + b = %d\n", a_i + b_i);
-    printf("a - b = %d\n", a_i - b_i);
-    printf("a * b = %d\n", a_i * b_i);
-    printf("a / b = %d\n", a_i / b_i);
-    printf("a %% b = %d\n", a_i % b_i);
-    
-    let is_equal_bl = (a_i == 10);
-    let is_not_equal_bl = (b_i != 4);
-    if (is_equal_bl && !is_not_equal_bl) {
-        printf("Logical operators work!\n");
-    }
-}
-
-
-// --- Testing Pointers, Arrays, and sizeof ---
-func test_memory_features_v() {
-    printf("\n--- Testing Memory Features ---\n");
-
-    let numbers_ia[5] = {10, 20, 30, 40, 50};
-    printf("First number: %d\n", numbers_ia[0]);
-    printf("Third number: %d\n", numbers_ia[2]);
-    numbers_ia[2] = 35;
-    printf("Modified third number: %d\n", numbers_ia[2]);
-
-    printf("Size of int: %zu bytes\n", sizeof(let_i));
-    printf("Size of Point struct: %zu bytes\n", sizeof(Point));
-    printf("Size of numbers array: %zu bytes\n", sizeof(numbers_ia));
-    
-    // Pointers and Structs
-    let my_point_Point = {100, 200};
-
-    // FIX: The suffix is now _Pointp to correctly signify a pointer type.
-    let point_ptr_Pointp = &my_point_Point;
-
-    // Use the pointer to access the member
-    printf("Access via pointer: %d\n", point_ptr_Point->x);
-    
-    // Demonstrate passing a pointer to the print function
-    print_point_v(point_ptr_Pointp);
-}
-
-
-// --- Main Entry Point ---
 func main_i() {
-    printf("--- Comprehensive Language Test Suite ---\n");
+    printf("--- Dust Advanced Test Suite Running ---\n\n");
 
-    test_fallthrough_v(1);
-    test_fallthrough_v(5);
-    test_control_flow_v();
-    test_operators_v();
-    test_memory_features_v();
+    // --- 4. Struct Initialization and Member Access ---
+    printf("1. Initializing widget...\n");
+    let ui_button_Widget;
+
+    // Test simple member assignment
+    ui_button_Widget.id_i = 101;
+
+    // Test array member assignment using a C library function
+    // This proves that the C code for the struct is correctly generated.
+    strcpy(ui_button_Widget.name_c, "Login Button");
+
+    printf("Widget created with ID %d and Name '%s'.\n\n", ui_button_Widget.id_i, ui_button_Widget.name_c);
+
+    // --- 5. Assigning to Function Pointers ---
+    printf("2. Assigning function pointers...\n");
+
+    // This is the most critical test. We are assigning our C helper functions
+    // to the function pointer members of the Dust struct.
+    ui_button_Widget.on_destroy_fp = &widget_destroy_v;
+    ui_button_Widget.on_update_fp = &widget_update_i;
+    ui_button_Widget.on_event_fp = &widget_event_v;
+    
+    printf("Assignments successful.\n\n");
+
+    // --- 6. Calling Function Pointers ---
+    printf("3. Calling functions via pointers...\n");
+    
+    // If these lines work, our implementation is a success.
+    ui_button_Widget.on_event_fp(&ui_button_Widget);
+    ui_button_Widget.on_update_fp(0.016);
+    ui_button_Widget.on_destroy_fp();
+
+    printf("\nFunction pointer calls successful.\n\n");
+
+    // --- 7. Where We Are Lacking ---
+    printf("4. Highlighting Missing Features...\n");
+    
+    // LACKING FEATURE 1: Local function pointer variables.
+    // The following line will cause a PARSE ERROR because the `let` statement parser
+    // does not yet understand the function pointer `(...)` syntax.
+    // let my_callback_fp(ret_v, code_i);
+    printf("  - LACKING: Cannot declare local function pointers with 'let'.\n");
+
+    // LACKING FEATURE 2: Typedefs.
+    // In C, you would use typedef to make the `on_event` signature reusable.
+    // Dust has no equivalent yet.
+    // C example: typedef void (*event_handler_t)(struct Widget*);
+    printf("  - LACKING: No 'typedef' for simplifying complex types.\n");
+    
+    // LACKING FEATURE 3: Enums.
+    // This is a natural next step for state management.
+    // enum ButtonState { IDLE, HOVER, PRESSED };
+    printf("  - LACKING: No 'enum' for defining states or constants.\n");
 
     printf("\n--- Test Suite Complete ---\n");
     return 0;
 }
 ```
 ```
---- Comprehensive Language Test Suite ---
+--- Dust Advanced Test Suite Running ---
 
---- Testing Switch Fallthrough (starting from day 1) ---
-It's Monday. It's a weekday. Still a weekday. 
---- Testing Switch Fallthrough (starting from day 5) ---
-End of the work week! It's the weekend!
+1. Initializing widget...
+Widget created with ID 101 and Name 'Login Button'.
 
---- Testing Control Flow ---
-It's warm.
-For loop: 0 1 2 4 
-While loop: 3... 2... 1... Lift off!
-Do-While loop: 5 
+2. Assigning function pointers...
+Assignments successful.
 
---- Testing Operators ---
-a = 10, b = 4
-a + b = 14
-a - b = 6
-a * b = 40
-a / b = 2
-a % b = 2
-Logical operators work!
+3. Calling functions via pointers...
+  -> Event: on widget ID 101, Name 'Login Button'.
+  -> Event: Widget updated with dt = 0.016000.
+  -> Event: Widget destroyed.
 
---- Testing Memory Features ---
-First number: 10
-Third number: 30
-Modified third number: 35
-Size of int: 4 bytes
-Size of Point struct: 8 bytes
-Size of numbers array: 20 bytes
-Access via pointer: 100
-Point(x: 100, y: 200)
+Function pointer calls successful.
+
+4. Highlighting Missing Features...
+  - LACKING: Cannot declare local function pointers with 'let'.
+  - LACKING: No 'typedef' for simplifying complex types.
+  - LACKING: No 'enum' for defining states or constants.
 
 --- Test Suite Complete ---
 
