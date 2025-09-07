@@ -378,6 +378,7 @@ typedef enum {
     TOKEN_CHARACTER,
     TOKEN_DIRECTIVE,
     TOKEN_ARROW,
+    TOKEN_PASSTHROUGH,
 } TokenType;
 
 typedef struct {
@@ -468,7 +469,29 @@ Token* lexer_next(Lexer* lex) {
         free(directive_line);
         return tok;
     }
-
+    if (c == '@' && lex->pos + 2 < lex->len && lex->source[lex->pos + 1] == 'c' && lex->source[lex->pos + 2] == '(') {
+    lex->pos += 3; // Skip @c(
+    start = lex->pos;
+    
+    // Find the closing )
+    int paren_count = 1;
+    while (lex->pos < lex->len && paren_count > 0) {
+        if (lex->source[lex->pos] == '(') paren_count++;
+        else if (lex->source[lex->pos] == ')') paren_count--;
+        if (paren_count > 0) lex->pos++;
+    }
+    
+    int len = lex->pos - start;
+    char* passthrough_code = malloc(len + 1);
+    memcpy(passthrough_code, lex->source + start, len);
+    passthrough_code[len] = '\0';
+    
+    if (lex->pos < lex->len) lex->pos++; // Skip closing )
+    
+    Token* tok = make_token(TOKEN_PASSTHROUGH, passthrough_code, lex->line);
+    free(passthrough_code);
+    return tok;
+    }
     // Comments
     if (c == '/' && lex->pos + 1 < lex->len && lex->source[lex->pos + 1] == '/') {
         while (lex->pos < lex->len && lex->source[lex->pos] != '\n') lex->pos++;
@@ -627,6 +650,7 @@ typedef enum {
     AST_TERNARY_OP,
     AST_FUNC_PTR_DECL,
     AST_TYPEDEF,
+    AST_PASSTHROUGH,
 } ASTType;
 
 typedef struct ASTNode {
@@ -1248,6 +1272,12 @@ static ASTNode* parse_statement(Parser* p) {
             expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after return value.");
             return node;
         }
+        if (check(p, TOKEN_PASSTHROUGH)) {
+            Token* pass = advance(p);
+            ASTNode* node = create_node(AST_PASSTHROUGH, pass->text);
+            token_free(pass);
+            return node;
+        }
     }
 
     ASTNode* expr = parse_expression(p);
@@ -1417,6 +1447,10 @@ ASTNode* parser_parse(Parser* p) {
             } else if (strcmp(p->current->text, "struct") == 0) {
                 advance(p);
                 add_child(program, parse_struct_definition(p));
+            } else if (check(p, TOKEN_PASSTHROUGH)) {
+                Token* pass = advance(p);
+                add_child(program, create_node(AST_PASSTHROUGH, pass->text));
+                token_free(pass);
             } else {
                 parser_error(p, "Only function, struct, or preprocessor directives are allowed at the top level.");
                 token_free(advance(p));
@@ -1824,7 +1858,9 @@ static void emit_node(ASTNode* node) {
         case AST_EXPRESSION:
             if (node->child_count > 0) emit_node(node->children[0]);
             break;
-
+        case AST_PASSTHROUGH:
+            fprintf(output_file, "%s", node->value);
+            break;
         default:
             if (node->child_count > 0) {
                 if (node->type == AST_EXPRESSION) {
