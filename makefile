@@ -1,11 +1,8 @@
-# Makefile for the Dust Compiler
-
 CC = gcc
 CFLAGS = -std=c99 -Wall -Wextra -g
 TARGET = dustc
 
-# NEW: Added utils.c to the list of source files
-SRCS = main.c lexer.c parser.c codegen.c component_system.c type_table.c utils.c
+SRCS = dust.c
 OBJS = $(SRCS:.c=.o)
 
 all: $(TARGET)

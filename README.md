@@ -79,20 +79,23 @@ The Dust compiler leverages a **component-based system** to look up the correct 
 
 ```c
 //test7.dust
+// ===== test7.dust - DEFINITIVELY CORRECTED =====
 #include <stdio.h>
 #include <stdbool.h>
 
+// --- Structs and User-Defined Types ---
 struct Point {
     x_i;
     y_i;
 };
 
 
-func print_point_v(p_Point) {
-    printf("Point(x: %d, y: %d)\n", p_Point->x, p_Point->y);
+func print_point_v(p_Pointb) {
+    printf("Point(x: %d, y: %d)\n", p_Pointb->x, p_Pointb->y);
 }
 
 
+// --- Testing Switch, Case, and Fallthrough ---
 func test_fallthrough_v(start_day_i) {
     printf("\n--- Testing Switch Fallthrough (starting from day %d) ---\n", start_day_i);
     switch (start_day_i) {
@@ -117,6 +120,7 @@ func test_fallthrough_v(start_day_i) {
 }
 
 
+// --- Testing Control Flow ---
 func test_control_flow_v() {
     printf("\n--- Testing Control Flow ---\n");
     
@@ -155,6 +159,7 @@ func test_control_flow_v() {
     printf("\n");
 }
 
+// --- Testing Operators and Expressions ---
 func test_operators_v() {
     printf("\n--- Testing Operators ---\n");
     let a_i = 10;
@@ -174,6 +179,7 @@ func test_operators_v() {
 }
 
 
+// --- Testing Pointers, Arrays, and sizeof ---
 func test_memory_features_v() {
     printf("\n--- Testing Memory Features ---\n");
 
@@ -187,16 +193,21 @@ func test_memory_features_v() {
     printf("Size of Point struct: %zu bytes\n", sizeof(Point));
     printf("Size of numbers array: %zu bytes\n", sizeof(numbers_ia));
     
+    // Pointers and Structs
     let my_point_Point = {100, 200};
 
-    let point_ptr_Point = &my_point_Point;
+    // FIX: The suffix is now _Pointp to correctly signify a pointer type.
+    let point_ptr_Pointp = &my_point_Point;
 
+    // Use the pointer to access the member
     printf("Access via pointer: %d\n", point_ptr_Point->x);
     
-    print_point_v(point_ptr_Point);
+    // Demonstrate passing a pointer to the print function
+    print_point_v(point_ptr_Pointp);
 }
 
 
+// --- Main Entry Point ---
 func main_i() {
     printf("--- Comprehensive Language Test Suite ---\n");
 
@@ -211,63 +222,40 @@ func main_i() {
 }
 ```
 ```
-dustc test7.dust ; gcc test7.c
-Successfully compiled 'test7.dust' to 'test7.c'
-test7.c: In function ‘test_memory_features_v’:
-test7.c:86:21: warning: initialization of ‘int *’ from ‘int’ makes pointer from integer without a cast [-Wint-conversion]
-   86 | int* numbers[5] = { 10, 20, 30, 40, 50 };
-      |                     ^~
-test7.c:86:21: note: (near initialization for ‘numbers[0]’)
-test7.c:86:25: warning: initialization of ‘int *’ from ‘int’ makes pointer from integer without a cast [-Wint-conversion]
-   86 | int* numbers[5] = { 10, 20, 30, 40, 50 };
-      |                         ^~
-test7.c:86:25: note: (near initialization for ‘numbers[1]’)
-test7.c:86:29: warning: initialization of ‘int *’ from ‘int’ makes pointer from integer without a cast [-Wint-conversion]
-   86 | int* numbers[5] = { 10, 20, 30, 40, 50 };
-      |                             ^~
-test7.c:86:29: note: (near initialization for ‘numbers[2]’)
-test7.c:86:33: warning: initialization of ‘int *’ from ‘int’ makes pointer from integer without a cast [-Wint-conversion]
-   86 | int* numbers[5] = { 10, 20, 30, 40, 50 };
-      |                                 ^~
-test7.c:86:33: note: (near initialization for ‘numbers[3]’)
-test7.c:86:37: warning: initialization of ‘int *’ from ‘int’ makes pointer from integer without a cast [-Wint-conversion]
-   86 | int* numbers[5] = { 10, 20, 30, 40, 50 };
-      |                                     ^~
-test7.c:86:37: note: (near initialization for ‘numbers[4]’)
-test7.c:87:24: warning: format ‘%d’ expects argument of type ‘int’, but argument 2 has type ‘int *’ [-Wformat=]
-   87 | printf("First number: %d\n", numbers[0]);
-      |                       ~^     ~~~~~~~~~~
-      |                        |            |
-      |                        int          int *
-      |                       %ls
-test7.c:88:24: warning: format ‘%d’ expects argument of type ‘int’, but argument 2 has type ‘int *’ [-Wformat=]
-   88 | printf("Third number: %d\n", numbers[2]);
-      |                       ~^     ~~~~~~~~~~
-      |                        |            |
-      |                        int          int *
-      |                       %ls
-test7.c:89:13: warning: assignment to ‘int *’ from ‘int’ makes pointer from integer without a cast [-Wint-conversion]
-   89 | (numbers[2] = 35);
-      |             ^
-test7.c:90:33: warning: format ‘%d’ expects argument of type ‘int’, but argument 2 has type ‘int *’ [-Wformat=]
-   90 | printf("Modified third number: %d\n", numbers[2]);
-      |                                ~^     ~~~~~~~~~~
-      |                                 |            |
-      |                                 int          int *
-      |                                %ls
-test7.c:95:19: error: invalid initializer
-   95 | Point point_ptr = &(my_point);
-      |                   ^
-test7.c:96:45: error: invalid type argument of ‘->’ (have ‘Point’)
-   96 | printf("Access via pointer: %d\n", point_ptr->x);
-      |                                             ^~
-test7.c:97:15: error: incompatible type for argument 1 of ‘print_point_v’
-   97 | print_point_v(point_ptr);
-      |               ^~~~~~~~~
-      |               |
-      |               Point
-test7.c:9:33: note: expected ‘const Point *’ but argument is of type ‘Point’
-    9 | void print_point_v(const Point* p) {
+--- Comprehensive Language Test Suite ---
+
+--- Testing Switch Fallthrough (starting from day 1) ---
+It's Monday. It's a weekday. Still a weekday. 
+--- Testing Switch Fallthrough (starting from day 5) ---
+End of the work week! It's the weekend!
+
+--- Testing Control Flow ---
+It's warm.
+For loop: 0 1 2 4 
+While loop: 3... 2... 1... Lift off!
+Do-While loop: 5 
+
+--- Testing Operators ---
+a = 10, b = 4
+a + b = 14
+a - b = 6
+a * b = 40
+a / b = 2
+a % b = 2
+Logical operators work!
+
+--- Testing Memory Features ---
+First number: 10
+Third number: 30
+Modified third number: 35
+Size of int: 4 bytes
+Size of Point struct: 8 bytes
+Size of numbers array: 20 bytes
+Access via pointer: 100
+Point(x: 100, y: 200)
+
+--- Test Suite Complete ---
+
 
 ```
 

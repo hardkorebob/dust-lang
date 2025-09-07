@@ -8,12 +8,10 @@ struct Point {
     y_i;
 };
 
-// --- Function to print a Point ---
-// FIX: Parameter is now a borrowed pointer (_Pointb), which is const.
-// This is safer and more idiomatic for a print function.
+
 func print_point_v(p_Pointb) {
     // The -> operator is correct for pointers.
-    printf("Point(x: %d, y: %d)\n", p_Point->x, p_Point->y);
+    printf("Point(x: %d, y: %d)\n", p_Pointb->x, p_Pointb->y);
 }
 
 
@@ -119,13 +117,13 @@ func test_memory_features_v() {
     let my_point_Point = {100, 200};
 
     // FIX: The suffix is now _Pointp to correctly signify a pointer type.
-    let point_ptr_Point = &my_point_Point;
+    let point_ptr_Pointp = &my_point_Point;
 
     // Use the pointer to access the member
     printf("Access via pointer: %d\n", point_ptr_Point->x);
     
     // Demonstrate passing a pointer to the print function
-    print_point_v(point_ptr_Point);
+    print_point_v(point_ptr_Pointp);
 }
 
 

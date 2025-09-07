@@ -9,20 +9,20 @@
 
 // ===== Basic Struct Definitions =====
 struct Vector2D {
-    let x_f;
-    let y_f;
+    x_f;
+    y_f;
 };
 
 struct Player {
-    let name_s;
-    let position_Vector2D;  // Embedded struct value
-    let health_i;
-    let is_alive_b;
+    name_s;
+    position_Vector2D;  // Embedded struct value
+    health_i;
+    is_alive_b;
 };
 
 struct Node {
-    let value_i;
-    let next_Node_p;  // <<< FIX: Corrected from next_Nodep to next_Node_p
+    value_i;
+    next_Node_p;  // <<< FIX: Corrected from next_Nodep to next_Node_p
 };
 
 // ===== Test Basic Type Suffixes =====
