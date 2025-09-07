@@ -85,7 +85,8 @@ typedef enum {
     TYPE_POINTER,
     TYPE_ARRAY,
     TYPE_BOOL,
-    TYPE_USER
+    TYPE_USER,
+    TYPE_FUNC_POINTER,
 } DataType;
 
 typedef enum {
@@ -202,13 +203,6 @@ bool suffix_parse(const char* full_variable_name, const TypeTable* type_table, S
         return true; 
     }
     
-    // Similar for float, char pointers...
-    if (strcmp(suffix_str, "fp") == 0) { 
-        result_info->type = TYPE_FLOAT; 
-        result_info->is_pointer = true; 
-        result_info->role = ROLE_OWNED; 
-        return true; 
-    }
     if (strcmp(suffix_str, "cp") == 0) { 
         result_info->type = TYPE_CHAR; 
         result_info->is_pointer = true; 
@@ -223,6 +217,12 @@ bool suffix_parse(const char* full_variable_name, const TypeTable* type_table, S
         result_info->is_const = true; 
         result_info->role = ROLE_BORROWED; 
         return true; 
+    }
+    // Function Pointers
+    if (strcmp(suffix_str, "fp") == 0) {
+        result_info->type = TYPE_FUNC_POINTER;
+        result_info->is_pointer = true;
+        return true;
     }
 
     // User-defined types and their pointers
@@ -564,6 +564,7 @@ typedef enum {
     AST_DIRECTIVE,
     AST_MEMBER_ACCESS,
     AST_TERNARY_OP,
+    AST_FUNC_PTR_DECL,
 } ASTType;
 
 typedef struct ASTNode {
@@ -655,16 +656,26 @@ static void expect(Parser* p, TokenType type, const char* text, const char* erro
 }
 
 // Forward declarations for expression parsing
+static ASTNode* parse_member_access(Parser* p);
 static ASTNode* parse_ternary(Parser* p);
 static ASTNode* parse_logical_or(Parser* p);
 static ASTNode* parse_initializer_list(Parser* p);
+static ASTNode* parse_call(Parser* p);
 
 static ASTNode* parse_primary(Parser* p) {
     // Initializer lists
     if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "{") == 0) {
         return parse_initializer_list(p);
     }
-    
+    if (check(p, TOKEN_IDENTIFIER)) {
+        Token* tok = advance(p);
+        ASTNode* node = create_node(AST_IDENTIFIER, tok->base_name ? tok->base_name : tok->text);
+        if (tok->base_name) {
+            node->suffix_info = tok->suffix_info;
+        }
+        token_free(tok);
+        return node;
+    }
     // Numbers
     if (check(p, TOKEN_NUMBER)) {
         Token* tok = advance(p);
@@ -706,33 +717,7 @@ static ASTNode* parse_primary(Parser* p) {
         expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after sizeof argument.");
         return node;
     }
-        
-    // Identifiers and function calls
-    if (check(p, TOKEN_IDENTIFIER)) {
-        Token* tok = advance(p);
-        
-        // Function call
-        if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "(") == 0) {
-            advance(p);
-            ASTNode* call = create_node(AST_CALL, tok->base_name ? tok->base_name : tok->text);
-            if (tok->base_name) call->suffix_info = tok->suffix_info;
-            
-            if (!(check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ")") == 0)) {
-                do {
-                    add_child(call, parse_expression(p));
-                } while (match_and_consume(p, TOKEN_PUNCTUATION, ","));
-            }
-            expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after function arguments.");
-            token_free(tok);
-            return call;
-        }
-        
-        // Regular identifier
-        ASTNode* node = create_node(AST_IDENTIFIER, tok->base_name ? tok->base_name : tok->text);
-        if (tok->base_name) node->suffix_info = tok->suffix_info;
-        token_free(tok);
-        return node;
-    }
+
     
     // Parenthesized expression
     if (match_and_consume(p, TOKEN_PUNCTUATION, "(")) {
@@ -743,6 +728,27 @@ static ASTNode* parse_primary(Parser* p) {
     
     parser_error(p, "Expected expression.");
     return NULL;
+}
+
+static ASTNode* parse_call(Parser* p) {
+    ASTNode* expr = parse_member_access(p);
+
+    while (match_and_consume(p, TOKEN_PUNCTUATION, "(")) {
+        ASTNode* call_node = create_node(AST_CALL, NULL);
+        // The thing being called is the expression we just parsed
+        add_child(call_node, expr);
+        
+        // Now parse the arguments
+        if (!check(p, TOKEN_PUNCTUATION) || strcmp(p->current->text, ")") != 0) {
+            do {
+                add_child(call_node, parse_expression(p));
+            } while (match_and_consume(p, TOKEN_PUNCTUATION, ","));
+        }
+        expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after arguments.");
+        expr = call_node;
+    }
+
+    return expr;
 }
 
 static ASTNode* parse_subscript(Parser* p) {
@@ -804,7 +810,7 @@ static ASTNode* parse_unary(Parser* p) {
         token_free(op_tok);
         return node;
     }
-    return parse_member_access(p);
+    return parse_call(p);
 }
 
 static ASTNode* parse_multiplicative(Parser* p) {
@@ -1180,14 +1186,44 @@ static ASTNode* parse_struct_definition(Parser* p) {
             return NULL;
         }
         
-        if (check(p, TOKEN_IDENTIFIER)) {
+    if (check(p, TOKEN_IDENTIFIER)) {
             Token* member_tok = advance(p);
-            ASTNode* member_node = create_node(AST_VAR_DECL, 
-                member_tok->base_name ? member_tok->base_name : member_tok->text);
-            if (member_tok->base_name) {
+
+            // Check if the member is a function pointer
+            if (member_tok->suffix_info.type == TYPE_FUNC_POINTER) {
+                ASTNode* fp_node = create_node(AST_FUNC_PTR_DECL, member_tok->base_name);
+                
+                expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' for function pointer signature.");
+                
+                // Parse return type and parameter types
+                do {
+                    if (p->current->type != TOKEN_IDENTIFIER) {
+                        parser_error(p, "Expected a type specifier (e.g., dummy_i) in signature.");
+                        break;
+                    }
+                    Token* type_tok = advance(p);
+                    ASTNode* type_node = create_node(AST_IDENTIFIER, NULL); // Name doesn't matter
+                    type_node->suffix_info = type_tok->suffix_info;
+                    add_child(fp_node, type_node);
+                    token_free(type_tok);
+                } while (match_and_consume(p, TOKEN_PUNCTUATION, ","));
+
+                expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' to close signature.");
+                add_child(struct_node, fp_node);
+
+            } else { // It's a regular variable or array
+                ASTNode* member_node = create_node(AST_VAR_DECL,
+                    member_tok->base_name ? member_tok->base_name : member_tok->text);
                 member_node->suffix_info = member_tok->suffix_info;
+                
+                // Check for array declaration
+                if (match_and_consume(p, TOKEN_PUNCTUATION, "[")) {
+                    add_child(member_node, parse_expression(p));
+                    expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after array size.");
+                }
+                add_child(struct_node, member_node);
             }
-            add_child(struct_node, member_node);
+
             token_free(member_tok);
             expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after struct member.");
         } else {
@@ -1520,9 +1556,9 @@ static void emit_node(ASTNode* node) {
             break;
             
         case AST_UNARY_OP:
-            fprintf(output_file, "%s(", node->value);
+            fprintf(output_file, "%s", node->value); 
             emit_node(node->children[0]);
-            fprintf(output_file, ")");
+            
             break;
             
         case AST_TERNARY_OP:
@@ -1536,9 +1572,16 @@ static void emit_node(ASTNode* node) {
             break;
             
         case AST_CALL:
-            fprintf(output_file, "%s(", node->value);
-            for (int i = 0; i < node->child_count; i++) {
-                if (i > 0) fprintf(output_file, ", ");
+            if (node->child_count < 1) break; // Should not happen
+            
+            // Child 0 is the callee (the function name or expression)
+            emit_node(node->children[0]);
+            
+            fprintf(output_file, "(");
+            
+            // Children 1 to N are the arguments
+            for (int i = 1; i < node->child_count; i++) {
+                if (i > 1) fprintf(output_file, ", ");
                 emit_node(node->children[i]);
             }
             fprintf(output_file, ")");
@@ -1581,12 +1624,47 @@ static void emit_node(ASTNode* node) {
             fprintf(output_file, "struct %s {\n", node->value);
             for (int i = 0; i < node->child_count; i++) {
                 fprintf(output_file, "    ");
-                emit_var_decl(node->children[i]);
+                ASTNode* member = node->children[i];
+                if (member->type == AST_VAR_DECL) {
+                    const char* c_type = get_c_type(&member->suffix_info);
+                    fprintf(output_file, "%s %s", c_type, member->value);
+                    if (member->suffix_info.type == TYPE_ARRAY) {
+                        fprintf(output_file, "[");
+                        if (member->child_count > 0) {
+                            emit_node(member->children[0]); // Emit array size
+                        }
+                        fprintf(output_file, "]");
+                    }
+                } else {
+                     emit_node(member); // For function pointers
+                }
                 fprintf(output_file, ";\n");
             }
             fprintf(output_file, "};");
             break;
+
+        case AST_FUNC_PTR_DECL:
+            if (node->child_count < 1) break; // Invalid signature
             
+            // Child 0 is the return type
+            const char* return_type = get_c_type(&node->children[0]->suffix_info);
+            fprintf(output_file, "    %s (*%s)(", return_type, node->value);
+
+            // Children 1..N are the parameter types
+            for (int i = 1; i < node->child_count; i++) {
+                if (i > 1) fprintf(output_file, ", ");
+                const char* param_type = get_c_type(&node->children[i]->suffix_info);
+                fprintf(output_file, "%s", param_type);
+            }
+            // Handle case of no parameters (e.g. func(void))
+            if (node->child_count == 1) {
+                if(node->children[0]->suffix_info.type != TYPE_VOID){
+                     fprintf(output_file, "void");
+                }
+            }
+            fprintf(output_file, ");\n");
+            break;   
+         
         case AST_SUBSCRIPT:
             emit_node(node->children[0]);
             fprintf(output_file, "[");

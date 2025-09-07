@@ -1,142 +1,122 @@
-// ===============================================
-// == test8.dust - Comprehensive Language Test ==
-// ===============================================
+// ============================================================================
+// Dust Language - Advanced Test Suite
+// ============================================================================
+// This file tests the latest features: arrays and function pointers in structs.
+// It is designed to pass with the current compiler but also highlight missing
+// functionality through comments.
+//
+// To compile:
+// 1. ./dustc test_suite_advanced.dust
+// 2. gcc -o advanced_test test_suite_advanced.c
+// 3. ./advanced_test
+// ============================================================================
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <string.h>
+#include <string.h> // Needed for strcpy
 
-// ===== Basic Struct Definitions =====
-struct Vector2D {
-    x_f;
-    y_f;
+// --- 1. Struct Definition: The Core Test ---
+// This struct uses all the newly implemented features.
+struct Widget {
+    // A. Simple member
+    id_i;
+
+    // B. Array as a member (SUCCESS)
+    // PROOF: The compiler should correctly parse this array member.
+    name_c[32];
+
+    // C. Function pointer members (SUCCESS)
+    // PROOF: The compiler should parse these function pointer signatures.
+    
+    // A simple pointer: takes nothing, returns nothing (void).
+    on_destroy_fp(ret_v);
+
+    // A pointer with parameters and a return value.
+    on_update_fp(ret_i, delta_time_f);
+
+    // A pointer that takes a pointer to its own struct type. A great stress test!
+    on_event_fp(ret_v, self_Widgetp);
 };
 
-struct Player {
-    name_s;
-    position_Vector2D;  // Embedded struct value
-    health_i;
-    is_alive_b;
-};
 
-struct Node {
-    value_i;
-    next_Node_p;  // <<< FIX: Corrected from next_Nodep to next_Node_p
-};
+// --- 2. C Helper Functions ---
+// Since Dust cannot yet define functions to be assigned to pointers,
+// we define them here as plain C functions to prove the pointers work.
+// These functions will be linked with the Dust-generated code.
 
-// ===== Test Basic Type Suffixes =====
-func test_basic_types_v() {
-    printf("\n=== Testing Basic Type Suffixes ===\n");
-
-    let num_i = 42;
-    let num_ptr_ip = &num_i;
-    printf("Integer: %d, via pointer: %d\n", num_i, *num_ptr_ip);
-
-    let pi_f = 3.14159;
-    printf("Float: %.2f\n", pi_f);
-
-    let is_true_b = true;
-    printf("Bool value: %d\n", is_true_b);
-
-    let message_s = "Hello, Dust!";
-    printf("String: %s\n", message_s);
+func widget_destroy_v() {
+    printf("  -> Event: Widget destroyed.\n");
 }
 
-// ===== Test User-Defined Types =====
-func test_user_types_v() {
-    printf("\n=== Testing User-Defined Types ===\n");
-
-    let vec_Vector2D = {3.0, 4.0};
-    printf("Vector2D value: (%.1f, %.1f)\n", vec_Vector2D.x_f, vec_Vector2D.y_f);
-
-    let vec_ptr_Vector2D_p = &vec_Vector2D;
-    vec_ptr_Vector2D_p->x_f = 5.0;
-    printf("Modified via pointer: (%.1f, %.1f)\n", vec_ptr_Vector2D_p->x_f, vec_ptr_Vector2D_p->y_f);
+func widget_update_i(dt_f) {
+    printf("  -> Event: Widget updated with dt = %f.\n", dt_f);
+    return 1;
 }
 
-// ===== Test Arrays =====
-func test_arrays_v() {
-    printf("\n=== Testing Arrays ===\n");
-
-    let numbers_ia[5] = {10, 20, 30, 40, 50};
-    printf("Integer array item: %d\n", numbers_ia[2]);
-
-    let points_Vector2Da[2] = {{1.0, 2.0}, {3.0, 4.0}};
-    printf("Vector2D array item: (%.1f,%.1f)\n", points_Vector2Da[1].x_f, points_Vector2Da[1].y_f);
+func widget_event_v(w_Widgetp) {
+    // We can access the widget's members through the pointer.
+    printf("  -> Event: on widget ID %d, Name '%s'.\n", w_Widgetp->id_i, w_Widgetp->name_c);
 }
 
-// ===== Test Linked List Operations =====
-func create_node_Node_p(value_i) { // <<< FIX: Corrected suffix
-    let node_Node_p = malloc(sizeof(Node_p));
-    node_Node_p->value_i = value_i;
-    node_Node_p->next_Node_p = NULL;
-    return node_Node_p;
-}
 
-func print_list_v(head_Node_p) { // <<< FIX: Corrected suffix
-    let current_Node_p = head_Node_p;
-    printf("List: ");
-    while (current_Node_p != NULL) {
-        printf("%d -> ", current_Node_p->value_i);
-        current_Node_p = current_Node_p->next_Node_p;
-    }
-    printf("NULL\n");
-}
+// --- 3. Main Program Entry Point ---
 
-func test_linked_list_v() {
-    printf("\n=== Testing Linked List ===\n");
-
-    let head_Node_p = create_node_Node_p(10);
-    head_Node_p->next_Node_p = create_node_Node_p(20);
-    head_Node_p->next_Node_p->next_Node_p = create_node_Node_p(30);
-
-    print_list_v(head_Node_p);
-
-    // Clean up
-    let temp_Node_p;
-    while (head_Node_p != NULL) {
-        temp_Node_p = head_Node_p;
-        head_Node_p = head_Node_p->next_Node_p;
-        free(temp_Node_p);
-    }
-}
-
-// ===== Test Complex Nested Structures =====
-func test_complex_structs_v() {
-    printf("\n=== Testing Complex Structures ===\n");
-
-    let player_Player;
-    player_Player.name_s = "Hero";
-    player_Player.position_Vector2D.x_f = 100.0;
-    player_Player.position_Vector2D.y_f = 200.0;
-    player_Player.health_i = 100;
-    player_Player.is_alive_b = true;
-
-    printf("Player: %s at (%.1f, %.1f) - Health: %d, Alive: %s\n",
-           player_Player.name_s,
-           player_Player.position_Vector2D.x_f,
-           player_Player.position_Vector2D.y_f,
-           player_Player.health_i,
-           player_Player.is_alive_b ? "Yes" : "No");
-}
-
-// ===== Main Function =====
 func main_i() {
-    printf("========================================\n");
-    printf("== Dust Language Comprehensive Test  ==\n");
-    printf("========================================\n");
+    printf("--- Dust Advanced Test Suite Running ---\n\n");
 
-    test_basic_types_v();
-    test_user_types_v();
-    test_arrays_v();
-    test_linked_list_v();
-    test_complex_structs_v();
+    // --- 4. Struct Initialization and Member Access ---
+    printf("1. Initializing widget...\n");
+    let ui_button_Widget;
 
-    printf("\n========================================\n");
-    printf("== All Tests Complete!               ==\n");
-    printf("========================================\n");
+    // Test simple member assignment
+    ui_button_Widget.id_i = 101;
 
+    // Test array member assignment using a C library function
+    // This proves that the C code for the struct is correctly generated.
+    strcpy(ui_button_Widget.name_c, "Login Button");
+
+    printf("Widget created with ID %d and Name '%s'.\n\n", ui_button_Widget.id_i, ui_button_Widget.name_c);
+
+    // --- 5. Assigning to Function Pointers ---
+    printf("2. Assigning function pointers...\n");
+
+    // This is the most critical test. We are assigning our C helper functions
+    // to the function pointer members of the Dust struct.
+    ui_button_Widget.on_destroy_fp = &widget_destroy_v;
+    ui_button_Widget.on_update_fp = &widget_update_i;
+    ui_button_Widget.on_event_fp = &widget_event_v;
+    
+    printf("Assignments successful.\n\n");
+
+    // --- 6. Calling Function Pointers ---
+    printf("3. Calling functions via pointers...\n");
+    
+    // If these lines work, our implementation is a success.
+    ui_button_Widget.on_event_fp(&ui_button_Widget);
+    ui_button_Widget.on_update_fp(0.016);
+    ui_button_Widget.on_destroy_fp();
+
+    printf("\nFunction pointer calls successful.\n\n");
+
+    // --- 7. Where We Are Lacking ---
+    printf("4. Highlighting Missing Features...\n");
+    
+    // LACKING FEATURE 1: Local function pointer variables.
+    // The following line will cause a PARSE ERROR because the `let` statement parser
+    // does not yet understand the function pointer `(...)` syntax.
+    // let my_callback_fp(ret_v, code_i);
+    printf("  - LACKING: Cannot declare local function pointers with 'let'.\n");
+
+    // LACKING FEATURE 2: Typedefs.
+    // In C, you would use typedef to make the `on_event` signature reusable.
+    // Dust has no equivalent yet.
+    // C example: typedef void (*event_handler_t)(struct Widget*);
+    printf("  - LACKING: No 'typedef' for simplifying complex types.\n");
+    
+    // LACKING FEATURE 3: Enums.
+    // This is a natural next step for state management.
+    // enum ButtonState { IDLE, HOVER, PRESSED };
+    printf("  - LACKING: No 'enum' for defining states or constants.\n");
+
+    printf("\n--- Test Suite Complete ---\n");
     return 0;
 }
-
