@@ -1,0 +1,142 @@
+// ===============================================
+// == test8.dust - Comprehensive Language Test ==
+// ===============================================
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
+
+// ===== Basic Struct Definitions =====
+struct Vector2D {
+    let x_f;
+    let y_f;
+};
+
+struct Player {
+    let name_s;
+    let position_Vector2D;  // Embedded struct value
+    let health_i;
+    let is_alive_b;
+};
+
+struct Node {
+    let value_i;
+    let next_Node_p;  // <<< FIX: Corrected from next_Nodep to next_Node_p
+};
+
+// ===== Test Basic Type Suffixes =====
+func test_basic_types_v() {
+    printf("\n=== Testing Basic Type Suffixes ===\n");
+
+    let num_i = 42;
+    let num_ptr_ip = &num_i;
+    printf("Integer: %d, via pointer: %d\n", num_i, *num_ptr_ip);
+
+    let pi_f = 3.14159;
+    printf("Float: %.2f\n", pi_f);
+
+    let is_true_b = true;
+    printf("Bool value: %d\n", is_true_b);
+
+    let message_s = "Hello, Dust!";
+    printf("String: %s\n", message_s);
+}
+
+// ===== Test User-Defined Types =====
+func test_user_types_v() {
+    printf("\n=== Testing User-Defined Types ===\n");
+
+    let vec_Vector2D = {3.0, 4.0};
+    printf("Vector2D value: (%.1f, %.1f)\n", vec_Vector2D.x_f, vec_Vector2D.y_f);
+
+    let vec_ptr_Vector2D_p = &vec_Vector2D;
+    vec_ptr_Vector2D_p->x_f = 5.0;
+    printf("Modified via pointer: (%.1f, %.1f)\n", vec_ptr_Vector2D_p->x_f, vec_ptr_Vector2D_p->y_f);
+}
+
+// ===== Test Arrays =====
+func test_arrays_v() {
+    printf("\n=== Testing Arrays ===\n");
+
+    let numbers_ia[5] = {10, 20, 30, 40, 50};
+    printf("Integer array item: %d\n", numbers_ia[2]);
+
+    let points_Vector2Da[2] = {{1.0, 2.0}, {3.0, 4.0}};
+    printf("Vector2D array item: (%.1f,%.1f)\n", points_Vector2Da[1].x_f, points_Vector2Da[1].y_f);
+}
+
+// ===== Test Linked List Operations =====
+func create_node_Node_p(value_i) { // <<< FIX: Corrected suffix
+    let node_Node_p = malloc(sizeof(Node_p));
+    node_Node_p->value_i = value_i;
+    node_Node_p->next_Node_p = NULL;
+    return node_Node_p;
+}
+
+func print_list_v(head_Node_p) { // <<< FIX: Corrected suffix
+    let current_Node_p = head_Node_p;
+    printf("List: ");
+    while (current_Node_p != NULL) {
+        printf("%d -> ", current_Node_p->value_i);
+        current_Node_p = current_Node_p->next_Node_p;
+    }
+    printf("NULL\n");
+}
+
+func test_linked_list_v() {
+    printf("\n=== Testing Linked List ===\n");
+
+    let head_Node_p = create_node_Node_p(10);
+    head_Node_p->next_Node_p = create_node_Node_p(20);
+    head_Node_p->next_Node_p->next_Node_p = create_node_Node_p(30);
+
+    print_list_v(head_Node_p);
+
+    // Clean up
+    let temp_Node_p;
+    while (head_Node_p != NULL) {
+        temp_Node_p = head_Node_p;
+        head_Node_p = head_Node_p->next_Node_p;
+        free(temp_Node_p);
+    }
+}
+
+// ===== Test Complex Nested Structures =====
+func test_complex_structs_v() {
+    printf("\n=== Testing Complex Structures ===\n");
+
+    let player_Player;
+    player_Player.name_s = "Hero";
+    player_Player.position_Vector2D.x_f = 100.0;
+    player_Player.position_Vector2D.y_f = 200.0;
+    player_Player.health_i = 100;
+    player_Player.is_alive_b = true;
+
+    printf("Player: %s at (%.1f, %.1f) - Health: %d, Alive: %s\n",
+           player_Player.name_s,
+           player_Player.position_Vector2D.x_f,
+           player_Player.position_Vector2D.y_f,
+           player_Player.health_i,
+           player_Player.is_alive_b ? "Yes" : "No");
+}
+
+// ===== Main Function =====
+func main_i() {
+    printf("========================================\n");
+    printf("== Dust Language Comprehensive Test  ==\n");
+    printf("========================================\n");
+
+    test_basic_types_v();
+    test_user_types_v();
+    test_arrays_v();
+    test_linked_list_v();
+    test_complex_structs_v();
+
+    printf("\n========================================\n");
+    printf("== All Tests Complete!               ==\n");
+    printf("========================================\n");
+
+    return 0;
+}
+

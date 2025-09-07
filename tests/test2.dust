@@ -1,0 +1,77 @@
+// ===============================
+// == Guess the Number in Dust! ==
+// ===============================
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <stdbool.h>
+
+#define MIN_NUMBER 1
+#define MAX_NUMBER 10
+
+// The Game struct holds all the information about a single game session.
+struct Game {
+    secret_number_i;
+    last_guess_i;
+    attempts_i;
+};
+
+// Prints the welcome message to the player.
+func printWelcome_v() {
+    printf("=============================\n");
+    printf("= Welcome to Guess the Number =\n");
+    printf("=============================\n");
+    printf("I'm thinking of a number between %d and %d.\n", MIN_NUMBER, MAX_NUMBER);
+}
+
+// Prompts the player for their guess and returns the integer they enter.
+func getPlayerGuess_i() {
+    let guess_i = 0;
+    printf("Enter your guess: ");
+    scanf("%d", &guess_i);
+    return guess_i;
+}
+
+// Checks the guess against the secret number and prints the result.
+// ===== test2.dust (Corrected Snippet) =====
+
+// The function signature is now unambiguous.
+func checkGuess_v(game_Gameb, guess_i) {
+    if (guess_i < game_Gameb->secret_number_i) {
+        printf("--> Too low! Try again.\n");
+    } else if (guess_i > game_Gameb->secret_number_i) {
+        printf("--> Too high! Try again.\n");
+    } else {
+        printf("--> You got it! The number was %d.\n", game_Gameb->secret_number_i);
+    }
+}
+
+// The main entry point of our program.
+func main_i() {
+    // Seed the random number generator using the current time
+    srand(time(NULL));
+
+    printWelcome_v();
+
+    // Create a new game instance on the stack
+    let game_Game;
+    let secret_i = (rand() % MAX_NUMBER) + MIN_NUMBER;
+    game_Game.secret_number_i = secret_i;
+
+    // Get the player's guess
+    let player_guess_i = getPlayerGuess_i();
+
+    // Check the guess
+    checkGuess_v(&game_Game, player_guess_i);
+
+    // If they didn't get it right on the first try, give them one more chance!
+    if (player_guess_i != game_Game.secret_number_i) {
+        let second_guess_i = getPlayerGuess_i();
+        checkGuess_v(&game_Game, second_guess_i);
+    }
+
+    return 0;
+}
+
+

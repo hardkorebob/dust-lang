@@ -1,0 +1,50 @@
+#include <stdio.h>
+
+#define DATA_SIZE 15
+
+// A struct to hold our calculation results
+struct AnalysisResult {
+    sum_i;
+    average_f;
+};
+
+// Uses a for loop to calculate the sum of an array's elements
+func calculate_sum_i(data_ia, size_i) {
+    let total_i = 0;
+    for (let i_i = 0; i_i < size_i; i_i = i_i + 1) {
+        total_i = total_i + data_ia[i_i];
+    }
+    return total_i;
+}
+
+// Main program entry point
+func main_i() {
+    printf("--- For Loop Test Program ---\n");
+    
+    let data_ia[DATA_SIZE];
+    
+    // Test 1: Initialize an array with a for loop
+    printf("1. Initializing data array...\n");
+    for (let i_i = 0; i_i < DATA_SIZE; i_i = i_i + 1) {
+        data_ia[i_i] = i_i * 3;
+    }
+    
+    // Test 2: Print the array with a for loop
+    printf("2. Array contents:\n");
+    for (let i_i = 0; i_i < DATA_SIZE; i_i = i_i + 1) {
+        printf("   data[%d] = %d\n", i_i, data_ia[i_i]);
+    }
+    
+    // Test 3: Use a for loop and struct
+    printf("3. Analyzing data...\n");
+    let results_AnalysisResult;
+    results_AnalysisResult.sum_i = calculate_sum_i(data_ia, DATA_SIZE);
+    results_AnalysisResult.average_f = results_AnalysisResult.sum_i / DATA_SIZE;
+    
+    printf("   Sum of all elements is: %d\n", results_AnalysisResult.sum_i);
+    printf("   Average of all elements is: %f\n", results_AnalysisResult.average_f);
+
+    printf("--- Test Complete ---\n");
+    
+    return 0;
+}
