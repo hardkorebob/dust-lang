@@ -158,6 +158,197 @@ func lexer_create_Lexerp(source_cp) {
     
     return lex_Lexerp;
 }
+
+// Skip whitespace
+func skip_whitespace_v(lex_Lexerp) {
+    while (lex_Lexerp->pos < lex_Lexerp->len) {
+        let c_c = lex_Lexerp->source[lex_Lexerp->pos];
+        
+        if (isspace(c_c)) {
+            if (c_c == '\n') {
+                lex_Lexerp->line = lex_Lexerp->line + 1;
+            }
+            lex_Lexerp->pos = lex_Lexerp->pos + 1;
+        } else {
+            break;
+        }
+    }
+}
+
+// Get next token - demonstrates complex logic in Dust
+func lexer_next_Tokenp(lex_Lexerp) {
+    skip_whitespace_v(lex_Lexerp);
+    
+    // Check for EOF
+    if (lex_Lexerp->pos >= lex_Lexerp->len) {
+        return make_token_Tokenp(TOKEN_EOF, "", lex_Lexerp->line);
+    }
+    
+    let start_i = lex_Lexerp->pos;
+    let c_c = lex_Lexerp->source[lex_Lexerp->pos];
+    
+    // Identifiers and keywords
+    if (isalpha(c_c) || c_c == '_') {
+        while (lex_Lexerp->pos < lex_Lexerp->len) {
+            let ch_c = lex_Lexerp->source[lex_Lexerp->pos];
+            if (isalnum(ch_c) || ch_c == '_') {
+                lex_Lexerp->pos = lex_Lexerp->pos + 1;
+            } else {
+                break;
+            }
+        }
+        
+        // Extract the word
+        let len_i = lex_Lexerp->pos - start_i;
+        let word_cp = cast_cp(malloc(len_i + 1));
+        memcpy(word_cp, lex_Lexerp->source + start_i, len_i);
+        word_cp[len_i] = '\0';
+        
+        // Check if it's a keyword
+        let type_i = TOKEN_IDENTIFIER;
+        if (strcmp(word_cp, "if") == 0 || strcmp(word_cp, "while") == 0) {
+            type_i = TOKEN_KEYWORD;
+        }
+        
+        let tok_Tokenp = make_token_Tokenp(type_i, word_cp, lex_Lexerp->line);
+        free(word_cp);
+        return tok_Tokenp;
+    }
+    
+    // Numbers
+    if (isdigit(c_c)) {
+        while (lex_Lexerp->pos < lex_Lexerp->len && isdigit(lex_Lexerp->source[lex_Lexerp->pos])) {
+            lex_Lexerp->pos = lex_Lexerp->pos + 1;
+        }
+        
+        let len_i = lex_Lexerp->pos - start_i;
+        let num_cp = cast_cp(malloc(len_i + 1));
+        memcpy(num_cp, lex_Lexerp->source + start_i, len_i);
+        num_cp[len_i] = '\0';
+        
+        let tok_Tokenp = make_token_Tokenp(TOKEN_NUMBER, num_cp, lex_Lexerp->line);
+        free(num_cp);
+        return tok_Tokenp;
+    }
+    
+    // Single character operator
+    lex_Lexerp->pos = lex_Lexerp->pos + 1;
+    let op_ca[2];
+    op_c[0] = c_c;
+    op_c[1] = '\0';
+    
+    return make_token_Tokenp(TOKEN_OPERATOR, op_ca, lex_Lexerp->line);
+}
+
+// Test string parsing capabilities
+func test_string_handling_v() {
+    printf("Testing string operations:\n");
+    
+    let test_s = "Hello, Dust!";
+    let copy_cp = cast_cp(malloc(strlen(test_s) + 1));
+    strcpy(copy_cp, test_s);
+    
+    printf("  Original: %s\n", test_s);
+    printf("  Copy: %s\n", copy_cp);
+    
+    // Modify the copy
+    copy_cp[0] = 'J';
+    printf("  Modified: %s\n", copy_cp);
+    
+    free(copy_cp);
+}
+
+// Test array operations
+func test_arrays_v() {
+    printf("\nTesting array operations:\n");
+    
+    let nums_ia[10];
+    let i_i = 0;
+    
+    // Initialize array
+    while (i_i < 10) {
+        nums_ia[i_i] = i_i * i_i;
+        i_i = i_i + 1;
+    }
+    
+    // Print some values
+    printf("  nums[0] = %d\n", nums_ia[0]);
+    printf("  nums[5] = %d\n", nums_ia[5]);
+    printf("  nums[9] = %d\n", nums_ia[9]);
+}
+
+// Main test function
+func main_i() {
+    printf("=== Dust Self-Hosting Capability Test ===\n\n");
+    
+    // Test 1: String handling
+    test_string_handling_v();
+    
+    // Test 2: Arrays
+    test_arrays_v();
+    
+    // Test 3: Lexer functionality
+    printf("\nTesting lexer:\n");
+    let source_s = "if x 123 + while";
+    let lex_Lexerp = lexer_create_Lexerp(source_s);
+    
+    if (lex_Lexerp == null) {
+        printf("  Failed to create lexer\n");
+        return 1;
+    }
+    
+    printf("  Tokenizing: '%s'\n", source_s);
+    
+    // Tokenize and print
+    let token_count_i = 0;
+    while (1) {
+        let tok_Tokenp = lexer_next_Tokenp(lex_Lexerp);
+        
+        if (tok_Tokenp->type == TOKEN_EOF) {
+            token_free_v(tok_Tokenp);
+            break;
+        }
+        
+        printf("    Token %d: type=%d, text='%s', line=%d\n", 
+               token_count_i, tok_Tokenp->type, tok_Tokenp->text, tok_Tokenp->line);
+        
+        token_count_i = token_count_i + 1;
+        token_free_v(tok_Tokenp);
+    }
+    
+    printf("  Total tokens: %d\n", token_count_i);
+    
+    // Cleanup
+    free(lex_Lexerp);
+    
+    printf("\n=== All tests passed! ===\n");
+    return 0;
+}
+```
+```
+=== Dust Self-Hosting Capability Test ===
+
+Testing string operations:
+  Original: Hello, Dust!
+  Copy: Hello, Dust!
+  Modified: Jello, Dust!
+
+Testing array operations:
+  nums[0] = 0
+  nums[5] = 25
+  nums[9] = 81
+
+Testing lexer:
+  Tokenizing: 'if x 123 + while'
+    Token 0: type=3, text='if', line=1
+    Token 1: type=1, text='x', line=1
+    Token 2: type=2, text='123', line=1
+    Token 3: type=4, text='+', line=1
+    Token 4: type=3, text='while', line=1
+  Total tokens: 5
+
+=== All tests passed! ===
+
 ```
 
 Will you please help me clean up all this Dust?

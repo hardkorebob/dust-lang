@@ -37,10 +37,10 @@ srand(time(NULL));
 printWelcome();
 Game game;
 int secret = ((rand() % MAX_NUMBER) + MIN_NUMBER);
-(game.secret_number_i = secret);
+(game.secret_number = secret);
 int player_guess = getPlayerGuess();
 checkGuess(&game, player_guess);
-if ((player_guess != game.secret_number_i)) {
+if ((player_guess != game.secret_number)) {
 int second_guess = getPlayerGuess();
 checkGuess(&game, second_guess);
 }

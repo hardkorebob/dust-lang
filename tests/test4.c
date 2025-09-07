@@ -26,10 +26,10 @@ printf("   data[%d] = %d\n", i, data[i]);
 }
 printf("3. Analyzing data...\n");
 AnalysisResult results;
-(results.sum_i = calculate_sum(data, DATA_SIZE));
-(results.average_f = (results.sum_i / DATA_SIZE));
-printf("   Sum of all elements is: %d\n", results.sum_i);
-printf("   Average of all elements is: %f\n", results.average_f);
+(results.sum = calculate_sum(data, DATA_SIZE));
+(results.average = (results.sum / DATA_SIZE));
+printf("   Sum of all elements is: %d\n", results.sum);
+printf("   Average of all elements is: %f\n", results.average);
 printf("--- Test Complete ---\n");
 return 0;
 }

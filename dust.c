@@ -834,43 +834,6 @@ static ASTNode *parse_primary(Parser *p) {
       node->suffix_info = tok->suffix_info;
     }
     token_free(tok);
-    
-    // Check if this is followed by member access or subscript
-    while (check(p, TOKEN_PUNCTUATION) && 
-           (strcmp(p->current->text, ".") == 0 || 
-            strcmp(p->current->text, "->") == 0 ||
-            strcmp(p->current->text, "[") == 0)) {
-      if (match_and_consume(p, TOKEN_PUNCTUATION, ".")) {
-        ASTNode *access_node = create_node(AST_MEMBER_ACCESS, ".");
-        add_child(access_node, node);
-        
-        Token *member = advance(p);
-        if (member->type != TOKEN_IDENTIFIER) {
-          parser_error(p, "Expected member name after '.'.");
-        }
-        add_child(access_node, create_node(AST_IDENTIFIER, member->text));
-        token_free(member);
-        node = access_node;
-      } else if (match_and_consume(p, TOKEN_ARROW, "->")) {
-        ASTNode *access_node = create_node(AST_MEMBER_ACCESS, "->");
-        add_child(access_node, node);
-        
-        Token *member = advance(p);
-        if (member->type != TOKEN_IDENTIFIER) {
-          parser_error(p, "Expected member name after '->'.");
-        }
-        add_child(access_node, create_node(AST_IDENTIFIER, member->text));
-        token_free(member);
-        node = access_node;
-      } else if (match_and_consume(p, TOKEN_PUNCTUATION, "[")) {
-        ASTNode *subscript_node = create_node(AST_SUBSCRIPT, NULL);
-        add_child(subscript_node, node);
-        add_child(subscript_node, parse_expression(p));
-        expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after subscript index.");
-        node = subscript_node;
-      }
-    }
-    
     return node;
   }
   // Numbers
