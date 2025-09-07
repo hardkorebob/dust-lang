@@ -1,4 +1,3 @@
-// ===== component_system.h =====
 #ifndef COMPONENT_SYSTEM_H
 #define COMPONENT_SYSTEM_H
 
