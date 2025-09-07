@@ -1,0 +1,338 @@
+// test.dust - Comprehensive test of Dust language features
+// "Dust is old and ancient but dust is wise"
+// Testing the suffix-based type system inspired by Sanskrit grammar
+
+// ========================================
+// User-Defined Types (Structs)
+// ========================================
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <string.h>
+
+struct Config {
+    port_i;
+    host_s;
+    timeout_f;
+};
+
+struct User {
+    id_i;
+    name_s;
+    age_i;
+    score_f;
+    grade_c;
+};
+
+struct Database {
+    connection_s;
+    max_connections_i;
+    is_active_i;
+};
+
+// ========================================
+// Helper Functions
+// ========================================
+
+// Function returning void* (generic pointer)
+func allocate_memory_p(size_i) {
+    let memory_p = malloc(size_i);
+    return memory_p;
+}
+
+// Function returning User* (user-defined type pointer)
+func create_user_p(id_i, name_s, age_i) {
+    let user_p = malloc(sizeof(User));
+    // In real implementation, would initialize fields
+    return user_p;
+}
+
+// Function returning int
+func calculate_sum_i(a_i, b_i) {
+    return a_i + b_i;
+}
+
+// Function returning float
+func calculate_average_f(sum_i, count_i) {
+    // Note: Dust should handle type conversion
+    return sum_i / count_i;
+}
+
+// Function with borrowed pointer parameter (const)
+func print_user_info(user_b) {
+    // user_b is const User* - can read but not modify
+    printf("User info accessed via borrowed pointer\n");
+}
+
+// Function with reference parameter (const)
+func validate_config(config_r) {
+    // config_r is const Config* - reference semantics
+    printf("Config validated via reference\n");
+}
+
+// ========================================
+// Main Entry Point - Testing All Features
+// ========================================
+
+func main_i() {
+    printf("=== Dust Compiler Test Suite ===\n");
+    printf("Testing suffix-based type system\n\n");
+    
+    // ----------------------------------------
+    // Test 1: Basic Built-in Types
+    // ----------------------------------------
+    printf("Test 1: Basic Types\n");
+    
+    // Integer suffix
+    let count_i = 42;
+    let status_i = 1;
+    let error_code_i = 0;
+    
+    // Float suffix
+    let pi_f = 3.14159;
+    let temperature_f = 98.6;
+    let version_f = 2.5;
+    
+    // Character suffix
+    let grade_c = 'A';
+    let initial_c = 'D';
+    let symbol_c = '*';
+    
+    // String suffix (becomes char*)
+    let message_s = "Dust: Built for the future, built to outlast";
+    let author_s = "Ancient wisdom in modern code";
+    let motto_s = "Simple ECS in disguise";
+    
+    printf("Integer: %d\n", count_i);
+    printf("Float: %f\n", pi_f);
+    printf("Char: %c\n", grade_c);
+    printf("String: %s\n", message_s);
+    
+    // ----------------------------------------
+    // Test 2: Pointer Types with Ownership
+    // ----------------------------------------
+    printf("\nTest 2: Pointer Types\n");
+    
+    // Owned pointer to int
+    let number_ip = &count_i;
+    
+    // Borrowed (const) pointer to int
+    let number_view_ib = number_ip;
+    
+    // Reference (const) to int
+    let number_ref_ir = number_ip;
+    
+    // Owned pointer to float
+    let temp_fp = &temperature_f;
+    
+    // Borrowed float pointer
+    let temp_view_fb = temp_fp;
+    
+    printf("Value via owned pointer: %d\n", *number_ip);
+    printf("Value via borrowed pointer: %d\n", *number_view_ib);
+    
+    // ----------------------------------------
+    // Test 3: User-Defined Types
+    // ----------------------------------------
+    printf("\nTest 3: User-Defined Types\n");
+    
+    // Allocate Config struct
+    let config_p = malloc(sizeof(Config));
+    
+    // Borrowed view of config (const Config*)
+    let config_view_b = config_p;
+    
+    // Reference to config (const Config*)
+    let config_ref_r = config_p;
+    
+    // Create a user
+    let admin_p = create_user_p(1, "Admin", 30);
+    let user_p = create_user_p(2, "Alice", 25);
+    
+    // Borrowed user pointers
+    let admin_view_b = admin_p;
+    let user_view_b = user_p;
+    
+    // Test functions with different pointer semantics
+    print_user_info(user_view_b);
+    validate_config(config_ref_r);
+    
+    // ----------------------------------------
+    // Test 4: Expressions and Operators
+    // ----------------------------------------
+    printf("\nTest 4: Expressions\n");
+    
+    let x_i = 10;
+    let y_i = 20;
+    let sum_i = x_i + y_i;
+    let diff_i = y_i - x_i;
+    let prod_i = x_i * 3;
+    let quot_i = y_i / 2;
+    
+    printf("Sum: %d + %d = %d\n", x_i, y_i, sum_i);
+    printf("Product: %d * 3 = %d\n", x_i, prod_i);
+    
+    // Function calls
+    let result_i = calculate_sum_i(x_i, y_i);
+    let avg_f = calculate_average_f(sum_i, 2);
+    
+    printf("Function result: %d\n", result_i);
+    
+    // ----------------------------------------
+    // Test 5: Control Flow
+    // ----------------------------------------
+    printf("\nTest 5: Control Flow\n");
+    
+    let is_running_i = 1;
+    let debug_mode_i = 0;
+    
+    if (is_running_i == 1) {
+        printf("System is running\n");
+        
+        if (debug_mode_i == 0) {
+            printf("Debug mode is OFF\n");
+        } else {
+            printf("Debug mode is ON\n");
+        }
+    }
+    
+    // Comparison operators
+    if (x_i < y_i) {
+        printf("%d is less than %d\n", x_i, y_i);
+    }
+    
+    if (sum_i == 30) {
+        printf("Sum equals 30\n");
+    }
+    
+    if (grade_c != 'F') {
+        printf("Grade is passing\n");
+    }
+    
+    // ----------------------------------------
+    // Test 6: Complex Expressions
+    // ----------------------------------------
+    printf("\nTest 6: Complex Expressions\n");
+    
+    let complex_i = (x_i + y_i) * 2 - 10;
+    let condition_i = (x_i > 5) && (y_i < 100);
+    
+    if ((is_running_i == 1) && (status_i == 1)) {
+        printf("Both conditions met\n");
+    }
+    
+    // Nested function calls
+    let a_i = 5;
+    let b_i = 10;
+    let c_i = 15;
+    let nested_sum_i = calculate_sum_i(
+        calculate_sum_i(a_i, b_i),
+        c_i
+    );
+    printf("Nested sum: %d\n", nested_sum_i);
+    
+    // ----------------------------------------
+    // Test 7: Memory Management
+    // ----------------------------------------
+    printf("\nTest 7: Memory Management\n");
+    
+    // Allocate array-like memory
+    let buffer_p = allocate_memory_p(256);
+    let data_p = malloc(sizeof(User) * 10);
+    
+    printf("Memory allocated successfully\n");
+    
+    // Using sizeof with different types
+    let config_size_i = sizeof(Config);
+    let user_size_i = sizeof(User);
+    let int_size_i = sizeof(count_i);
+    
+    printf("Config size: %d bytes\n", config_size_i);
+    printf("User size: %d bytes\n", user_size_i);
+    
+    // ----------------------------------------
+    // Test 8: String Operations
+    // ----------------------------------------
+    printf("\nTest 8: String Operations\n");
+    
+    let greeting_s = "Hello, Dust!";
+    let language_s = "Dust";
+    let description_s = "A language built for human-mind programming";
+    
+    printf("Greeting: %s\n", greeting_s);
+    printf("Language: %s\n", language_s);
+    printf("Description: %s\n", description_s);
+    
+    // ----------------------------------------
+    // Test 9: Edge Cases
+    // ----------------------------------------
+    printf("\nTest 9: Edge Cases\n");
+    
+    // Variables with underscores in base name
+    let user_count_i = 100;
+    let max_retry_i = 3;
+    let is_valid_i = 1;
+    
+    // Pointer to pointer (if supported)
+    let ptr_to_ptr_ix = &number_ip;
+    
+    // Null checks (defensive programming)
+    if (admin_p) {
+        printf("Admin user exists\n");
+    }
+    
+    // ----------------------------------------
+    // Test 10: Cleanup
+    // ----------------------------------------
+    printf("\nTest 10: Cleanup\n");
+    
+    // Free all allocated memory
+    // Only owned pointers (_p suffix) should be freed
+    free(config_p);
+    free(admin_p);
+    free(user_p);
+    free(buffer_p);
+    free(data_p);
+    
+    // Note: borrowed (_b) and reference (_r) pointers are NOT freed
+    // This is part of Dust's ownership model
+    
+    printf("\n=== All Tests Complete ===\n");
+    printf("Dust compiler test successful!\n");
+    printf("Built with Dust - Simple ECS in disguise\n");
+    
+    return 0;
+}
+
+// ========================================
+// Additional Test Functions (Optional)
+// ========================================
+
+// Test function pointers (future feature)
+func callback_handler_i(value_i) {
+    return value_i * 2;
+}
+
+// Test recursive functions
+func factorial_i(n_i) {
+    if (n_i <= 1) {
+        return 1;
+    }
+    return n_i * factorial_i(n_i - 1);
+}
+
+// Test struct manipulation
+func initialize_database_p(connection_s, max_i) {
+    let db_p = malloc(sizeof(Database));
+    // Would set fields here in real implementation
+    return db_p;
+}
+
+// Test error handling pattern
+func safe_divide_f(numerator_f, denominator_f) {
+    if (denominator_f == 0) {
+        printf("Error: Division by zero\n");
+        return 0.0;
+    }
+    return numerator_f / denominator_f;
+}
