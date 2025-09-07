@@ -1,4 +1,3 @@
-// ===== lexer.c - PATCHED =====
 #include "lexer.h"
 #include <stdlib.h>
 #include <string.h>
@@ -63,19 +62,15 @@ Token* lexer_next(Lexer* lex) {
     char c = lex->source[lex->pos];
     
     if (c == '#') {
-        // Move past the '#' character first
         lex->pos++;
-        start = lex->pos;  // Start AFTER the '#'
-        
-        // Read until end of line or end of file
+        start = lex->pos;  
         while (lex->pos < lex->len && lex->source[lex->pos] != '\n') {
             lex->pos++;
         }
         
         int len = lex->pos - start;
-        // Allocate space for '#' + directive content
         char* directive_line = malloc(len + 2);
-        directive_line[0] = '#';  // Add the '#' at the beginning
+        directive_line[0] = '#';  
         memcpy(directive_line + 1, lex->source + start, len);
         directive_line[len + 1] = '\0';
         
@@ -117,7 +112,6 @@ Token* lexer_next(Lexer* lex) {
                     tok->suffix_info = info;
                 }
             } else {
-                // THIS IS THE LINE TO FIX
                 tok->suffix_info = (SuffixInfo){TYPE_VOID, ROLE_NONE, false, false, NULL, false, TYPE_VOID, NULL};
             }
         }
