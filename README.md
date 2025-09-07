@@ -91,7 +91,6 @@ struct Point {
 
 
 func print_point_v(p_Pointb) {
-    // The -> operator is correct for pointers.
     printf("Point(x: %d, y: %d)\n", p_Pointb->x, p_Pointb->y);
 }
 
