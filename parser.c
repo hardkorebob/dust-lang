@@ -130,7 +130,7 @@ static ASTNode* parse_primary(Parser* p) {
 }
 
 static ASTNode* parse_ternary(Parser* p) {
-    ASTNode* condition = parse_logical_or(p);  Parse the condition part
+    ASTNode* condition = parse_logical_or(p);  
 
     if (match_and_consume(p, TOKEN_OPERATOR, "?")) {
         ASTNode* ternary_node = create_node(AST_TERNARY_OP, "?");
