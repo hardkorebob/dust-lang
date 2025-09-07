@@ -71,6 +71,15 @@ typedef struct {
     size_t typedef_capacity;
 } TypeTable;
 
+// TypeTable functions
+TypeTable* type_table_create(void);
+void type_table_destroy(TypeTable* table);
+bool type_table_add(TypeTable* table, const char* type_name);
+const char* type_table_lookup(const TypeTable* table, const char* type_name);
+bool type_table_add_typedef(TypeTable* table, const char* name, const SuffixInfo* type_info);
+const TypedefInfo* type_table_lookup_typedef(const TypeTable* table, const char* name);
+
+
 TypeTable* type_table_create(void) {
     TypeTable* table = malloc(sizeof(TypeTable));
     table->struct_capacity = 8;
@@ -82,13 +91,6 @@ TypeTable* type_table_create(void) {
     table->typedefs = malloc(sizeof(TypedefInfo) * table->typedef_capacity);
     return table;
 }
-// TypeTable functions
-TypeTable* type_table_create(void);
-void type_table_destroy(TypeTable* table);
-bool type_table_add(TypeTable* table, const char* type_name);
-const char* type_table_lookup(const TypeTable* table, const char* type_name);
-bool type_table_add_typedef(TypeTable* table, const char* name, const SuffixInfo* type_info);
-const TypedefInfo* type_table_lookup_typedef(const TypeTable* table, const char* name);
 
 void type_table_destroy(TypeTable* table) {
     for (size_t i = 0; i < table->struct_count; i++) {
