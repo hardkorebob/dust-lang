@@ -1,10 +1,8 @@
-// ===== lexer.h =====
 #ifndef LEXER_H
 #define LEXER_H
 
 #include "component_system.h"
-#include "type_table.h" // NEW: Include the type table
-
+#include "type_table.h" 
 typedef enum {
     TOKEN_EOF,
     TOKEN_IDENTIFIER,
@@ -21,9 +19,8 @@ typedef enum {
 typedef struct {
     TokenType type;
     char* text;
-    // For identifiers with a Dust suffix:
     char* base_name;
-    SuffixInfo suffix_info; // FIXED: Store the struct directly, not a pointer
+    SuffixInfo suffix_info; 
     int line;
 } Token;
 
@@ -32,10 +29,9 @@ typedef struct {
     int pos;
     int len;
     int line;
-    const TypeTable* type_table; // NEW: Lexer now needs access to the type table
+    const TypeTable* type_table;
 } Lexer;
 
-// NEW: Updated function signature
 Lexer* lexer_create(const char* source, const TypeTable* type_table);
 Token* lexer_next(Lexer* lex);
 void lexer_destroy(Lexer* lex);
