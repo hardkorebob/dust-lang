@@ -24,58 +24,6 @@ char* clone_string(const char* str) {
 // ============================================================================
 // TYPE TABLE - Tracks user-defined types (structs)
 // ============================================================================
-
-typedef struct {
-    char** names;
-    size_t count;
-    size_t capacity;
-} TypeTable;
-
-TypeTable* type_table_create(void) {
-    TypeTable* table = malloc(sizeof(TypeTable));
-    table->capacity = 8;
-    table->count = 0;
-    table->names = malloc(sizeof(char*) * table->capacity);
-    return table;
-}
-
-void type_table_destroy(TypeTable* table) {
-    for (size_t i = 0; i < table->count; i++) {
-        free(table->names[i]);
-    }
-    free(table->names);
-    free(table);
-}
-
-bool type_table_add(TypeTable* table, const char* type_name) {
-    // Check if already exists
-    for (size_t i = 0; i < table->count; i++) {
-        if (strcmp(table->names[i], type_name) == 0) {
-            return true;
-        }
-    }
-
-    if (table->count >= table->capacity) {
-        table->capacity *= 2;
-        table->names = realloc(table->names, sizeof(char*) * table->capacity);
-    }
-    table->names[table->count++] = clone_string(type_name);
-    return true;
-}
-
-const char* type_table_lookup(const TypeTable* table, const char* type_name) {
-    for (size_t i = 0; i < table->count; i++) {
-        if (strcmp(table->names[i], type_name) == 0) {
-            return table->names[i];
-        }
-    }
-    return NULL;
-}
-
-// ============================================================================
-// COMPONENT SYSTEM - Suffix parsing and type information
-// ============================================================================
-
 typedef enum {
     TYPE_VOID,
     TYPE_INT,
@@ -106,6 +54,111 @@ typedef struct {
     DataType array_base_type;
     const char* array_user_type_name;
 } SuffixInfo;
+
+typedef struct {
+    char* name;
+    SuffixInfo type_info;
+} TypedefInfo;
+
+typedef struct {
+    char** struct_names;
+    size_t struct_count;
+    size_t struct_capacity;
+
+    // For typedefs
+    TypedefInfo* typedefs;
+    size_t typedef_count;
+    size_t typedef_capacity;
+} TypeTable;
+
+TypeTable* type_table_create(void) {
+    TypeTable* table = malloc(sizeof(TypeTable));
+    table->struct_capacity = 8;
+    table->struct_count = 0;
+    table->struct_names = malloc(sizeof(char*) * table->struct_capacity);
+
+    table->typedef_capacity = 8;
+    table->typedef_count = 0;
+    table->typedefs = malloc(sizeof(TypedefInfo) * table->typedef_capacity);
+    return table;
+}
+// TypeTable functions
+TypeTable* type_table_create(void);
+void type_table_destroy(TypeTable* table);
+bool type_table_add(TypeTable* table, const char* type_name);
+const char* type_table_lookup(const TypeTable* table, const char* type_name);
+bool type_table_add_typedef(TypeTable* table, const char* name, const SuffixInfo* type_info);
+const TypedefInfo* type_table_lookup_typedef(const TypeTable* table, const char* name);
+
+void type_table_destroy(TypeTable* table) {
+    for (size_t i = 0; i < table->struct_count; i++) {
+        free(table->struct_names[i]);
+    }
+    free(table->struct_names);
+
+    for (size_t i = 0; i < table->typedef_count; i++) {
+        free(table->typedefs[i].name);
+    }
+    free(table->typedefs);
+    free(table);
+}
+
+bool type_table_add(TypeTable* table, const char* type_name) {
+    // Check if already exists
+    for (size_t i = 0; i < table->struct_count; i++) {
+        if (strcmp(table->struct_names[i], type_name) == 0) {
+            return true;
+        }
+    }
+    
+    if (table->struct_count >= table->struct_capacity) {
+        table->struct_capacity *= 2;
+        table->struct_names = realloc(table->struct_names, sizeof(char*) * table->struct_capacity);
+    }
+    table->struct_names[table->struct_count++] = clone_string(type_name);
+    return true;
+}
+
+const char* type_table_lookup(const TypeTable* table, const char* type_name) {
+    for (size_t i = 0; i < table->struct_count; i++) {
+        if (strcmp(table->struct_names[i], type_name) == 0) {
+            return table->struct_names[i];
+        }
+    }
+    return NULL;
+}
+
+bool type_table_add_typedef(TypeTable* table, const char* name, const SuffixInfo* type_info) {
+    // Check if already exists
+    for (size_t i = 0; i < table->typedef_count; i++) {
+        if (strcmp(table->typedefs[i].name, name) == 0) {
+            return false;
+        }
+    }
+    
+    if (table->typedef_count >= table->typedef_capacity) {
+        table->typedef_capacity *= 2;
+        table->typedefs = realloc(table->typedefs, sizeof(TypedefInfo) * table->typedef_capacity);
+    }
+    table->typedefs[table->typedef_count].name = clone_string(name);
+    table->typedefs[table->typedef_count].type_info = *type_info;
+    table->typedef_count++;
+    return true;
+}
+
+const TypedefInfo* type_table_lookup_typedef(const TypeTable* table, const char* name) {
+    for (size_t i = 0; i < table->typedef_count; i++) {
+        if (strcmp(table->typedefs[i].name, name) == 0) {
+            return &table->typedefs[i];
+        }
+    }
+    return NULL;
+}
+
+// ============================================================================
+// COMPONENT SYSTEM - Suffix parsing and type information
+// ============================================================================
+
 
 const char* find_suffix_separator(const char* name) {
     return strrchr(name, '_');
@@ -262,6 +315,12 @@ bool suffix_parse(const char* full_variable_name, const TypeTable* type_table, S
         return true;
     }
 
+    // Check for typedef
+    const TypedefInfo* typedef_info = type_table_lookup_typedef(type_table, suffix_str);
+    if (typedef_info) {
+        *result_info = typedef_info->type_info;
+        return true;
+    }
     return false;
 }
 
@@ -589,6 +648,7 @@ static ASTNode* parse_statement(Parser* p);
 static ASTNode* parse_expression(Parser* p);
 static ASTNode* parse_block(Parser* p);
 
+
 // AST helper functions
 static ASTNode* create_node(ASTType type, const char* value) {
     ASTNode* node = calloc(1, sizeof(ASTNode));
@@ -845,7 +905,7 @@ static ASTNode* parse_typedef(Parser* p) {
         type_node->suffix_info = type_tok->suffix_info;
     }
     add_child(node, type_node);
-
+    type_table_add_typedef((TypeTable*)p->type_table, name_tok->text, &type_tok->suffix_info);
     expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after typedef.");
 
     token_free(type_tok);
@@ -1382,8 +1442,12 @@ void parser_destroy(Parser* p) {
 
 static FILE* output_file;
 static const TypeTable* codegen_type_table;
-
+static void emit_statement(ASTNode* node);
 static void emit_node(ASTNode* node);
+static void emit_typedef(ASTNode* node);
+static void emit_function(ASTNode* node);
+static void emit_var_decl(ASTNode* node);
+
 
 static void emit_statement(ASTNode* node) {
     if (node->type == AST_BLOCK || node->type == AST_IF || node->type == AST_WHILE ||
@@ -1469,6 +1533,16 @@ static void emit_var_decl(ASTNode* node) {
         }
     }
 }
+
+static void emit_typedef(ASTNode* node) {
+    if (node->child_count < 1) return;
+    
+    ASTNode* original_type = node->children[0];
+    const char* original_c_type = get_c_type(&original_type->suffix_info);
+    
+    fprintf(output_file, "typedef %s %s;\n", original_c_type, node->value);
+}
+
 
 static void emit_node(ASTNode* node) {
     if (!node) return;
@@ -1718,6 +1792,9 @@ static void emit_node(ASTNode* node) {
             fprintf(output_file, ");\n");
             break;
 
+        case AST_TYPEDEF:
+            emit_typedef(node);
+            break;
         case AST_SUBSCRIPT:
             emit_node(node->children[0]);
             fprintf(output_file, "[");
