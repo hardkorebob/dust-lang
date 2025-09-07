@@ -399,7 +399,7 @@ typedef struct {
 
 static const char* KEYWORDS[] = {
     "if", "else", "while", "do", "for", "return", "break", "continue",
-    "func", "let", "struct", "sizeof", "switch", "case", "default", "typedef", NULL
+    "func", "let", "struct", "sizeof", "switch", "case", "default", "typedef", "cast", "null", NULL
 };
 
 static bool is_keyword(const char* word) {
@@ -651,6 +651,8 @@ typedef enum {
     AST_FUNC_PTR_DECL,
     AST_TYPEDEF,
     AST_PASSTHROUGH,
+    AST_NULL,
+    AST_CAST,
 } ASTType;
 
 typedef struct ASTNode {
@@ -806,7 +808,33 @@ static ASTNode* parse_primary(Parser* p) {
         expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after sizeof argument.");
         return node;
     }
+    // null keyword
+    if (match_and_consume(p, TOKEN_KEYWORD, "null")) {
+        return create_node(AST_NULL, "NULL");
+    }
 
+    // cast keyword  
+    if (match_and_consume(p, TOKEN_KEYWORD, "cast")) {
+        expect(p, TOKEN_PUNCTUATION, "_", "Expected '_' after 'cast'.");
+        
+        // Parse the type suffix
+        Token* type_tok = advance(p);
+        if (type_tok->type != TOKEN_IDENTIFIER) {
+            parser_error(p, "Expected type suffix after 'cast_'.");
+            token_free(type_tok);
+            return NULL;
+        }
+        
+        ASTNode* node = create_node(AST_CAST, NULL);
+        node->suffix_info = type_tok->suffix_info;
+        token_free(type_tok);
+        
+        expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' after cast type.");
+        add_child(node, parse_expression(p));
+        expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after cast expression.");
+        
+        return node;
+    }
 
     // Parenthesized expression
     if (match_and_consume(p, TOKEN_PUNCTUATION, "(")) {
@@ -1860,6 +1888,16 @@ static void emit_node(ASTNode* node) {
             break;
         case AST_PASSTHROUGH:
             fprintf(output_file, "%s", node->value);
+            break;
+        case AST_NULL:
+            fprintf(output_file, "NULL");
+            break;
+
+        case AST_CAST:
+            fprintf(output_file, "(");
+            fprintf(output_file, "%s", get_c_type(&node->suffix_info));
+            fprintf(output_file, ")");
+            emit_node(node->children[0]);
             break;
         default:
             if (node->child_count > 0) {
