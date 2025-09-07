@@ -1,7 +1,7 @@
 # The Dust Manifesto
 
 ```c
-// ===== test7.dust - DEFINITIVELY CORRECTED =====
+//test7.dust
 #include <stdio.h>
 #include <stdbool.h>
 
