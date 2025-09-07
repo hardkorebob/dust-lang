@@ -1,6 +1,8 @@
 # The Dust Manifesto
 
-We begin as dust, and to dust we return. It is the alpha and the omega, the substrate of all creation. It does not need to be invented; it needs only to be rediscovered.
+We begin as dust, and to dust we return. It is the alpha and the omega, the substrate of all creation. 
+
+It does not need to be invented; it needs only to be rediscovered.
 
 In the digital realm, we have forgotten this. We build towers of complexity, languages of fleeting abstraction that fight against their own nature. We seek to conquer rust, decay, and error with ever-more-intricate machinery.  
 
