@@ -60,8 +60,7 @@ The code is not just safe; it is **transparently correct**.
 ---
 
 ## The Vision
-Dust is for systems programmers who believe that the best solution is often the simplest one.  
-
+Dust is for systems programmers who believe that the best solution is often the simplest one. 
 It is for those who want a direct, unfiltered connection between their ideas and the machine.  
 It is for rediscovering the foundational patterns that allow us to build software that is not just robust, but is also clear, concise, and enduring.  
 
