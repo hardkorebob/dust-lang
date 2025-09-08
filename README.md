@@ -77,276 +77,214 @@ The Dust compiler leverages a **component-based system** to look up the correct 
 ---
 
 ```c
-// test9.dust - Demonstrating Dust's self-hosting capabilities
-// This implements a simple lexer/token system similar to the actual compiler
-
+// test_enum.dust - Test enum support with suffix style
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
+#include <stdbool.h>
 
-// Token types (would be enum in C)
-#define TOKEN_EOF 0
-#define TOKEN_IDENTIFIER 1
-#define TOKEN_NUMBER 2
-#define TOKEN_KEYWORD 3
-#define TOKEN_OPERATOR 4
-
-// Token structure
-struct Token {
-    type_i;
-    text_cp;
-    line_i;
-    next_Tokenp;  // For linked list
+// Define an enum for token types
+enum TokenType {
+    EOFF = 0,
+    IDENTIFIER = 1,
+    NUMBER = 2,
+    KEYWORD,      // Auto-increments to 3
+    OPERATOR      // Auto-increments to 4
 };
 
-// Lexer structure
-struct Lexer {
-    source_cp;
-    pos_i;
-    len_i;
-    line_i;
+// Define an enum for AST node types  
+enum ASTType {
+    AST_PROGRAM,
+    AST_FUNCTION,
+    AST_VAR_DECL,
+    AST_BLOCK,
+    AST_IF,
+    AST_WHILE
 };
 
-// Create a new token - clean Dust!
-func make_token_Tokenp(type_i, text_cp, line_i) {
-    let tok_Tokenp = cast_Tokenp(malloc(sizeof(Token)));
-    if (tok_Tokenp == null) {
-        return null;
-    }
-    
-    tok_Tokenp->type = type_i;
-    tok_Tokenp->line = line_i;
-    tok_Tokenp->next = null;
-    
-    // Clone the text
-    if (text_cp != null) {
-        let len_i = strlen(text_cp);
-        tok_Tokenp->text = cast_cp(malloc(len_i + 1));
-        strcpy(tok_Tokenp->text, text_cp);
-    } else {
-        tok_Tokenp->text = null;
-    }
-    
-    return tok_Tokenp;
+// Function that returns an enum value
+func get_eof_token_TokenType() {
+    return EOFF_TokenType;
 }
 
-// Free a token
-func token_free_v(tok_Tokenp) {
-    if (tok_Tokenp == null) {
-        return;
-    }
-    
-    if (tok_Tokenp->text != null) {
-        free(tok_Tokenp->text);
-    }
-    free(tok_Tokenp);
-}
-
-// Create a lexer
-func lexer_create_Lexerp(source_cp) {
-    let lex_Lexerp = cast_Lexerp(malloc(sizeof(Lexer)));
-    if (lex_Lexerp == null) {
-        return null;
-    }
-    
-    lex_Lexerp->source = source_cp;
-    lex_Lexerp->pos = 0;
-    lex_Lexerp->len = strlen(source_cp);
-    lex_Lexerp->line = 1;
-    
-    return lex_Lexerp;
-}
-
-// Skip whitespace
-func skip_whitespace_v(lex_Lexerp) {
-    while (lex_Lexerp->pos < lex_Lexerp->len) {
-        let c_c = lex_Lexerp->source[lex_Lexerp->pos];
-        
-        if (isspace(c_c)) {
-            if (c_c == '\n') {
-                lex_Lexerp->line = lex_Lexerp->line + 1;
-            }
-            lex_Lexerp->pos = lex_Lexerp->pos + 1;
-        } else {
-            break;
-        }
-    }
-}
-
-// Get next token - demonstrates complex logic in Dust
-func lexer_next_Tokenp(lex_Lexerp) {
-    skip_whitespace_v(lex_Lexerp);
-    
-    // Check for EOF
-    if (lex_Lexerp->pos >= lex_Lexerp->len) {
-        return make_token_Tokenp(TOKEN_EOF, "", lex_Lexerp->line);
-    }
-    
-    let start_i = lex_Lexerp->pos;
-    let c_c = lex_Lexerp->source[lex_Lexerp->pos];
-    
-    // Identifiers and keywords
-    if (isalpha(c_c) || c_c == '_') {
-        while (lex_Lexerp->pos < lex_Lexerp->len) {
-            let ch_c = lex_Lexerp->source[lex_Lexerp->pos];
-            if (isalnum(ch_c) || ch_c == '_') {
-                lex_Lexerp->pos = lex_Lexerp->pos + 1;
-            } else {
-                break;
-            }
-        }
-        
-        // Extract the word
-        let len_i = lex_Lexerp->pos - start_i;
-        let word_cp = cast_cp(malloc(len_i + 1));
-        memcpy(word_cp, lex_Lexerp->source + start_i, len_i);
-        word_cp[len_i] = '\0';
-        
-        // Check if it's a keyword
-        let type_i = TOKEN_IDENTIFIER;
-        if (strcmp(word_cp, "if") == 0 || strcmp(word_cp, "while") == 0) {
-            type_i = TOKEN_KEYWORD;
-        }
-        
-        let tok_Tokenp = make_token_Tokenp(type_i, word_cp, lex_Lexerp->line);
-        free(word_cp);
-        return tok_Tokenp;
-    }
-    
-    // Numbers
-    if (isdigit(c_c)) {
-        while (lex_Lexerp->pos < lex_Lexerp->len && isdigit(lex_Lexerp->source[lex_Lexerp->pos])) {
-            lex_Lexerp->pos = lex_Lexerp->pos + 1;
-        }
-        
-        let len_i = lex_Lexerp->pos - start_i;
-        let num_cp = cast_cp(malloc(len_i + 1));
-        memcpy(num_cp, lex_Lexerp->source + start_i, len_i);
-        num_cp[len_i] = '\0';
-        
-        let tok_Tokenp = make_token_Tokenp(TOKEN_NUMBER, num_cp, lex_Lexerp->line);
-        free(num_cp);
-        return tok_Tokenp;
-    }
-    
-    // Single character operator
-    lex_Lexerp->pos = lex_Lexerp->pos + 1;
-    let op_ca[2];
-    op_c[0] = c_c;
-    op_c[1] = '\0';
-    
-    return make_token_Tokenp(TOKEN_OPERATOR, op_ca, lex_Lexerp->line);
-}
-
-// Test string parsing capabilities
-func test_string_handling_v() {
-    printf("Testing string operations:\n");
-    
-    let test_s = "Hello, Dust!";
-    let copy_cp = cast_cp(malloc(strlen(test_s) + 1));
-    strcpy(copy_cp, test_s);
-    
-    printf("  Original: %s\n", test_s);
-    printf("  Copy: %s\n", copy_cp);
-    
-    // Modify the copy
-    copy_cp[0] = 'J';
-    printf("  Modified: %s\n", copy_cp);
-    
-    free(copy_cp);
-}
-
-// Test array operations
-func test_arrays_v() {
-    printf("\nTesting array operations:\n");
-    
-    let nums_ia[10];
-    let i_i = 0;
-    
-    // Initialize array
-    while (i_i < 10) {
-        nums_ia[i_i] = i_i * i_i;
-        i_i = i_i + 1;
-    }
-    
-    // Print some values
-    printf("  nums[0] = %d\n", nums_ia[0]);
-    printf("  nums[5] = %d\n", nums_ia[5]);
-    printf("  nums[9] = %d\n", nums_ia[9]);
-}
-
-// Main test function
-func main_i() {
-    printf("=== Dust Self-Hosting Capability Test ===\n\n");
-    
-    // Test 1: String handling
-    test_string_handling_v();
-    
-    // Test 2: Arrays
-    test_arrays_v();
-    
-    // Test 3: Lexer functionality
-    printf("\nTesting lexer:\n");
-    let source_s = "if x 123 + while";
-    let lex_Lexerp = lexer_create_Lexerp(source_s);
-    
-    if (lex_Lexerp == null) {
-        printf("  Failed to create lexer\n");
+// Function that takes an enum parameter
+func is_keyword_bl(type_TokenType) {
+    if (type_TokenType == KEYWORD_TokenType) {
         return 1;
     }
-    
-    printf("  Tokenizing: '%s'\n", source_s);
-    
-    // Tokenize and print
-    let token_count_i = 0;
-    while (1) {
-        let tok_Tokenp = lexer_next_Tokenp(lex_Lexerp);
-        
-        if (tok_Tokenp->type == TOKEN_EOF) {
-            token_free_v(tok_Tokenp);
-            break;
-        }
-        
-        printf("    Token %d: type=%d, text='%s', line=%d\n", 
-               token_count_i, tok_Tokenp->type, tok_Tokenp->text, tok_Tokenp->line);
-        
-        token_count_i = token_count_i + 1;
-        token_free_v(tok_Tokenp);
-    }
-    
-    printf("  Total tokens: %d\n", token_count_i);
-    
-    // Cleanup
-    free(lex_Lexerp);
-    
-    printf("\n=== All tests passed! ===\n");
     return 0;
 }
+
+// Function that uses enum in switch
+func token_type_name_cp(type_TokenType) {
+    switch (type_TokenType) {
+        case EOFF_TokenType:
+            return "EOF";
+        case IDENTIFIER_TokenType:
+            return "IDENTIFIER";
+        case NUMBER_TokenType:
+            return "NUMBER";
+        case KEYWORD_TokenType:
+            return "KEYWORD";
+        case OPERATOR_TokenType:
+            return "OPERATOR";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+// Test struct containing enum
+struct Token {
+    type_TokenType;
+    text_cp;
+    line_i;
+};
+
+func main_i() {
+    printf("Testing Dust enum support with suffix style\n\n");
+    
+    // Test direct enum value usage
+    let token_type_TokenType = IDENTIFIER_TokenType;
+    printf("Token type: %d\n", token_type_TokenType);
+    
+    // Test enum in conditional
+    if (token_type_TokenType == IDENTIFIER_TokenType) {
+        printf("It's an identifier!\n");
+    }
+    
+    // Test function returning enum
+    let eof_TokenType = get_eof_token_TokenType();
+    printf("EOF value: %d\n", eof_TokenType);
+    
+    // Test function taking enum parameter
+    let is_kw_bl = is_keyword_bl(KEYWORD_TokenType);
+    printf("KEYWORD is keyword: %d\n", is_kw_bl);
+    
+    // Test switch with enum
+    printf("Token names:\n");
+    let i_TokenType = EOF_TokenType;
+    while (i_TokenType <= OPERATOR_TokenType) {
+        let name_cp = token_type_name_cp(i_TokenType);
+        printf("  %d: %s\n", i_TokenType, name_cp);
+        i_TokenType = i_TokenType + 1;
+    }
+    
+    // Test struct with enum field
+    let tok_Token;
+    tok_Token.type = NUMBER_TokenType;
+    tok_Token.text = "42";
+    tok_Token.line = 1;
+    
+    printf("\nToken struct: type=%d, text=%s, line=%d\n", 
+           tok_Token.type, tok_Token.text, tok_Token.line);
+    
+    // Test AST enum
+    let node_type_ASTType = AST_FUNCTION_ASTType;
+    if (node_type_ASTType == AST_FUNCTION_ASTType) {
+        printf("Node is a function\n");
+    }
+    
+    return 0;
+}
+
+//=====================Output=====================
+#include <stdbool.h>
+#include <stdio.h>
+
+typedef enum TokenType {
+  EOFF = 0,
+  IDENTIFIER = 1,
+  NUMBER = 2,
+  KEYWORD = 3,
+  OPERATOR = 4
+} TokenType;
+typedef enum ASTType {
+  AST_PROGRAM = 0,
+  AST_FUNCTION = 1,
+  AST_VAR_DECL = 2,
+  AST_BLOCK = 3,
+  AST_IF = 4,
+  AST_WHILE = 5
+} ASTType;
+typedef struct Token Token;
+struct Token {
+  TokenType type;
+  char *text;
+  int line;
+};
+// Forward declarations
+int main();
+char *token_type_name(TokenType type);
+bool is_keyword(TokenType type);
+TokenType get_eof_token();
+
+TokenType get_eof_token() { return EOFF; }
+bool is_keyword(TokenType type) {
+  if ((type == KEYWORD)) {
+    return 1;
+  }
+  return 0;
+}
+char *token_type_name(TokenType type) {
+  switch (type) {
+  case EOFF:
+    return "EOF";
+  case IDENTIFIER:
+    return "IDENTIFIER";
+  case NUMBER:
+    return "NUMBER";
+  case KEYWORD:
+    return "KEYWORD";
+  case OPERATOR:
+    return "OPERATOR";
+  default:
+    return "UNKNOWN";
+  }
+}
+int main() {
+  printf("Testing Dust enum support with suffix style\n\n");
+  TokenType token_type = IDENTIFIER;
+  printf("Token type: %d\n", token_type);
+  if ((token_type == IDENTIFIER)) {
+    printf("It's an identifier!\n");
+  }
+  TokenType eof = get_eof_token();
+  printf("EOF value: %d\n", eof);
+  bool is_kw = is_keyword(KEYWORD);
+  printf("KEYWORD is keyword: %d\n", is_kw);
+  printf("Token names:\n");
+  TokenType i = EOF;
+  while ((i <= OPERATOR)) {
+    char *name = token_type_name(i);
+    printf("  %d: %s\n", i, name);
+    (i = (i + 1));
+  }
+  Token tok;
+  (tok.type = NUMBER);
+  (tok.text = "42");
+  (tok.line = 1);
+  printf("\nToken struct: type=%d, text=%s, line=%d\n", tok.type, tok.text,
+         tok.line);
+  ASTType node_type = AST_FUNCTION;
+  if ((node_type == AST_FUNCTION)) {
+    printf("Node is a function\n");
+  }
+  return 0;
+}
 ```
+
 ```
-=== Dust Self-Hosting Capability Test ===
+Compiled and Run:
+=================
+Testing Dust enum support with suffix style
 
-Testing string operations:
-  Original: Hello, Dust!
-  Copy: Hello, Dust!
-  Modified: Jello, Dust!
+Token type: 1
+It's an identifier!
+EOF value: 0
+KEYWORD is keyword: 1
+Token names:
 
-Testing array operations:
-  nums[0] = 0
-  nums[5] = 25
-  nums[9] = 81
+Token struct: type=2, text=42, line=1
+Node is a function
 
-Testing lexer:
-  Tokenizing: 'if x 123 + while'
-    Token 0: type=3, text='if', line=1
-    Token 1: type=1, text='x', line=1
-    Token 2: type=2, text='123', line=1
-    Token 3: type=4, text='+', line=1
-    Token 4: type=3, text='while', line=1
-  Total tokens: 5
-
-=== All tests passed! ===
 
 ```
 
