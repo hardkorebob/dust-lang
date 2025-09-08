@@ -66,14 +66,12 @@ typedef struct {
   char **struct_names;
   size_t struct_count;
   size_t struct_capacity;
-
-  // For typedefs
   TypedefInfo *typedefs;
   size_t typedef_count;
   size_t typedef_capacity;
 } TypeTable;
 
-// TypeTable functions
+
 TypeTable *type_table_create(void);
 void type_table_destroy(TypeTable *table);
 bool type_table_add(TypeTable *table, const char *type_name);
@@ -230,23 +228,28 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
     result_info->type = TYPE_INT;
     return true;
   }
+
   if (strcmp(suffix_str, "f") == 0) {
     result_info->type = TYPE_FLOAT;
     return true;
   }
+
   if (strcmp(suffix_str, "c") == 0) {
     result_info->type = TYPE_CHAR;
     return true;
   }
+
   if (strcmp(suffix_str, "bl") == 0) {
     result_info->type = TYPE_BOOL;
     return true;
   }
+
   if (strcmp(suffix_str, "s") == 0) {
     result_info->type = TYPE_STRING;
     result_info->is_pointer = true;
     return true;
   }
+
   if (strcmp(suffix_str, "v") == 0) {
     result_info->type = TYPE_VOID;
     return true;
@@ -259,6 +262,7 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
     result_info->role = ROLE_OWNED;
     return true;
   }
+
   if (strcmp(suffix_str, "ib") == 0) {
     result_info->type = TYPE_INT;
     result_info->is_pointer = true;
@@ -266,6 +270,7 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
     result_info->role = ROLE_BORROWED;
     return true;
   }
+
   if (strcmp(suffix_str, "ir") == 0) {
     result_info->type = TYPE_INT;
     result_info->is_pointer = true;
@@ -289,6 +294,7 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
     result_info->role = ROLE_BORROWED;
     return true;
   }
+
   // Function Pointers
   if (strcmp(suffix_str, "fp") == 0) {
     result_info->type = TYPE_FUNC_POINTER;
@@ -720,10 +726,27 @@ typedef struct {
   bool had_error;
 } Parser;
 
-// Forward declarations for parser
+typedef struct FuncDecl {
+  char *name;
+  SuffixInfo return_type;
+  ASTNode *params;
+  struct FuncDecl *next;
+} FuncDecl;
+
+// ============================================================================
+// PARSER
+// ============================================================================
+
 static ASTNode *parse_statement(Parser *p);
 static ASTNode *parse_expression(Parser *p);
 static ASTNode *parse_block(Parser *p);
+static ASTNode *parse_member_access(Parser *p);
+static ASTNode *parse_ternary(Parser *p);
+static ASTNode *parse_logical_or(Parser *p);
+static ASTNode *parse_initializer_list(Parser *p);
+static ASTNode *parse_call(Parser *p);
+static ASTNode *parse_typedef(Parser *p);
+static ASTNode *parse_enum_definition(Parser *p);
 
 // AST helper functions
 static ASTNode *create_node(ASTType type, const char *value) {
@@ -756,10 +779,6 @@ void ast_destroy(ASTNode *node) {
   free(node->children);
   free(node);
 }
-
-// ============================================================================
-// PARSER
-// ============================================================================
 
 static Token *advance(Parser *p) {
   Token *previous = p->current;
@@ -797,15 +816,6 @@ static void expect(Parser *p, TokenType type, const char *text,
     parser_error(p, error_message);
   }
 }
-
-// Forward declarations for expression parsing
-static ASTNode *parse_member_access(Parser *p);
-static ASTNode *parse_ternary(Parser *p);
-static ASTNode *parse_logical_or(Parser *p);
-static ASTNode *parse_initializer_list(Parser *p);
-static ASTNode *parse_call(Parser *p);
-static ASTNode *parse_typedef(Parser *p);
-static ASTNode *parse_enum_definition(Parser *p);
 
 static ASTNode *parse_primary(Parser *p) {
   // Initializer lists
@@ -1211,7 +1221,18 @@ static ASTNode *parse_var_decl(Parser *p) {
     
     // Optional initializer for array
     if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
-      add_child(node, parse_initializer_list(p));  // Child 1: initializer
+      // Check if it's a char array and next token is a string literal
+      if (node->suffix_info.array_base_type == TYPE_CHAR && 
+          check(p, TOKEN_STRING)) {
+        // String literal initialization for char array
+        Token *str_tok = advance(p);
+        ASTNode *str_node = create_node(AST_STRING, str_tok->text);
+        add_child(node, str_node);  // Child 1: string initializer
+        token_free(str_tok);
+      } else {
+        // Regular initializer list
+        add_child(node, parse_initializer_list(p));  // Child 1: initializer
+      }
     }
   } else {
     // Regular variable initialization
@@ -1703,6 +1724,9 @@ static void emit_node(ASTNode *node);
 static void emit_typedef(ASTNode *node);
 static void emit_function(ASTNode *node);
 static void emit_var_decl(ASTNode *node);
+FuncDecl *collect_functions(ASTNode *node, FuncDecl *list);
+void emit_forward_declarations(FuncDecl *decls, FILE *out);
+void free_func_decls(FuncDecl *decls);
 
 static void emit_statement(ASTNode *node) {
   if (node->type == AST_BLOCK || node->type == AST_IF ||
@@ -1778,7 +1802,7 @@ static void emit_var_decl(ASTNode *node) {
   const char *c_type = get_c_type(&node->suffix_info);
   fprintf(output_file, "%s %s", c_type, node->value);
 
-  // FIXED: Handle arrays properly
+  // Handle arrays properly
   if (node->suffix_info.type == TYPE_ARRAY) {
     fprintf(output_file, "[");
     if (node->child_count > 0 && node->children[0]) {
@@ -1789,7 +1813,16 @@ static void emit_var_decl(ASTNode *node) {
     // Array initializer is child 1 if it exists
     if (node->child_count > 1) {
       fprintf(output_file, " = ");
-      emit_node(node->children[1]);
+      
+      // Check if it's a string literal for char array
+      if (node->suffix_info.array_base_type == TYPE_CHAR &&
+          node->children[1]->type == AST_STRING) {
+        // Emit string literal with quotes
+        fprintf(output_file, "\"%s\"", node->children[1]->value);
+      } else {
+        // Regular initializer list
+        emit_node(node->children[1]);
+      }
     }
   } else {
     // Regular variable initializer is child 0
@@ -1815,23 +1848,41 @@ static void emit_node(ASTNode *node) {
     return;
 
   switch (node->type) {
-  case AST_PROGRAM:
-    // Emit directives first
-    for (int i = 0; i < node->child_count; i++) {
-      if (node->children[i]->type == AST_DIRECTIVE) {
-        emit_node(node->children[i]);
+    // Update the AST_PROGRAM case to emit in correct order:
+    case AST_PROGRAM:
+      // 1. Emit directives (includes)
+      for (int i = 0; i < node->child_count; i++) {
+        if (node->children[i]->type == AST_DIRECTIVE) {
+          emit_node(node->children[i]);
+        }
       }
-    }
-    fprintf(output_file, "\n");
-    // Then emit everything else
-    for (int i = 0; i < node->child_count; i++) {
-      if (node->children[i]->type != AST_DIRECTIVE) {
-        emit_node(node->children[i]);
-        fprintf(output_file, "\n");
+      fprintf(output_file, "\n");
+      
+      // 2. Emit typedefs, enums, and structs (type definitions)
+      for (int i = 0; i < node->child_count; i++) {
+        if (node->children[i]->type == AST_STRUCT_DEF ||
+            node->children[i]->type == AST_ENUM_DEF ||
+            node->children[i]->type == AST_TYPEDEF) {
+          emit_node(node->children[i]);
+          fprintf(output_file, "\n");
+        }
       }
-    }
-    break;
-
+      
+      // 3. NOW emit forward declarations (after types are defined)
+      FuncDecl *funcs = collect_functions(node, NULL);
+      if (funcs) {
+        emit_forward_declarations(funcs, output_file);
+        free_func_decls(funcs);
+      }
+      
+      // 4. Finally emit function implementations
+      for (int i = 0; i < node->child_count; i++) {
+        if (node->children[i]->type == AST_FUNCTION) {
+          emit_node(node->children[i]);
+          fprintf(output_file, "\n");
+        }
+      }
+      break;
   case AST_DIRECTIVE:
     fprintf(output_file, "%s\n", node->value);
     break;
@@ -2149,15 +2200,81 @@ static void emit_node(ASTNode *node) {
   }
 }
 
+// Collect all function declarations from the AST
+FuncDecl *collect_functions(ASTNode *node, FuncDecl *list) {
+  if (!node) return list;
+  
+  if (node->type == AST_FUNCTION) {
+    FuncDecl *decl = malloc(sizeof(FuncDecl));
+    decl->name = clone_string(node->value);
+    decl->return_type = node->suffix_info;
+    decl->params = node->child_count > 0 ? node->children[0] : NULL;
+    decl->next = list;
+    return decl;
+  }
+  
+  // Recurse through children
+  for (int i = 0; i < node->child_count; i++) {
+    list = collect_functions(node->children[i], list);
+  }
+  return list;
+}
+
+// Emit forward declarations
+void emit_forward_declarations(FuncDecl *decls, FILE *out) {
+  fprintf(out, "// Forward declarations\n");
+  
+  for (FuncDecl *d = decls; d; d = d->next) {
+    const char *return_type = get_c_type(&d->return_type);
+    fprintf(out, "%s %s(", return_type, d->name);
+    
+    if (d->params && d->params->child_count > 0) {
+      for (int i = 0; i < d->params->child_count; i++) {
+        if (i > 0) fprintf(out, ", ");
+        ASTNode *param = d->params->children[i];
+        
+        // Handle array parameters as pointers
+        if (param->suffix_info.type == TYPE_ARRAY) {
+          const char *base_type = "void";
+          switch (param->suffix_info.array_base_type) {
+            case TYPE_INT: base_type = "int"; break;
+            case TYPE_FLOAT: base_type = "float"; break;
+            case TYPE_CHAR: base_type = "char"; break;
+            case TYPE_BOOL: base_type = "bool"; break;
+            case TYPE_USER:
+              if (param->suffix_info.array_user_type_name) {
+                base_type = param->suffix_info.array_user_type_name;
+              }
+              break;
+            default: break;
+          }
+          fprintf(out, "%s* %s", base_type, param->value);
+        } else {
+          const char *param_type = get_c_type(&param->suffix_info);
+          fprintf(out, "%s %s", param_type, param->value);
+        }
+      }
+    }
+    fprintf(out, ");\n");
+  }
+  fprintf(out, "\n");
+}
+
+// Free the function declaration list
+void free_func_decls(FuncDecl *decls) {
+  while (decls) {
+    FuncDecl *next = decls->next;
+    free(decls->name);
+    free(decls);
+    decls = next;
+  }
+}
 void codegen(ASTNode *ast, const TypeTable *table, FILE *out) {
   output_file = out;
   codegen_type_table = table;
   emit_node(ast);
 }
 
-// ============================================================================
-// MAIN - Compiler Entry Point
-// ============================================================================
 static void pre_scan_for_types(const char *source, TypeTable *table) {
   const char *cursor = source;
 
@@ -2239,6 +2356,9 @@ static char *read_file(const char *path) {
   return buffer;
 }
 
+// ============================================================================
+// MAIN - Compiler Entry Point
+// ============================================================================
 int main(int argc, char **argv) {
   if (argc != 2) {
     fprintf(stderr, "Usage: dustc <file.dust>\n");

@@ -1,6 +1,9 @@
 #include <stdio.h>
 #define DATA_SIZE 10
 
+// Forward declarations
+int main();
+
 int main() {
 printf("--- Advanced Features Test ---\n");
 printf("\n1. Testing Array Initializer...\n");

@@ -22,6 +22,16 @@ struct Lexer {
     int len;
     int line;
 };
+// Forward declarations
+int main();
+void test_arrays();
+void test_string_handling();
+Token* lexer_next(Lexer* lex);
+void skip_whitespace(Lexer* lex);
+Lexer* lexer_create(char* source);
+void token_free(Token* tok);
+Token* make_token(int type, char* text, int line);
+
 Token* make_token(int type, char* text, int line) {
 Token* tok = (Token*)malloc(sizeof(Token));
 if ((tok == NULL)) {

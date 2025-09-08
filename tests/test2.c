@@ -11,6 +11,12 @@ struct Game {
     int last_guess;
     int attempts;
 };
+// Forward declarations
+int main();
+void checkGuess(const Game* game, int guess);
+int getPlayerGuess();
+void printWelcome();
+
 void printWelcome() {
 printf("=============================\n");
 printf("= Welcome to Guess the Number =\n");

@@ -1,5 +1,9 @@
 #include <stdio.h>
 
+// Forward declarations
+int main();
+void print_day_type(int day_number);
+
 void print_day_type(int day_number) {
 printf("Day %d is a ", day_number);
 switch (day_number) {

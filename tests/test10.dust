@@ -1,165 +1,152 @@
-// string_utils.dust - Advanced string manipulation functions
+// test10.dust - Simple string utilities
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
-// Structure to hold split string results
-struct StringSplit {
-    parts_ca;    // Array of string parts
-    count_i;      // Number of parts
-};
-
-// Split a string by a delimiter character
-func split_StringSplitt(str_cp, delimiter_c) {
-    // Empty string case
-    if (str_cp == null || str_cp[0] == '\0') {
-        let result_StringSplitt = cast_StringSplitt(malloc(sizeof(StringSplit)));
-        result_StringSplitt->parts = null;
-        result_StringSplitt->count = 0;
-        return result_StringSplitt;
+// Simple string length function
+func my_strlen_i(str_cp) {
+    if (str_cp == null) {
+        return 0;
     }
     
-    // First pass: count delimiters to determine array size
-    let count_i = 1;
+    let len_i = 0;
+    while (str_cp[len_i] != '\0') {
+        len_i = len_i + 1;
+    }
+    return len_i;
+}
+
+// String copy function
+func my_strcpy_cp(dest_cp, src_cp) {
+    if (dest_cp == null || src_cp == null) {
+        return dest_cp;
+    }
+    
     let i_i = 0;
+    while (src_cp[i_i] != '\0') {
+        dest_cp[i_i] = src_cp[i_i];
+        i_i = i_i + 1;
+    }
+    dest_cp[i_i] = '\0';
+    return dest_cp;
+}
+
+// String concatenation
+func my_strcat_cp(dest_cp, src_cp) {
+    if (dest_cp == null || src_cp == null) {
+        return dest_cp;
+    }
+    
+    // Find end of dest
+    let dest_len_i = my_strlen_i(dest_cp);
+    
+    // Copy src to end
+    let i_i = 0;
+    while (src_cp[i_i] != '\0') {
+        dest_cp[dest_len_i + i_i] = src_cp[i_i];
+        i_i = i_i + 1;
+    }
+    dest_cp[dest_len_i + i_i] = '\0';
+    
+    return dest_cp;
+}
+
+// Simple string reversal (in-place)
+func reverse_cp(str_cp) {
+    if (str_cp == null) {
+        return null;
+    }
+    
+    let len_i = my_strlen_i(str_cp);
+    if (len_i <= 1) {
+        return str_cp;
+    }
+    
+    let start_i = 0;
+    let end_i = len_i - 1;
+    
+    while (start_i < end_i) {
+        // Swap characters
+        let temp_c = str_cp[start_i];
+        str_cp[start_i] = str_cp[end_i];
+        str_cp[end_i] = temp_c;
+        
+        start_i = start_i + 1;
+        end_i = end_i - 1;
+    }
+    
+    return str_cp;
+}
+
+// Count occurrences of a character
+func count_char_i(str_cp, ch_c) {
+    if (str_cp == null) {
+        return 0;
+    }
+    
+    let count_i = 0;
+    let i_i = 0;
+    
     while (str_cp[i_i] != '\0') {
-        if (str_cp[i_i] == delimiter_c) {
+        if (str_cp[i_i] == ch_c) {
             count_i = count_i + 1;
         }
         i_i = i_i + 1;
     }
     
-    // Allocate parts array
-    let parts_ca = cast_ca(malloc(count_i * sizeof(char*)));
-    
-    // Second pass: extract parts
-    let start_i = 0;
-    let part_index_i = 0;
-    i_i = 0;
-    
-    while (str_cp[i_i] != '\0') {
-        if (str_cp[i_i] == delimiter_c) {
-            let length_i = i_i - start_i;
-            parts_ca[part_index_i] = cast_cp(malloc(length_i + 1));
-            memcpy(parts_ca[part_index_i], str_cp + start_i, length_i);
-            parts_ca[part_index_i][length_i] = '\0';
-            part_index_i = part_index_i + 1;
-            start_i = i_i + 1;
-        }
-        i_i = i_i + 1;
-    }
-    
-    // Handle the last part
-    let length_i = i_i - start_i;
-    parts_ca[part_index_i] = cast_cp(malloc(length_i + 1));
-    memcpy(parts_ca[part_index_i], str_cp + start_i, length_i);
-    parts_ca[part_index_i][length_i] = '\0';
-    
-    // Create and return result
-    let result_StringSplitt = cast_StringSplitt(malloc(sizeof(StringSplit)));
-    result_StringSplitt->parts = parts_ca;
-    result_StringSplitt->count = count_i;
-    
-    return result_StringSplitt;
+    return count_i;
 }
 
-// Free memory allocated by split function
-func split_free_v(split_StringSplitt) {
-    if (split_StringSplitt == null) {
-        return;
-    }
-    
-    let i_i = 0;
-    while (i_i < split_StringSplitt->count) {
-        free(split_StringSplitt->parts[i_i]);
-        i_i = i_i + 1;
-    }
-    
-    free(split_StringSplitt->parts);
-    free(split_StringSplitt);
-}
-
-// Test the split function
-func test_split_v() {
-    printf("Testing string split function:\n");
-    
-    let test_str_s = "apple,banana,cherry,date";
-    printf("Splitting: '%s'\n", test_str_s);
-    
-    let result_StringSplitt = split_StringSplitt(test_str_s, ',');
-    
-    printf("Found %d parts:\n", result_StringSplitt->count);
-    
-    let i_i = 0;
-    while (i_i < result_StringSplitt->count) {
-        printf("  [%d] '%s'\n", i_i, result_StringSplitt->parts[i_i]);
-        i_i = i_i + 1;
-    }
-    
-    split_free_v(result_StringSplitt);
-}
-
-// Advanced function: trim whitespace from a string (in-place)
-func trim_cp(str_cp) {
+// Convert string to uppercase (in-place)
+func to_upper_cp(str_cp) {
     if (str_cp == null) {
         return null;
     }
     
-    // Find start of non-whitespace
-    let start_i = 0;
-    while (str_cp[start_i] != '\0' && isspace(str_cp[start_i])) {
-        start_i = start_i + 1;
+    let i_i = 0;
+    while (str_cp[i_i] != '\0') {
+        str_cp[i_i] = toupper(str_cp[i_i]);
+        i_i = i_i + 1;
     }
-    
-    // All whitespace or empty string
-    if (str_cp[start_i] == '\0') {
-        str_cp[0] = '\0';
-        return str_cp;
-    }
-    
-    // Find end of non-whitespace
-    let end_i = start_i;
-    let last_non_space_i = start_i;
-    while (str_cp[end_i] != '\0') {
-        if (!isspace(str_cp[end_i])) {
-            last_non_space_i = end_i;
-        }
-        end_i = end_i + 1;
-    }
-    
-    // Calculate new length
-    let new_length_i = last_non_space_i - start_i + 1;
-    
-    // Move characters to beginning if needed
-    if (start_i > 0) {
-        memmove(str_cp, str_cp + start_i, new_length_i);
-    }
-    
-    // Null terminate
-    str_cp[new_length_i] = '\0';
     
     return str_cp;
 }
 
-// Test the trim function
-func test_trim_v() {
-    printf("\nTesting trim function:\n");
-    
-    let test_str_ca[50] = "   Hello, World!   ";
-    printf("Before trim: '%s'\n", test_str_ca);
-    
-    let trimmed_cp = trim_cp(test_str_ca);
-    printf("After trim: '%s'\n", trimmed_cp);
-}
-
-// Main function to demonstrate capabilities
+// Test all functions
 func main_i() {
     printf("=== Dust String Utilities Demo ===\n\n");
     
-    test_split_v();
-    test_trim_v();
+    // Test strlen
+    let test1_s = "Hello, Dust!";
+    let len_i = my_strlen_i(test1_s);
+    printf("Length of '%s': %d\n", test1_s, len_i);
     
-    printf("\n=== All string utilities working! ===\n");
+    // Test strcpy
+    let buffer_ca[100];
+    my_strcpy_cp(buffer_ca, "Copied string");
+    printf("Copied: '%s'\n", buffer_ca);
+    
+    // Test strcat
+    my_strcat_cp(buffer_ca, " + more");
+    printf("Concatenated: '%s'\n", buffer_ca);
+    
+    // Test reverse
+    let rev_ca[50];
+    my_strcpy_cp(rev_ca, "Dust");
+    reverse_cp(rev_ca);
+    printf("'Dust' reversed: '%s'\n", rev_ca);
+    
+    // Test count_char
+    let count_i = count_char_i("Mississippi", 's');
+    printf("Number of 's' in 'Mississippi': %d\n", count_i);
+    
+    // Test to_upper
+    let upper_ca[50];
+    my_strcpy_cp(upper_ca, "dust language");
+    to_upper_cp(upper_ca);
+    printf("Uppercase: '%s'\n", upper_ca);
+    
+    printf("\n=== All tests passed! ===\n");
     return 0;
 }

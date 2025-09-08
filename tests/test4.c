@@ -6,6 +6,10 @@ struct AnalysisResult {
     int sum;
     float average;
 };
+// Forward declarations
+int main();
+int calculate_sum(int* data, int size);
+
 int calculate_sum(int* data, int size) {
 int total = 0;
 for (int i = 0; (i < size); (i = (i + 1))) {

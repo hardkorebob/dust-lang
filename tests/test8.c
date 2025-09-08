@@ -9,6 +9,12 @@ void (*on_destroy)();
 int (*on_update)(float);
 void (*on_event)(Widget*);
 };
+// Forward declarations
+int main();
+void widget_event(Widget* w);
+int widget_update(float dt);
+void widget_destroy();
+
 void widget_destroy() {
 printf("  -> Event: Widget destroyed.\n");
 }

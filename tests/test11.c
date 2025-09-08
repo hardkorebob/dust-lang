@@ -16,6 +16,18 @@ typedef enum ASTType {
     AST_IF = 4,
     AST_WHILE = 5
 } ASTType;
+typedef struct Token Token;
+struct Token {
+    TokenType type;
+    char* text;
+    int line;
+};
+// Forward declarations
+int main();
+char* token_type_name(TokenType type);
+bool is_keyword(TokenType type);
+TokenType get_eof_token();
+
 TokenType get_eof_token() {
 return EOFF;
 }
@@ -42,12 +54,6 @@ return "UNKNOWN";
 }
 
 }
-typedef struct Token Token;
-struct Token {
-    TokenType type;
-    char* text;
-    int line;
-};
 int main() {
 printf("Testing Dust enum support with suffix style\n\n");
 TokenType token_type = IDENTIFIER;

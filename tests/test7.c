@@ -6,6 +6,14 @@ struct Point {
     int x;
     int y;
 };
+// Forward declarations
+int main();
+void test_memory_features();
+void test_operators();
+void test_control_flow();
+void test_fallthrough(int start_day);
+void print_point(const Point* p);
+
 void print_point(const Point* p) {
 printf("Point(x: %d, y: %d)\n", p->x, p->y);
 }

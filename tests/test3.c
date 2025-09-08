@@ -1,6 +1,11 @@
 #include <stdio.h>
 #define ARRAY_SIZE 10
 
+// Forward declarations
+int main();
+int find_max(int* arr, int size);
+void print_array(int* arr, int size);
+
 void print_array(int* arr, int size) {
 printf("Array Contents:\n");
 int i = 0;
