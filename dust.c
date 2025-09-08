@@ -1,15 +1,12 @@
-// dustc.c - The Dust Compiler (Single File)
-// A systems programming language with suffix-based type annotations
-
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-// ============================================================================
+// ====================
 // UTILITY FUNCTIONS
-// ============================================================================
+// ====================
 
 char *clone_string(const char *str) {
   if (!str)
@@ -23,9 +20,9 @@ char *clone_string(const char *str) {
   return new_str;
 }
 
-// ============================================================================
-// TYPE TABLE - Tracks user-defined types (structs)
-// ============================================================================
+// =============
+// TYPE TABLE - 
+// =============
 typedef enum {
   TYPE_VOID,
   TYPE_INT,
@@ -34,7 +31,6 @@ typedef enum {
   TYPE_STRING,
   TYPE_POINTER,
   TYPE_ARRAY,
-  TYPE_BOOL,
   TYPE_USER,
   TYPE_FUNC_POINTER,
   TYPE_SIZE_T,
@@ -108,7 +104,6 @@ void type_table_destroy(TypeTable *table) {
 }
 
 bool type_table_add(TypeTable *table, const char *type_name) {
-  // Check if already exists
   for (size_t i = 0; i < table->struct_count; i++) {
     if (strcmp(table->struct_names[i], type_name) == 0) {
       return true;
@@ -117,8 +112,7 @@ bool type_table_add(TypeTable *table, const char *type_name) {
 
   if (table->struct_count >= table->struct_capacity) {
     table->struct_capacity *= 2;
-    table->struct_names =
-        realloc(table->struct_names, sizeof(char *) * table->struct_capacity);
+    table->struct_names = realloc(table->struct_names, sizeof(char *) * table->struct_capacity);
   }
   table->struct_names[table->struct_count++] = clone_string(type_name);
   return true;
@@ -139,9 +133,8 @@ const char *type_table_lookup(const TypeTable *table, const char *type_name) {
   return NULL;
 }
 
-bool type_table_add_typedef(TypeTable *table, const char *name,
-                            const SuffixInfo *type_info) {
-  // Check if already exists
+bool type_table_add_typedef(TypeTable *table, const char *name, const SuffixInfo *type_info) {
+
   for (size_t i = 0; i < table->typedef_count; i++) {
     if (strcmp(table->typedefs[i].name, name) == 0) {
       return false;
@@ -150,8 +143,7 @@ bool type_table_add_typedef(TypeTable *table, const char *name,
 
   if (table->typedef_count >= table->typedef_capacity) {
     table->typedef_capacity *= 2;
-    table->typedefs =
-        realloc(table->typedefs, sizeof(TypedefInfo) * table->typedef_capacity);
+    table->typedefs = realloc(table->typedefs, sizeof(TypedefInfo) * table->typedef_capacity);
   }
   table->typedefs[table->typedef_count].name = clone_string(name);
   table->typedefs[table->typedef_count].type_info = *type_info;
@@ -159,8 +151,7 @@ bool type_table_add_typedef(TypeTable *table, const char *name,
   return true;
 }
 
-const TypedefInfo *type_table_lookup_typedef(const TypeTable *table,
-                                             const char *name) {
+const TypedefInfo *type_table_lookup_typedef(const TypeTable *table, const char *name) {
   for (size_t i = 0; i < table->typedef_count; i++) {
     if (strcmp(table->typedefs[i].name, name) == 0) {
       return &table->typedefs[i];
@@ -169,18 +160,16 @@ const TypedefInfo *type_table_lookup_typedef(const TypeTable *table,
   return NULL;
 }
 
-// ============================================================================
-// COMPONENT SYSTEM - Suffix parsing and type information
-// ============================================================================
+// ==================
+// COMPONENT SYSTEM 
+// ==================
 
 const char *find_suffix_separator(const char *name) {
   return strrchr(name, '_');
 }
 
-bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
-                  SuffixInfo *result_info) {
-  *result_info = (SuffixInfo){TYPE_VOID, ROLE_NONE, false,     false,
-                              NULL,      false,     TYPE_VOID, NULL};
+bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, SuffixInfo *result_info) {
+  *result_info = (SuffixInfo){TYPE_VOID, ROLE_NONE, false, false, NULL, false, TYPE_VOID, NULL};
   const char *separator = find_suffix_separator(full_variable_name);
   if (!separator)
     return false;
@@ -190,14 +179,12 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
   if (suffix_len == 0)
     return false;
 
-  // Check for arrays (ends with 'a')
   if (suffix_len > 1 && suffix_str[suffix_len - 1] == 'a') {
     result_info->type = TYPE_ARRAY;
     char base_type_suffix[128];
     strncpy(base_type_suffix, suffix_str, suffix_len - 1);
     base_type_suffix[suffix_len - 1] = '\0';
 
-    // Check primitive array types
     if (strcmp(base_type_suffix, "i") == 0) {
       result_info->array_base_type = TYPE_INT;
       return true;
@@ -210,12 +197,7 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
       result_info->array_base_type = TYPE_CHAR;
       return true;
     }
-    if (strcmp(base_type_suffix, "bl") == 0) {
-      result_info->array_base_type = TYPE_BOOL;
-      return true;
-    }
 
-    // Check for user-defined type array
     const char *user_type = type_table_lookup(type_table, base_type_suffix);
     if (user_type) {
       result_info->array_base_type = TYPE_USER;
@@ -241,11 +223,6 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
 
   if (strcmp(suffix_str, "c") == 0) {
     result_info->type = TYPE_CHAR;
-    return true;
-  }
-
-  if (strcmp(suffix_str, "bl") == 0) {
-    result_info->type = TYPE_BOOL;
     return true;
   }
 
@@ -291,7 +268,7 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
     return true;
   }
 
-  // Generic borrowed pointer (legacy)
+  // Generic borrowed pointer
   if (strcmp(suffix_str, "b") == 0) {
     result_info->type = TYPE_POINTER;
     result_info->is_pointer = true;
@@ -313,9 +290,7 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
   type_candidate[sizeof(type_candidate) - 1] = '\0';
 
   char last_char = suffix_str[suffix_len - 1];
-  bool is_potential_pointer =
-      (suffix_len > 1 &&
-       (last_char == 'p' || last_char == 'b' || last_char == 'r'));
+  bool is_potential_pointer = (suffix_len > 1 && (last_char == 'p' || last_char == 'b' || last_char == 'r'));
 
   if (is_potential_pointer) {
     type_candidate[suffix_len - 1] = '\0';
@@ -337,7 +312,6 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
     }
   }
 
-  // Check for user type value (not pointer)
   const char *user_type = type_table_lookup(type_table, suffix_str);
   if (user_type) {
     result_info->type = TYPE_USER;
@@ -346,9 +320,7 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
     return true;
   }
 
-  // Check for typedef
-  const TypedefInfo *typedef_info =
-      type_table_lookup_typedef(type_table, suffix_str);
+  const TypedefInfo *typedef_info = type_table_lookup_typedef(type_table, suffix_str);
   if (typedef_info) {
     *result_info = typedef_info->type_info;
     return true;
@@ -360,39 +332,39 @@ const char *get_c_type(const SuffixInfo *info) {
   static char type_buffer[256];
   char base_type_str[128] = "void";
 
-  // For arrays, use the array base type
-  DataType type_to_check =
-      (info->type == TYPE_ARRAY) ? info->array_base_type : info->type;
-  const char *user_name = (info->type == TYPE_ARRAY)
-                              ? info->array_user_type_name
-                              : info->user_type_name;
+  DataType type_to_check = (info->type == TYPE_ARRAY) ? info->array_base_type : info->type;
+  const char *user_name = (info->type == TYPE_ARRAY) ? info->array_user_type_name : info->user_type_name;
 
   switch (type_to_check) {
   case TYPE_INT:
     strcpy(base_type_str, "int");
     break;
+
   case TYPE_FLOAT:
     strcpy(base_type_str, "float");
     break;
+
   case TYPE_CHAR:
     strcpy(base_type_str, "char");
     break;
-  case TYPE_BOOL:
-    strcpy(base_type_str, "bool");
-    break;
+
   case TYPE_STRING:
     strcpy(base_type_str, "char*");
     break;
+
   case TYPE_USER:
     if (user_name)
       strcpy(base_type_str, user_name);
     break;
+
   case TYPE_VOID:
     strcpy(base_type_str, "void");
     break;
+
   case TYPE_SIZE_T:
     strcpy(base_type_str, "size_t");
     break;
+
   default:
     break;
   }
@@ -409,9 +381,9 @@ const char *get_c_type(const SuffixInfo *info) {
   return type_buffer;
 }
 
-// ============================================================================
-// LEXER - Tokenization
-// ============================================================================
+// ======
+// LEXER 
+// ======
 
 typedef enum {
   TOKEN_EOF,
@@ -444,9 +416,30 @@ typedef struct {
 } Lexer;
 
 static const char *KEYWORDS[] = {
-    "if", "else", "while", "do", "for", "return", "break",
-    "continue", "func",    "let", "struct", "sizeof", "switch", "case",
-    "default",  "typedef", "cast", "null", "enum", "static", "const", NULL};
+    "if",
+    "else",
+    "while",
+    "do",
+    "for",
+    "return",
+    "break",
+    "continue",
+    "func",
+    "let",
+    "struct",
+    "sizeof",
+    "switch",
+    "case",
+    "default",
+    "typedef",
+    "cast",
+    "null",
+    "enum",
+    "static",
+    "const",
+    "extern",
+     NULL
+};
 
 static bool is_keyword(const char *word) {
   for (int i = 0; KEYWORDS[i]; i++) {
@@ -516,6 +509,7 @@ Token *lexer_next(Lexer *lex) {
     free(directive_line);
     return tok;
   }
+  // Escape Hatch
   if (c == '@' && lex->pos + 2 < lex->len && lex->source[lex->pos + 1] == 'c' &&
       lex->source[lex->pos + 2] == '(') {
     lex->pos += 3; // Skip @c(
@@ -553,8 +547,7 @@ Token *lexer_next(Lexer *lex) {
 
   // Identifiers and keywords
   if (isalpha(c) || c == '_') {
-    while (lex->pos < lex->len &&
-           (isalnum(lex->source[lex->pos]) || lex->source[lex->pos] == '_')) {
+    while (lex->pos < lex->len && (isalnum(lex->source[lex->pos]) || lex->source[lex->pos] == '_')) {
       lex->pos++;
     }
     int len = lex->pos - start;
@@ -582,8 +575,7 @@ Token *lexer_next(Lexer *lex) {
           tok->suffix_info = info;
         }
       } else {
-        tok->suffix_info = (SuffixInfo){TYPE_VOID, ROLE_NONE, false,     false,
-                                        NULL,      false,     TYPE_VOID, NULL};
+        tok->suffix_info = (SuffixInfo){TYPE_VOID, ROLE_NONE, false, false, NULL, false, TYPE_VOID, NULL};
       }
     }
     free(word);
@@ -739,9 +731,9 @@ typedef struct FuncDecl {
   struct FuncDecl *next;
 } FuncDecl;
 
-// ============================================================================
+// =======
 // PARSER
-// ============================================================================
+// =======
 
 static ASTNode *parse_statement(Parser *p);
 static ASTNode *parse_expression(Parser *p);
@@ -753,6 +745,7 @@ static ASTNode *parse_initializer_list(Parser *p);
 static ASTNode *parse_call(Parser *p);
 static ASTNode *parse_typedef(Parser *p);
 static ASTNode *parse_enum_definition(Parser *p);
+
 
 // AST helper functions
 static ASTNode *create_node(ASTType type, const char *value) {
@@ -769,8 +762,7 @@ static void add_child(ASTNode *parent, ASTNode *child) {
     return;
   if (parent->child_count >= parent->child_cap) {
     parent->child_cap *= 2;
-    parent->children =
-        realloc(parent->children, parent->child_cap * sizeof(ASTNode *));
+    parent->children = realloc(parent->children, parent->child_cap * sizeof(ASTNode *));
   }
   parent->children[parent->child_count++] = child;
 }
@@ -813,8 +805,7 @@ static bool match_and_consume(Parser *p, TokenType type, const char *text) {
   return false;
 }
 
-static void expect(Parser *p, TokenType type, const char *text,
-                   const char *error_message) {
+static void expect(Parser *p, TokenType type, const char *text, const char *error_message) {
   if (p->current->type == type &&
       (!text || strcmp(p->current->text, text) == 0)) {
     token_free(advance(p));
@@ -852,8 +843,7 @@ static ASTNode *parse_primary(Parser *p) {
       return node;
     }
     
-    ASTNode *node = create_node(AST_IDENTIFIER,
-                                tok->base_name ? tok->base_name : tok->text);
+    ASTNode *node = create_node(AST_IDENTIFIER, tok->base_name ? tok->base_name : tok->text);
     if (tok->base_name) {
       node->suffix_info = tok->suffix_info;
     }
@@ -891,9 +881,7 @@ static ASTNode *parse_primary(Parser *p) {
     if (check(p, TOKEN_IDENTIFIER)) {
       Token *type_tok = advance(p);
       // Always keep the identifier as a child for sizeof
-      ASTNode *id_node =
-          create_node(AST_IDENTIFIER, type_tok->base_name ? type_tok->base_name
-                                                          : type_tok->text);
+      ASTNode *id_node = create_node(AST_IDENTIFIER, type_tok->base_name ? type_tok->base_name : type_tok->text);
       if (type_tok->base_name) {
         id_node->suffix_info = type_tok->suffix_info;
       }
@@ -930,7 +918,6 @@ static ASTNode *parse_primary(Parser *p) {
 
     return node;
   }
-
   parser_error(p, "Expected expression.");
   return NULL;
 }
@@ -952,7 +939,6 @@ static ASTNode *parse_call(Parser *p) {
     expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after arguments.");
     expr = call_node;
   }
-
   return expr;
 }
 
@@ -985,9 +971,7 @@ static ASTNode *parse_member_access(Parser *p) {
       if (member->type != TOKEN_IDENTIFIER) {
         parser_error(p, "Expected member name after '.'.");
       }
-      add_child(node, create_node(AST_IDENTIFIER, member->base_name
-                                                      ? member->base_name
-                                                      : member->text));
+      add_child(node, create_node(AST_IDENTIFIER, member->base_name ? member->base_name : member->text));
       token_free(member);
       left = node;
     } else if (match_and_consume(p, TOKEN_ARROW, "->")) {
@@ -998,8 +982,7 @@ static ASTNode *parse_member_access(Parser *p) {
       if (member->type != TOKEN_IDENTIFIER) {
         parser_error(p, "Expected member name after '->'.");
       }
-      ASTNode *member_node = create_node(
-          AST_IDENTIFIER, member->base_name ? member->base_name : member->text);
+      ASTNode *member_node = create_node(AST_IDENTIFIER, member->base_name ? member->base_name : member->text);
       if (member->base_name) {
         node->suffix_info = member->suffix_info;
       }
@@ -1008,7 +991,7 @@ static ASTNode *parse_member_access(Parser *p) {
       left = node;
     } else if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "[") == 0) {
       // Handle array indexing after member access
-      advance(p); // Consume '['
+      token_free(advance(p)); // Consume '['
       ASTNode *subscript_node = create_node(AST_SUBSCRIPT, NULL);
       add_child(subscript_node, left);
       add_child(subscript_node, parse_expression(p));
@@ -1059,15 +1042,12 @@ static ASTNode *parse_typedef(Parser *p) {
   ASTNode *node = create_node(AST_TYPEDEF, name_tok->text);
 
   // Store the original type information
-  ASTNode *type_node =
-      create_node(AST_IDENTIFIER,
-                  type_tok->base_name ? type_tok->base_name : type_tok->text);
+  ASTNode *type_node = create_node(AST_IDENTIFIER, type_tok->base_name ? type_tok->base_name : type_tok->text);
   if (type_tok->base_name) {
     type_node->suffix_info = type_tok->suffix_info;
   }
   add_child(node, type_node);
-  type_table_add_typedef((TypeTable *)p->type_table, name_tok->text,
-                         &type_tok->suffix_info);
+  type_table_add_typedef((TypeTable *)p->type_table, name_tok->text, &type_tok->suffix_info);
   expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after typedef.");
 
   token_free(type_tok);
@@ -1186,7 +1166,9 @@ static ASTNode *parse_assignment(Parser *p) {
   return left;
 }
 
-static ASTNode *parse_expression(Parser *p) { return parse_assignment(p); }
+static ASTNode *parse_expression(Parser *p) { 
+  return parse_assignment(p); 
+}
 
 static ASTNode *parse_initializer_list(Parser *p) {
   ASTNode *list = create_node(AST_INITIALIZER_LIST, NULL);
@@ -1210,8 +1192,7 @@ static ASTNode *parse_var_decl(Parser *p) {
     return NULL;
   }
 
-  ASTNode *node =
-      create_node(AST_VAR_DECL, name->base_name ? name->base_name : name->text);
+  ASTNode *node = create_node(AST_VAR_DECL, name->base_name ? name->base_name : name->text);
   if (name->base_name) {
     node->suffix_info = name->suffix_info;
   }
@@ -1220,7 +1201,7 @@ static ASTNode *parse_var_decl(Parser *p) {
   if (node->suffix_info.type == TYPE_ARRAY) {
     // Array declaration with size
     if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "[") == 0) {
-      advance(p); // Consume '['
+      token_free(advance(p)); // Consume '['
       add_child(node, parse_expression(p));  // Child 0: array size
       expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after array size.");
     }
@@ -1260,7 +1241,7 @@ static ASTNode *parse_if_statement(Parser *p) {
 
   if (match_and_consume(p, TOKEN_KEYWORD, "else")) {
     if (check(p, TOKEN_KEYWORD) && strcmp(p->current->text, "if") == 0) {
-      advance(p);
+      token_free(advance(p));
       add_child(node, parse_if_statement(p));
     } else {
       add_child(node, parse_block(p));
@@ -1303,8 +1284,7 @@ static ASTNode *parse_for_statement(Parser *p) {
     } else {
       add_child(node, parse_expression(p));
     }
-    expect(p, TOKEN_PUNCTUATION, ";",
-           "Expected ';' after for loop initializer.");
+    expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after for loop initializer.");
   }
 
   // Condition
@@ -1386,44 +1366,43 @@ static ASTNode *parse_switch_statement(Parser *p) {
 static ASTNode *parse_statement(Parser *p) {
   if (check(p, TOKEN_KEYWORD)) {
     if (strcmp(p->current->text, "let") == 0) {
-      advance(p);
+      token_free(advance(p));
       ASTNode *decl = parse_var_decl(p);
-      expect(p, TOKEN_PUNCTUATION, ";",
-             "Expected ';' after variable declaration.");
+      expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after variable declaration.");
       return decl;
     }
     if (strcmp(p->current->text, "if") == 0) {
-      advance(p);
+      token_free(advance(p));
       return parse_if_statement(p);
     }
     if (strcmp(p->current->text, "while") == 0) {
-      advance(p);
+      token_free(advance(p));
       return parse_while_statement(p);
     }
     if (strcmp(p->current->text, "do") == 0) {
-      advance(p);
+      token_free(advance(p));
       return parse_do_statement(p);
     }
     if (strcmp(p->current->text, "for") == 0) {
-      advance(p);
+      token_free(advance(p));
       return parse_for_statement(p);
     }
     if (strcmp(p->current->text, "switch") == 0) {
-      advance(p);
+      token_free(advance(p));
       return parse_switch_statement(p);
     }
     if (strcmp(p->current->text, "break") == 0) {
-      advance(p);
+      token_free(advance(p));
       expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after 'break'.");
       return create_node(AST_BREAK, "break");
     }
     if (strcmp(p->current->text, "continue") == 0) {
-      advance(p);
+      token_free(advance(p));
       expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after 'continue'.");
       return create_node(AST_CONTINUE, "continue");
     }
     if (strcmp(p->current->text, "return") == 0) {
-      advance(p);
+      token_free(advance(p));
       ASTNode *node = create_node(AST_RETURN, "return");
       if (!(check(p, TOKEN_PUNCTUATION) &&
             strcmp(p->current->text, ";") == 0)) {
@@ -1484,22 +1463,18 @@ static ASTNode *parse_struct_definition(Parser *p) {
 
       // Check if the member is a function pointer
       if (member_tok->suffix_info.type == TYPE_FUNC_POINTER) {
-        ASTNode *fp_node =
-            create_node(AST_FUNC_PTR_DECL, member_tok->base_name);
+        ASTNode *fp_node = create_node(AST_FUNC_PTR_DECL, member_tok->base_name);
 
-        expect(p, TOKEN_PUNCTUATION, "(",
-               "Expected '(' for function pointer signature.");
+        expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' for function pointer signature.");
 
         // Parse return type and parameter types
         do {
           if (p->current->type != TOKEN_IDENTIFIER) {
-            parser_error(
-                p, "Expected a type specifier (e.g., dummy_i) in signature.");
+            parser_error(p, "Expected a type specifier (e.g., dummy_i) in signature.");
             break;
           }
           Token *type_tok = advance(p);
-          ASTNode *type_node =
-              create_node(AST_IDENTIFIER, NULL); // Name doesn't matter
+          ASTNode *type_node = create_node(AST_IDENTIFIER, NULL); // Name doesn't matter
           type_node->suffix_info = type_tok->suffix_info;
           add_child(fp_node, type_node);
           token_free(type_tok);
@@ -1509,9 +1484,7 @@ static ASTNode *parse_struct_definition(Parser *p) {
         add_child(struct_node, fp_node);
 
       } else { // It's a regular variable or array
-        ASTNode *member_node = create_node(
-            AST_VAR_DECL,
-            member_tok->base_name ? member_tok->base_name : member_tok->text);
+        ASTNode *member_node = create_node(AST_VAR_DECL, member_tok->base_name ? member_tok->base_name : member_tok->text);
         member_node->suffix_info = member_tok->suffix_info;
 
         // Check for array declaration
@@ -1590,7 +1563,7 @@ static ASTNode *parse_enum_definition(Parser *p) {
       
       // Handle comma or end of enum
       if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ",") == 0) {
-        advance(p);  // Consume comma
+        token_free(advance(p));  // Consume comma
         // Allow trailing comma
         if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "}") == 0) {
           break;
@@ -1618,8 +1591,7 @@ static ASTNode *parse_function(Parser *p) {
     return NULL;
   }
 
-  ASTNode *func_node =
-      create_node(AST_FUNCTION, name->base_name ? name->base_name : name->text);
+  ASTNode *func_node = create_node(AST_FUNCTION, name->base_name ? name->base_name : name->text);
   if (name->base_name) {
     func_node->suffix_info = name->suffix_info;
   }
@@ -1637,9 +1609,7 @@ static ASTNode *parse_function(Parser *p) {
         token_free(param_tok);
         break;
       }
-      ASTNode *param_node =
-          create_node(AST_VAR_DECL, param_tok->base_name ? param_tok->base_name
-                                                         : param_tok->text);
+      ASTNode *param_node = create_node(AST_VAR_DECL, param_tok->base_name ? param_tok->base_name : param_tok->text);
       if (param_tok->base_name) {
         param_node->suffix_info = param_tok->suffix_info;
       }
@@ -1681,20 +1651,20 @@ ASTNode *parser_parse(Parser *p) {
       token_free(dir_tok);
     } else if (check(p, TOKEN_KEYWORD)) {
       if (strcmp(p->current->text, "typedef") == 0) {
-        advance(p);
+        token_free(advance(p));
         add_child(program, parse_typedef(p));
       } else if (strcmp(p->current->text, "func") == 0) {
-        advance(p);
+        token_free(advance(p));
         add_child(program, parse_function(p));
       } else if (strcmp(p->current->text, "struct") == 0) {
-        advance(p);
+        token_free(advance(p));
         add_child(program, parse_struct_definition(p));
       } else if (check(p, TOKEN_PASSTHROUGH)) {
         Token *pass = advance(p);
         add_child(program, create_node(AST_PASSTHROUGH, pass->text));
         token_free(pass);
       } else if (strcmp(p->current->text, "enum") == 0) {
-        advance(p);
+        token_free(advance(p));
         add_child(program, parse_enum_definition(p));
 
       } else {
@@ -1777,9 +1747,6 @@ static void emit_function(ASTNode *node) {
           break;
         case TYPE_CHAR:
           base_type = "char";
-          break;
-        case TYPE_BOOL:
-          base_type = "bool";
           break;
         case TYPE_USER:
           if (param->suffix_info.array_user_type_name) {
@@ -2061,8 +2028,7 @@ static void emit_node(ASTNode *node) {
         fprintf(output_file, "%s", get_c_type(&child->suffix_info));
       } else {
         // It's a real variable or struct name - emit it directly
-        const char *type_name =
-            type_table_lookup(codegen_type_table, child->value);
+        const char *type_name = type_table_lookup(codegen_type_table, child->value);
         fprintf(output_file, "%s", type_name ? type_name : child->value);
       }
     }
@@ -2246,7 +2212,6 @@ void emit_forward_declarations(FuncDecl *decls, FILE *out) {
             case TYPE_INT: base_type = "int"; break;
             case TYPE_FLOAT: base_type = "float"; break;
             case TYPE_CHAR: base_type = "char"; break;
-            case TYPE_BOOL: base_type = "bool"; break;
             case TYPE_USER:
               if (param->suffix_info.array_user_type_name) {
                 base_type = param->suffix_info.array_user_type_name;
@@ -2266,7 +2231,6 @@ void emit_forward_declarations(FuncDecl *decls, FILE *out) {
   fprintf(out, "\n");
 }
 
-// Free the function declaration list
 void free_func_decls(FuncDecl *decls) {
   while (decls) {
     FuncDecl *next = decls->next;
@@ -2311,7 +2275,6 @@ static void pre_scan_for_types(const char *source, TypeTable *table) {
     }
   }
   
-  // Now scan for enums
   cursor = source;
   while ((cursor = strstr(cursor, "enum"))) {
     cursor += strlen("enum");
@@ -2362,9 +2325,7 @@ static char *read_file(const char *path) {
   return buffer;
 }
 
-// ============================================================================
-// MAIN - Compiler Entry Point
-// ============================================================================
+
 int main(int argc, char **argv) {
   if (argc != 2) {
     fprintf(stderr, "Usage: dustc <file.dust>\n");
@@ -2392,7 +2353,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // Generate output filename
   char outname[256];
   strncpy(outname, argv[1], sizeof(outname) - 3);
   outname[sizeof(outname) - 3] = '\0';
