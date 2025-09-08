@@ -295,7 +295,7 @@ Will you please help me clean up all this Dust?
 
 ## Why Dust Doesn't Need a Type Checker
 
-The answer is in your manifesto: "Dust does not fight complexity. It transcends it."
+"Dust does not fight complexity. It transcends it."
 
 ### Pike's Philosophy in Dust
 
@@ -303,7 +303,7 @@ Rob Pike's core principles manifest throughout Dust:
 
 1. **"Data dominates"** - In Dust, the identifier IS the data structure. `player_i` isn't a variable with hidden type metadata; it's an integer named player. The data (the suffix) dominates the design.
 
-2. **"A little copying is better than a little dependency"** - Dust doesn't depend on a symbol table, type inference engine, or semantic analyzer. Each identifier carries its complete type information. Yes, you "copy" the type suffix everywhere, but this eliminates entire categories of dependencies.
+2. **"A little copying is better than a little dependency"** - Dust doesn't depend on a symbol table, type inference engine, or semantic analyzer. Each identifier carries its complete type information. Yes, you "copy" the type suffix everywhere, but this eliminates entire categories of dependencies. A simple tkinter/python editor can make this NULL.
 
 3. **"Don't communicate by sharing memory; share memory by communicating"** - Traditional compilers share memory (symbol tables) between phases. Dust communicates everything through the identifier itself. The lexer tells the parser the type. The parser tells the codegen. No shared state.
 
