@@ -24,22 +24,59 @@ char *clone_string(const char *str) {
 // TYPE TABLE - 
 // =============
 typedef enum {
-  TYPE_VOID,
-  TYPE_INT,
-  TYPE_FLOAT,
-  TYPE_CHAR,
-  TYPE_STRING,
-  TYPE_POINTER,
-  TYPE_ARRAY,
-  TYPE_USER,
-  TYPE_FUNC_POINTER,
-  TYPE_SIZE_T,
+    TYPE_VOID,
+    TYPE_INT,
+    TYPE_FLOAT,
+    TYPE_CHAR,
+    TYPE_STRING,
+    TYPE_POINTER,
+    TYPE_ARRAY,
+    TYPE_USER,
+    TYPE_FUNC_POINTER,
+    TYPE_SIZE_T,
+    
+    // Fixed-width types
+    TYPE_UINT8,
+    TYPE_UINT16,
+    TYPE_UINT32,
+    TYPE_UINT64,
+    TYPE_INT8,
+    TYPE_INT16,
+    TYPE_INT32,
+    TYPE_INT64,
+    
+    // Architecture types
+    TYPE_UINTPTR,
+    TYPE_INTPTR,
+    TYPE_SIZE,
+    TYPE_SSIZE,
+    TYPE_OFF,
+    
+    // OS-specific
+    TYPE_PHYS_ADDR,
+    TYPE_VIRT_ADDR,
+    TYPE_PTE,
+    TYPE_PDE,
+    TYPE_PFN,
+    TYPE_PORT,
+    TYPE_MMIO,
+    TYPE_VOLATILE,
+    TYPE_IRQ,
+    TYPE_VECTOR,
+    TYPE_ISR_PTR,
+    
+    // Atomics
+    TYPE_ATOMIC_U32,
+    TYPE_ATOMIC_U64,
+    TYPE_ATOMIC_PTR,
 } DataType;
+
 
 typedef enum {
   ROLE_OWNED,
   ROLE_BORROWED,
   ROLE_REFERENCE,
+  ROLE_RESTRICT,
   ROLE_NONE
 } SemanticRole;
 
@@ -97,7 +134,53 @@ static const SuffixMapping suffix_table[] = {
     
     // Generic borrowed pointer
     {"b",   TYPE_POINTER, ROLE_BORROWED, true,  true},
-    
+    // Fixed-width integer types (essential for OS dev)
+    {"u8",   TYPE_UINT8,   ROLE_NONE,   false, false},  // uint8_t
+    {"u16",  TYPE_UINT16,  ROLE_NONE,   false, false},  // uint16_t  
+    {"u32",  TYPE_UINT32,  ROLE_NONE,   false, false},  // uint32_t
+    {"u64",  TYPE_UINT64,  ROLE_NONE,   false, false},  // uint64_t
+    {"i8",   TYPE_INT8,    ROLE_NONE,   false, false},  // int8_t
+    {"i16",  TYPE_INT16,   ROLE_NONE,   false, false},  // int16_t
+    {"i32",  TYPE_INT32,   ROLE_NONE,   false, false},  // int32_t
+    {"i64",  TYPE_INT64,   ROLE_NONE,   false, false},  // int64_t
+
+    // Architecture-specific types
+    {"ux",   TYPE_UINTPTR, ROLE_NONE,   false, false},  // uintptr_t (native word)
+    {"ix",   TYPE_INTPTR,  ROLE_NONE,   false, false},  // intptr_t  
+    {"sz",   TYPE_SIZE,    ROLE_NONE,   false, false},  // size_t
+    {"ssz",  TYPE_SSIZE,   ROLE_NONE,   false, false},  // ssize_t
+    {"off",  TYPE_OFF,     ROLE_NONE,   false, false},  // off_t
+
+    // Physical/Virtual memory addresses  
+    {"pa",   TYPE_PHYS_ADDR, ROLE_NONE, false, false},  // physical address
+    {"va",   TYPE_VIRT_ADDR, ROLE_NONE, false, false},  // virtual address
+    {"pap",  TYPE_PHYS_ADDR, ROLE_OWNED, true, false},  // physical addr pointer
+    {"vap",  TYPE_VIRT_ADDR, ROLE_OWNED, true, false},  // virtual addr pointer
+
+    // Page table specific
+    {"pte",  TYPE_PTE,     ROLE_NONE,   false, false},  // page table entry
+    {"pde",  TYPE_PDE,     ROLE_NONE,   false, false},  // page directory entry
+    {"pfn",  TYPE_PFN,     ROLE_NONE,   false, false},  // page frame number
+
+    // Port I/O and MMIO
+    {"port", TYPE_PORT,    ROLE_NONE,   false, false},  // I/O port (u16 typically)
+    {"mmio", TYPE_MMIO,    ROLE_NONE,   true,  false},  // memory-mapped I/O ptr
+    {"vol",  TYPE_VOLATILE, ROLE_NONE,  true,  false},  // volatile ptr
+
+    // Interrupt handling
+    {"irq",  TYPE_IRQ,     ROLE_NONE,   false, false},  // IRQ number
+    {"vec",  TYPE_VECTOR,  ROLE_NONE,   false, false},  // interrupt vector
+    {"isr",  TYPE_ISR_PTR, ROLE_OWNED,  true,  false},  // interrupt service routine ptr
+
+    // Atomics
+    {"au32", TYPE_ATOMIC_U32, ROLE_NONE, false, false}, // atomic uint32
+    {"au64", TYPE_ATOMIC_U64, ROLE_NONE, false, false}, // atomic uint64
+    {"aptr", TYPE_ATOMIC_PTR, ROLE_NONE, true,  false}, // atomic pointer
+
+    // Special pointer qualifiers (combine with base types)
+    {"vp",   TYPE_VOID,    ROLE_OWNED,  true,  false},  // void pointer
+    {"cvp",  TYPE_VOID,    ROLE_BORROWED, true, true},  // const void pointer
+    {"rp",   TYPE_VOID,    ROLE_RESTRICT, true, false}, // restrict pointer    
     {NULL, TYPE_VOID, ROLE_NONE, false, false} // Sentinel
 };
 
@@ -294,56 +377,64 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
 }
 
 const char *get_c_type(const SuffixInfo *info) {
-  static char type_buffer[256];
-  char base_type_str[128] = "void";
+    static char type_buffer[256];
+    char base_type_str[128] = "void";
 
-  DataType type_to_check = (info->type == TYPE_ARRAY) ? info->array_base_type : info->type;
-  const char *user_name = (info->type == TYPE_ARRAY) ? info->array_user_type_name : info->user_type_name;
+    DataType type_to_check = (info->type == TYPE_ARRAY) ? info->array_base_type : info->type;
+    const char *user_name = (info->type == TYPE_ARRAY) ? info->array_user_type_name : info->user_type_name;
 
-  switch (type_to_check) {
-  case TYPE_INT:
-    strcpy(base_type_str, "int");
-    break;
-
-  case TYPE_FLOAT:
-    strcpy(base_type_str, "float");
-    break;
-
-  case TYPE_CHAR:
-    strcpy(base_type_str, "char");
-    break;
-
-  case TYPE_STRING:
-    strcpy(base_type_str, "char*");
-    break;
-
-  case TYPE_USER:
+    switch (type_to_check) {
+    case TYPE_USER:
     if (user_name)
       strcpy(base_type_str, user_name);
     break;
+    case TYPE_INT:    strcpy(base_type_str, "int");     break;
+    case TYPE_FLOAT:  strcpy(base_type_str, "float");   break;
+    case TYPE_CHAR:   strcpy(base_type_str, "char");    break;
+    case TYPE_STRING: strcpy(base_type_str, "char*");   break;
 
-  case TYPE_VOID:
-    strcpy(base_type_str, "void");
-    break;
+    case TYPE_VOID:      strcpy(base_type_str, "void");    break;
+    case TYPE_SIZE_T:    strcpy(base_type_str, "size_t");    break;
+    case TYPE_UINT8:   strcpy(base_type_str, "uint8_t"); break;
+    case TYPE_UINT16:  strcpy(base_type_str, "uint16_t"); break;
+    case TYPE_UINT32:  strcpy(base_type_str, "uint32_t"); break;
+    case TYPE_UINT64:  strcpy(base_type_str, "uint64_t"); break;
+    case TYPE_INT8:    strcpy(base_type_str, "int8_t"); break;
+    case TYPE_INT16:   strcpy(base_type_str, "int16_t"); break;
+    case TYPE_INT32:   strcpy(base_type_str, "int32_t"); break;
+    case TYPE_INT64:   strcpy(base_type_str, "int64_t"); break;
 
-  case TYPE_SIZE_T:
-    strcpy(base_type_str, "size_t");
-    break;
+    case TYPE_UINTPTR: strcpy(base_type_str, "uintptr_t"); break;
+    case TYPE_INTPTR:  strcpy(base_type_str, "intptr_t"); break;
+    case TYPE_SIZE:    strcpy(base_type_str, "size_t"); break;
+    case TYPE_SSIZE:   strcpy(base_type_str, "ssize_t"); break;
+    case TYPE_OFF:     strcpy(base_type_str, "off_t"); break;
 
-  default:
-    break;
-  }
+    case TYPE_PHYS_ADDR: strcpy(base_type_str, "phys_addr_t"); break;
+    case TYPE_VIRT_ADDR: strcpy(base_type_str, "virt_addr_t"); break;
+    case TYPE_PTE:     strcpy(base_type_str, "pte_t"); break;
+    case TYPE_PDE:     strcpy(base_type_str, "pde_t"); break;
+    case TYPE_PFN:     strcpy(base_type_str, "pfn_t"); break;
+    case TYPE_PORT:    strcpy(base_type_str, "port_t"); break;
+    case TYPE_IRQ:     strcpy(base_type_str, "irq_t"); break;
+    case TYPE_VECTOR:  strcpy(base_type_str, "vector_t"); break;
 
-  if (info->type == TYPE_ARRAY) {
-    strcpy(type_buffer, base_type_str);
-  } else if (info->type == TYPE_STRING) {
-    strcpy(type_buffer, base_type_str);
-  } else {
-    snprintf(type_buffer, sizeof(type_buffer), "%s%s%s",
-             (info->is_const ? "const " : ""), base_type_str,
-             (info->is_pointer ? "*" : ""));
-  }
-  return type_buffer;
+    case TYPE_ATOMIC_U32: strcpy(base_type_str, "atomic_uint32_t"); break;
+    case TYPE_ATOMIC_U64: strcpy(base_type_str, "atomic_uint64_t"); break;
+    default:
+      break;
+    }
+
+    if (info->type == TYPE_ARRAY) {
+      strcpy(type_buffer, base_type_str);
+    } else if (info->type == TYPE_STRING) {
+      strcpy(type_buffer, base_type_str);
+    } else {
+      snprintf(type_buffer, sizeof(type_buffer), "%s%s%s",
+               (info->is_const ? "const " : ""), base_type_str,
+               (info->is_pointer ? "*" : ""));
+    }
+    return type_buffer;
 }
 
 // ======
