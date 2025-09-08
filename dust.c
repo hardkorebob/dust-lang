@@ -78,10 +78,10 @@ TypeTable *type_table_create(void);
 void type_table_destroy(TypeTable *table);
 bool type_table_add(TypeTable *table, const char *type_name);
 const char *type_table_lookup(const TypeTable *table, const char *type_name);
-bool type_table_add_typedef(TypeTable *table, const char *name,
-                            const SuffixInfo *type_info);
-const TypedefInfo *type_table_lookup_typedef(const TypeTable *table,
-                                             const char *name);
+bool type_table_add_typedef(TypeTable *table, const char *name, const SuffixInfo *type_info);
+const TypedefInfo *type_table_lookup_typedef(const TypeTable *table, const char *name);
+bool type_table_add_enum(TypeTable *table, const char *enum_name);
+
 
 TypeTable *type_table_create(void) {
   TypeTable *table = malloc(sizeof(TypeTable));
@@ -123,6 +123,12 @@ bool type_table_add(TypeTable *table, const char *type_name) {
   }
   table->struct_names[table->struct_count++] = clone_string(type_name);
   return true;
+}
+
+bool type_table_add_enum(TypeTable *table, const char *enum_name) {
+  // For now, enums are tracked the same as structs
+  // Later you might want separate tracking
+  return type_table_add(table, enum_name);
 }
 
 const char *type_table_lookup(const TypeTable *table, const char *type_name) {
@@ -426,9 +432,9 @@ typedef struct {
 } Lexer;
 
 static const char *KEYWORDS[] = {
-    "if",       "else",    "while", "do",     "for",    "return", "break",
-    "continue", "func",    "let",   "struct", "sizeof", "switch", "case",
-    "default",  "typedef", "cast",  "null",   NULL};
+    "if", "else", "while", "do", "for", "return", "break",
+    "continue", "func",    "let", "struct", "sizeof", "switch", "case",
+    "default",  "typedef", "cast", "null", "enum",  NULL};
 
 static bool is_keyword(const char *word) {
   for (int i = 0; KEYWORDS[i]; i++) {
@@ -694,6 +700,8 @@ typedef enum {
   AST_PASSTHROUGH,
   AST_NULL,
   AST_CAST,
+  AST_ENUM_DEF,
+  AST_ENUM_VALUE,
 } ASTType;
 
 typedef struct ASTNode {
@@ -797,7 +805,7 @@ static ASTNode *parse_logical_or(Parser *p);
 static ASTNode *parse_initializer_list(Parser *p);
 static ASTNode *parse_call(Parser *p);
 static ASTNode *parse_typedef(Parser *p);
-
+static ASTNode *parse_enum_definition(Parser *p);
 
 static ASTNode *parse_primary(Parser *p) {
   // Initializer lists
@@ -1501,6 +1509,80 @@ static ASTNode *parse_struct_definition(Parser *p) {
   return struct_node;
 }
 
+static ASTNode *parse_enum_definition(Parser *p) {
+  Token *name_tok = advance(p);
+  if (name_tok->type != TOKEN_IDENTIFIER) {
+    parser_error(p, "Expected enum name.");
+    token_free(name_tok);
+    return NULL;
+  }
+
+  type_table_add_enum((TypeTable *)p->type_table, name_tok->text);
+  ASTNode *enum_node = create_node(AST_ENUM_DEF, name_tok->text);
+  token_free(name_tok);
+
+  expect(p, TOKEN_PUNCTUATION, "{", "Expected '{' after enum name.");
+
+  int next_value = 0;  // Auto-increment counter
+  
+  while (!check(p, TOKEN_PUNCTUATION) || strcmp(p->current->text, "}") != 0) {
+    if (check(p, TOKEN_EOF)) {
+      parser_error(p, "Unterminated enum definition.");
+      ast_destroy(enum_node);
+      return NULL;
+    }
+
+    // Parse enum member name
+    if (check(p, TOKEN_IDENTIFIER)) {
+      Token *member_tok = advance(p);
+      ASTNode *member_node = create_node(AST_ENUM_VALUE, member_tok->text);
+      
+      // Check for explicit value assignment
+      if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
+        // Parse the value
+        if (check(p, TOKEN_NUMBER)) {
+          Token *val_tok = advance(p);
+          ASTNode *val_node = create_node(AST_NUMBER, val_tok->text);
+          add_child(member_node, val_node);
+          next_value = atoi(val_tok->text) + 1;  // Update auto-increment
+          token_free(val_tok);
+        } else {
+          parser_error(p, "Expected number after '=' in enum.");
+        }
+      } else {
+        // Use auto-incremented value
+        char val_str[32];
+        snprintf(val_str, sizeof(val_str), "%d", next_value);
+        ASTNode *val_node = create_node(AST_NUMBER, val_str);
+        add_child(member_node, val_node);
+        next_value++;
+      }
+      
+      add_child(enum_node, member_node);
+      token_free(member_tok);
+      
+      // Handle comma or end of enum
+      if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ",") == 0) {
+        advance(p);  // Consume comma
+        // Allow trailing comma
+        if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "}") == 0) {
+          break;
+        }
+      } else if (!check(p, TOKEN_PUNCTUATION) || strcmp(p->current->text, "}") != 0) {
+        parser_error(p, "Expected ',' or '}' after enum value.");
+      }
+    } else {
+      parser_error(p, "Expected enum member name.");
+      token_free(advance(p));
+    }
+  }
+
+  expect(p, TOKEN_PUNCTUATION, "}", "Expected '}' to close enum definition.");
+  expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after enum definition.");
+
+  return enum_node;
+}
+
 static ASTNode *parse_function(Parser *p) {
   Token *name = advance(p);
   if (name->type != TOKEN_IDENTIFIER) {
@@ -1584,6 +1666,10 @@ ASTNode *parser_parse(Parser *p) {
         Token *pass = advance(p);
         add_child(program, create_node(AST_PASSTHROUGH, pass->text));
         token_free(pass);
+      } else if (strcmp(p->current->text, "enum") == 0) {
+        advance(p);
+        add_child(program, parse_enum_definition(p));
+
       } else {
         parser_error(p, "Only function, struct, or preprocessor directives are "
                         "allowed at the top level.");
@@ -2016,9 +2102,11 @@ static void emit_node(ASTNode *node) {
     if (node->child_count > 0)
       emit_node(node->children[0]);
     break;
+
   case AST_PASSTHROUGH:
     fprintf(output_file, "%s", node->value);
     break;
+
   case AST_NULL:
     fprintf(output_file, "NULL");
     break;
@@ -2029,6 +2117,28 @@ static void emit_node(ASTNode *node) {
     fprintf(output_file, ")");
     emit_node(node->children[0]);
     break;
+
+  case AST_ENUM_DEF:
+    fprintf(output_file, "typedef enum %s {\n", node->value);
+    for (int i = 0; i < node->child_count; i++) {
+      ASTNode *member = node->children[i];
+      if (member->type == AST_ENUM_VALUE) {
+        fprintf(output_file, "    %s", member->value);
+        // If there's an explicit value
+        if (member->child_count > 0) {
+          fprintf(output_file, " = ");
+          emit_node(member->children[0]);
+        }
+        // Add comma except for last item
+        if (i < node->child_count - 1) {
+          fprintf(output_file, ",");
+        }
+        fprintf(output_file, "\n");
+      }
+    }
+    fprintf(output_file, "} %s;", node->value);
+    break;
+
   default:
     if (node->child_count > 0) {
       if (node->type == AST_EXPRESSION) {
@@ -2048,10 +2158,10 @@ void codegen(ASTNode *ast, const TypeTable *table, FILE *out) {
 // ============================================================================
 // MAIN - Compiler Entry Point
 // ============================================================================
-
 static void pre_scan_for_types(const char *source, TypeTable *table) {
   const char *cursor = source;
 
+  // Scan for structs first
   while ((cursor = strstr(cursor, "struct"))) {
     cursor += strlen("struct");
     while (*cursor && isspace(*cursor))
@@ -2073,6 +2183,34 @@ static void pre_scan_for_types(const char *source, TypeTable *table) {
           strncpy(type_name, name_start, name_len);
           type_name[name_len] = '\0';
           type_table_add(table, type_name);
+        }
+      }
+    }
+  }
+  
+  // Now scan for enums
+  cursor = source;
+  while ((cursor = strstr(cursor, "enum"))) {
+    cursor += strlen("enum");
+    while (*cursor && isspace(*cursor))
+      cursor++;
+
+    const char *name_start = cursor;
+    while (*cursor && (isalnum(*cursor) || *cursor == '_')) {
+      cursor++;
+    }
+
+    if (cursor > name_start) {
+      size_t name_len = cursor - name_start;
+      while (*cursor && isspace(*cursor))
+        cursor++;
+
+      if (*cursor == '{') {
+        char type_name[128];
+        if (name_len < sizeof(type_name)) {
+          strncpy(type_name, name_start, name_len);
+          type_name[name_len] = '\0';
+          type_table_add_enum(table, type_name);
         }
       }
     }

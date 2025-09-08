@@ -1,0 +1,107 @@
+// test_enum.dust - Test enum support with suffix style
+#include <stdio.h>
+#include <stdbool.h>
+
+// Define an enum for token types
+enum TokenType {
+    EOFF = 0,
+    IDENTIFIER = 1,
+    NUMBER = 2,
+    KEYWORD,      // Auto-increments to 3
+    OPERATOR      // Auto-increments to 4
+};
+
+// Define an enum for AST node types  
+enum ASTType {
+    AST_PROGRAM,
+    AST_FUNCTION,
+    AST_VAR_DECL,
+    AST_BLOCK,
+    AST_IF,
+    AST_WHILE
+};
+
+// Function that returns an enum value
+func get_eof_token_TokenType() {
+    return EOFF_TokenType;
+}
+
+// Function that takes an enum parameter
+func is_keyword_bl(type_TokenType) {
+    if (type_TokenType == KEYWORD_TokenType) {
+        return 1;
+    }
+    return 0;
+}
+
+// Function that uses enum in switch
+func token_type_name_cp(type_TokenType) {
+    switch (type_TokenType) {
+        case EOFF_TokenType:
+            return "EOF";
+        case IDENTIFIER_TokenType:
+            return "IDENTIFIER";
+        case NUMBER_TokenType:
+            return "NUMBER";
+        case KEYWORD_TokenType:
+            return "KEYWORD";
+        case OPERATOR_TokenType:
+            return "OPERATOR";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+// Test struct containing enum
+struct Token {
+    type_TokenType;
+    text_cp;
+    line_i;
+};
+
+func main_i() {
+    printf("Testing Dust enum support with suffix style\n\n");
+    
+    // Test direct enum value usage
+    let token_type_TokenType = IDENTIFIER_TokenType;
+    printf("Token type: %d\n", token_type_TokenType);
+    
+    // Test enum in conditional
+    if (token_type_TokenType == IDENTIFIER_TokenType) {
+        printf("It's an identifier!\n");
+    }
+    
+    // Test function returning enum
+    let eof_TokenType = get_eof_token_TokenType();
+    printf("EOF value: %d\n", eof_TokenType);
+    
+    // Test function taking enum parameter
+    let is_kw_bl = is_keyword_bl(KEYWORD_TokenType);
+    printf("KEYWORD is keyword: %d\n", is_kw_bl);
+    
+    // Test switch with enum
+    printf("Token names:\n");
+    let i_TokenType = EOF_TokenType;
+    while (i_TokenType <= OPERATOR_TokenType) {
+        let name_cp = token_type_name_cp(i_TokenType);
+        printf("  %d: %s\n", i_TokenType, name_cp);
+        i_TokenType = i_TokenType + 1;
+    }
+    
+    // Test struct with enum field
+    let tok_Token;
+    tok_Token.type = NUMBER_TokenType;
+    tok_Token.text = "42";
+    tok_Token.line = 1;
+    
+    printf("\nToken struct: type=%d, text=%s, line=%d\n", 
+           tok_Token.type, tok_Token.text, tok_Token.line);
+    
+    // Test AST enum
+    let node_type_ASTType = AST_FUNCTION_ASTType;
+    if (node_type_ASTType == AST_FUNCTION_ASTType) {
+        printf("Node is a function\n");
+    }
+    
+    return 0;
+}
