@@ -801,8 +801,23 @@ Token *lexer_next(Lexer *lex) {
     return tok;
   }
 
-  // Numbers
+  // Numbers & 0xfu
   if (isdigit(c)) {
+    if (c == '0' && lex->pos + 1 < lex->len && (lex->source[lex->pos + 1] == 'x' || lex->source[lex->pos + 1] == 'X')) {
+        lex->pos += 2; // Skip '0x'
+        start = lex->pos;
+        while (lex->pos < lex->len && isxdigit(lex->source[lex->pos])) {
+            lex->pos++;
+        }
+        int len = lex->pos - start;
+        char *hex_num = malloc(len + 3); // for 0x prefix and null terminator
+        strcpy(hex_num, "0x");
+        memcpy(hex_num + 2, lex->source + start, len);
+        hex_num[len + 2] = '\0';
+        Token *tok = make_token(TOKEN_NUMBER, hex_num, lex->line);
+        free(hex_num);
+        return tok;
+    }
     while (lex->pos < lex->len && isdigit(lex->source[lex->pos]))
       lex->pos++;
     if (lex->pos < lex->len && lex->source[lex->pos] == '.') {
