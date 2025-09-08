@@ -68,6 +68,38 @@ typedef struct {
   size_t typedef_capacity;
 } TypeTable;
 
+typedef struct {
+    const char *suffix;
+    DataType type;
+    SemanticRole role;
+    bool is_pointer;
+    bool is_const;
+} SuffixMapping;
+
+static const SuffixMapping suffix_table[] = {
+    // Primitive types
+    {"i",   TYPE_INT,    ROLE_NONE,   false, false},
+    {"bl",  TYPE_INT,    ROLE_NONE,   false, false}, // bool as int
+    {"st",  TYPE_SIZE_T, ROLE_NONE,   false, false},
+    {"f",   TYPE_FLOAT,  ROLE_NONE,   false, false},
+    {"c",   TYPE_CHAR,   ROLE_NONE,   false, false},
+    {"s",   TYPE_STRING, ROLE_NONE,   true,  false},
+    {"v",   TYPE_VOID,   ROLE_NONE,   false, false},
+    
+    // Primitive pointers with ownership
+    {"ip",  TYPE_INT,    ROLE_OWNED,     true,  false},
+    {"ib",  TYPE_INT,    ROLE_BORROWED,  true,  true},
+    {"ir",  TYPE_INT,    ROLE_REFERENCE, true,  true},
+    {"cp",  TYPE_CHAR,   ROLE_OWNED,     true,  false},
+    {"cb",  TYPE_CHAR,   ROLE_BORROWED,  true,  true},
+    {"cr",  TYPE_CHAR,   ROLE_REFERENCE, true,  true},
+    {"fp",  TYPE_FUNC_POINTER, ROLE_OWNED, true, false},
+    
+    // Generic borrowed pointer
+    {"b",   TYPE_POINTER, ROLE_BORROWED, true,  true},
+    
+    {NULL, TYPE_VOID, ROLE_NONE, false, false} // Sentinel
+};
 
 TypeTable *type_table_create(void);
 void type_table_destroy(TypeTable *table);
@@ -169,163 +201,96 @@ const char *find_suffix_separator(const char *name) {
 }
 
 bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, SuffixInfo *result_info) {
-  *result_info = (SuffixInfo){TYPE_VOID, ROLE_NONE, false, false, NULL, false, TYPE_VOID, NULL};
-  const char *separator = find_suffix_separator(full_variable_name);
-  if (!separator)
-    return false;
-
-  const char *suffix_str = separator + 1;
-  size_t suffix_len = strlen(suffix_str);
-  if (suffix_len == 0)
-    return false;
-
-  if (suffix_len > 1 && suffix_str[suffix_len - 1] == 'a') {
-    result_info->type = TYPE_ARRAY;
-    char base_type_suffix[128];
-    strncpy(base_type_suffix, suffix_str, suffix_len - 1);
-    base_type_suffix[suffix_len - 1] = '\0';
-
-    if (strcmp(base_type_suffix, "i") == 0) {
-      result_info->array_base_type = TYPE_INT;
-      return true;
+    *result_info = (SuffixInfo){TYPE_VOID, ROLE_NONE, false, false, NULL, false, TYPE_VOID, NULL};
+    
+    const char *separator = find_suffix_separator(full_variable_name);
+    if (!separator) return false;
+    
+    const char *suffix_str = separator + 1;
+    size_t suffix_len = strlen(suffix_str);
+    if (suffix_len == 0) return false;
+    
+    // Check for array suffix (ends with 'a')
+    if (suffix_len > 1 && suffix_str[suffix_len - 1] == 'a') {
+        result_info->type = TYPE_ARRAY;
+        
+        // Extract base type suffix
+        char base_suffix[128];
+        strncpy(base_suffix, suffix_str, suffix_len - 1);
+        base_suffix[suffix_len - 1] = '\0';
+        
+        // Look up base type in suffix table
+        for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
+            if (strcmp(base_suffix, m->suffix) == 0) {
+                result_info->array_base_type = m->type;
+                return true;
+            }
+        }
+        
+        // Check for user-defined array type
+        const char *user_type = type_table_lookup(type_table, base_suffix);
+        if (user_type) {
+            result_info->array_base_type = TYPE_USER;
+            result_info->array_user_type_name = user_type;
+            return true;
+        }
+        return false;
     }
-    if (strcmp(base_type_suffix, "f") == 0) {
-      result_info->array_base_type = TYPE_FLOAT;
-      return true;
-    }    
-    if (strcmp(base_type_suffix, "c") == 0) {
-      result_info->array_base_type = TYPE_CHAR;
-      return true;
+    
+    // Check standard suffix table
+    for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
+        if (strcmp(suffix_str, m->suffix) == 0) {
+            result_info->type = m->type;
+            result_info->role = m->role;
+            result_info->is_pointer = m->is_pointer;
+            result_info->is_const = m->is_const;
+            return true;
+        }
     }
-
-    const char *user_type = type_table_lookup(type_table, base_type_suffix);
+    
+    // Check for user-defined type with pointer suffix
+    if (suffix_len > 1) {
+        char last_char = suffix_str[suffix_len - 1];
+        if (last_char == 'p' || last_char == 'b' || last_char == 'r') {
+            char type_name[128];
+            strncpy(type_name, suffix_str, suffix_len - 1);
+            type_name[suffix_len - 1] = '\0';
+            
+            const char *user_type = type_table_lookup(type_table, type_name);
+            if (user_type) {
+                result_info->type = TYPE_USER;
+                result_info->user_type_name = user_type;
+                result_info->is_pointer = true;
+                
+                switch (last_char) {
+                    case 'p': result_info->role = ROLE_OWNED; break;
+                    case 'b': result_info->is_const = true; 
+                             result_info->role = ROLE_BORROWED; break;
+                    case 'r': result_info->is_const = true;
+                             result_info->role = ROLE_REFERENCE; break;
+                }
+                return true;
+            }
+        }
+    }
+    
+    // Check for plain user-defined type
+    const char *user_type = type_table_lookup(type_table, suffix_str);
     if (user_type) {
-      result_info->array_base_type = TYPE_USER;
-      result_info->array_user_type_name = user_type;
-      return true;
+        result_info->type = TYPE_USER;
+        result_info->user_type_name = user_type;
+        result_info->is_pointer = false;
+        return true;
     }
-  }
-
-  // Primitive types
-  if (strcmp(suffix_str, "i") == 0) {
-    result_info->type = TYPE_INT;
-    return true;
-  }
-  if (strcmp(suffix_str, "st") == 0) {
-    result_info->type = TYPE_SIZE_T;
-    return true;
-  }
-
-  if (strcmp(suffix_str, "f") == 0) {
-    result_info->type = TYPE_FLOAT;
-    return true;
-  }
-
-  if (strcmp(suffix_str, "c") == 0) {
-    result_info->type = TYPE_CHAR;
-    return true;
-  }
-
-  if (strcmp(suffix_str, "s") == 0) {
-    result_info->type = TYPE_STRING;
-    result_info->is_pointer = true;
-    return true;
-  }
-
-  if (strcmp(suffix_str, "v") == 0) {
-    result_info->type = TYPE_VOID;
-    return true;
-  }
-
-  // Primitive pointers with ownership
-  if (strcmp(suffix_str, "ip") == 0) {
-    result_info->type = TYPE_INT;
-    result_info->is_pointer = true;
-    result_info->role = ROLE_OWNED;
-    return true;
-  }
-
-  if (strcmp(suffix_str, "ib") == 0) {
-    result_info->type = TYPE_INT;
-    result_info->is_pointer = true;
-    result_info->is_const = true;
-    result_info->role = ROLE_BORROWED;
-    return true;
-  }
-
-  if (strcmp(suffix_str, "ir") == 0) {
-    result_info->type = TYPE_INT;
-    result_info->is_pointer = true;
-    result_info->is_const = true;
-    result_info->role = ROLE_REFERENCE;
-    return true;
-  }
-
-  if (strcmp(suffix_str, "cp") == 0) {
-    result_info->type = TYPE_CHAR;
-    result_info->is_pointer = true;
-    result_info->role = ROLE_OWNED;
-    return true;
-  }
-
-  // Generic borrowed pointer
-  if (strcmp(suffix_str, "b") == 0) {
-    result_info->type = TYPE_POINTER;
-    result_info->is_pointer = true;
-    result_info->is_const = true;
-    result_info->role = ROLE_BORROWED;
-    return true;
-  }
-
-  // Function Pointers
-  if (strcmp(suffix_str, "fp") == 0) {
-    result_info->type = TYPE_FUNC_POINTER;
-    result_info->is_pointer = true;
-    return true;
-  }
-
-  // User-defined types and their pointers
-  char type_candidate[128];
-  strncpy(type_candidate, suffix_str, sizeof(type_candidate) - 1);
-  type_candidate[sizeof(type_candidate) - 1] = '\0';
-
-  char last_char = suffix_str[suffix_len - 1];
-  bool is_potential_pointer = (suffix_len > 1 && (last_char == 'p' || last_char == 'b' || last_char == 'r'));
-
-  if (is_potential_pointer) {
-    type_candidate[suffix_len - 1] = '\0';
-    const char *user_type = type_table_lookup(type_table, type_candidate);
-    if (user_type) {
-      result_info->type = TYPE_USER;
-      result_info->user_type_name = user_type;
-      result_info->is_pointer = true;
-      if (last_char == 'p') {
-        result_info->role = ROLE_OWNED;
-      } else if (last_char == 'b') {
-        result_info->is_const = true;
-        result_info->role = ROLE_BORROWED;
-      } else if (last_char == 'r') {
-        result_info->is_const = true;
-        result_info->role = ROLE_REFERENCE;
-      }
-      return true;
+    
+    // Check for typedef
+    const TypedefInfo *typedef_info = type_table_lookup_typedef(type_table, suffix_str);
+    if (typedef_info) {
+        *result_info = typedef_info->type_info;
+        return true;
     }
-  }
-
-  const char *user_type = type_table_lookup(type_table, suffix_str);
-  if (user_type) {
-    result_info->type = TYPE_USER;
-    result_info->user_type_name = user_type;
-    result_info->is_pointer = false;
-    return true;
-  }
-
-  const TypedefInfo *typedef_info = type_table_lookup_typedef(type_table, suffix_str);
-  if (typedef_info) {
-    *result_info = typedef_info->type_info;
-    return true;
-  }
-  return false;
+    
+    return false;
 }
 
 const char *get_c_type(const SuffixInfo *info) {

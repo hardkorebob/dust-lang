@@ -25,13 +25,13 @@ struct Token {
 // Forward declarations
 int main();
 char* token_type_name(TokenType type);
-void is_keyword_bl(TokenType type);
+int is_keyword(TokenType type);
 TokenType get_eof_token();
 
 TokenType get_eof_token() {
 return EOFF;
 }
-void is_keyword_bl(TokenType type) {
+int is_keyword(TokenType type) {
 if ((type == KEYWORD)) {
 return 1;
 }
@@ -63,8 +63,8 @@ printf("It's an identifier!\n");
 }
 TokenType eof = get_eof_token();
 printf("EOF value: %d\n", eof);
-void is_kw_bl = is_keyword_bl(KEYWORD);
-printf("KEYWORD is keyword: %d\n", is_kw_bl);
+int is_kw = is_keyword(KEYWORD);
+printf("KEYWORD is keyword: %d\n", is_kw);
 printf("Token names:\n");
 TokenType i = EOF;
 while ((i <= OPERATOR)) {
