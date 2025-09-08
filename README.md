@@ -335,13 +335,6 @@ Dust surrenders this war entirely:
 
 This is like Unix philosophy: instead of building smart programs that guess what you want, build simple programs that do exactly what you say. Dust doesn't guess types; you declare them in every identifier.
 
-### The "EOF" Fix Shows The Philosophy
-
-I notice your enum handling now correctly strips the suffix - `EOFF_TokenType` becomes just `EOFF` in C. This is perfect Dust philosophy:
-- The suffix exists for Dust to know the type
-- Once known, it's removed because C doesn't need it
-- No complex transformation, just simple suffix stripping
-
 ### Maybe... Pike Would Approve
 
 He wrote: "Fancy algorithms are slow when n is small, and n is usually small." 
