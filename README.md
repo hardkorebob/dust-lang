@@ -10,8 +10,6 @@ In the digital realm, we have forgotten this. We build towers of complexity, lan
 
 We seek to conquer rust, decay, and error with ever-more-intricate machinery.  
 
-**Dust offers a return to the source.**
-
 Dust is not something that settles on things; it is the fundamental material of things. 
 
 It is ancient, ubiquitous, and enduring. 
@@ -20,7 +18,9 @@ It does not decay. It is the foundation.
 
 It is an "ancient C" for the modern world, designed not to fight complexity, but to transcend it through simplicity and clarity.
 
-**Dust is a systems programming language built on this principle.**    
+**Dust is a systems programming language built on this principle.** 
+
+**Dust offers a return to the source.**  
 
 ---
 
