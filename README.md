@@ -344,7 +344,7 @@ I notice your enum handling now correctly strips the suffix - `EOFF_TokenType` b
 - Once known, it's removed because C doesn't need it
 - No complex transformation, just simple suffix stripping
 
-### Why Pike Would Approve
+### Maybe... Pike Would Approve
 
 Pike wrote: "Fancy algorithms are slow when n is small, and n is usually small." 
 
