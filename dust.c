@@ -37,6 +37,7 @@ typedef enum {
   TYPE_BOOL,
   TYPE_USER,
   TYPE_FUNC_POINTER,
+  TYPE_SIZE_T,
 } DataType;
 
 typedef enum {
@@ -204,7 +205,7 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
     if (strcmp(base_type_suffix, "f") == 0) {
       result_info->array_base_type = TYPE_FLOAT;
       return true;
-    }
+    }    
     if (strcmp(base_type_suffix, "c") == 0) {
       result_info->array_base_type = TYPE_CHAR;
       return true;
@@ -226,6 +227,10 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table,
   // Primitive types
   if (strcmp(suffix_str, "i") == 0) {
     result_info->type = TYPE_INT;
+    return true;
+  }
+  if (strcmp(suffix_str, "st") == 0) {
+    result_info->type = TYPE_SIZE_T;
     return true;
   }
 
@@ -385,12 +390,13 @@ const char *get_c_type(const SuffixInfo *info) {
   case TYPE_VOID:
     strcpy(base_type_str, "void");
     break;
+  case TYPE_SIZE_T:
+    strcpy(base_type_str, "size_t");
+    break;
   default:
     break;
   }
 
-  // FIXED: Arrays should return base type, not pointer type
-  // The array brackets will be added by the declaration emitter
   if (info->type == TYPE_ARRAY) {
     strcpy(type_buffer, base_type_str);
   } else if (info->type == TYPE_STRING) {
@@ -440,7 +446,7 @@ typedef struct {
 static const char *KEYWORDS[] = {
     "if", "else", "while", "do", "for", "return", "break",
     "continue", "func",    "let", "struct", "sizeof", "switch", "case",
-    "default",  "typedef", "cast", "null", "enum", "static",  NULL};
+    "default",  "typedef", "cast", "null", "enum", "static", "const", NULL};
 
 static bool is_keyword(const char *word) {
   for (int i = 0; KEYWORDS[i]; i++) {
@@ -2419,3 +2425,4 @@ int main(int argc, char **argv) {
 
   return 0;
 }
+

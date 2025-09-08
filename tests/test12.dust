@@ -1,0 +1,67 @@
+// example.dust
+// A simple, complete program to test the Dust compiler.
+//
+// This program defines a 'Greeter' struct, creates an instance of it,
+// has it print a message, and then cleans up its memory. It demonstrates
+// core Dust features like structs, functions with suffixed types, and
+// calling C standard library functions.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Define a simple struct. In Dust, this will be scanned by the compiler
+// to recognize 'Greeter' as a valid type for suffixes like '_Greeterp'.
+struct Greeter {
+    message_s; // A member variable: a string named 'message'
+};
+
+// A function to create a new Greeter object on the heap.
+// The suffix '_Greeterp' signifies that this function returns an
+// owned pointer ('p') to a Greeter struct.
+func greeter_create_Greeterp(message_s) {
+    // Allocate memory for the struct. 'cast_Greeterp' makes the type explicit.
+    let new_greeter_Greeterp = cast_Greeterp(malloc(sizeof(Greeter)));
+    
+    // Allocate memory for the message string and copy it.
+    let message_len_st = strlen(message_s);
+    new_greeter_Greeterp->message = cast_s(malloc(message_len_st + 1));
+    strcpy(new_greeter_Greeterp->message, message_s);
+
+    return new_greeter_Greeterp;
+}
+
+// A function that uses a Greeter.
+// The '_v' suffix signifies that it returns 'void'.
+// 'greeter_Greeterp' is an owned pointer passed into the function.
+func greeter_say_hello_v(greeter_Greeterp) {
+    // Call a C function. '%s' is used for the string type.
+    printf("%s\n", greeter_Greeterp->message);
+}
+
+// A function to clean up the Greeter object's memory.
+func greeter_destroy_v(greeter_Greeterp) {
+    // Free the inner string first, then the struct itself.
+    free(greeter_Greeterp->message);
+    free(greeter_Greeterp);
+}
+
+// The main entry point of the program.
+// The '_i' suffix signifies that it returns an 'int'.
+func main_i() {
+    // Create a greeter object. The variable name 'world_greeter_Greeterp'
+    // clearly states its type and role.
+    let world_greeter_Greeterp = greeter_create_Greeterp("Hello from Dust!");
+
+    // Use the greeter.
+    greeter_say_hello_v(world_greeter_Greeterp);
+
+    // Clean up. After this call, 'world_greeter_Greeterp' is a dangling pointer.
+    greeter_destroy_v(world_greeter_Greeterp);
+
+    printf("Dust program executed successfully.\n");
+    
+    // Return an exit code.
+    return 0;
+}
+
