@@ -35,7 +35,7 @@ typedef enum {
     TYPE_FUNC_POINTER,
     TYPE_SIZE_T,
     
-    // Fixed-width types
+    // Fixed-width integers
     TYPE_UINT8,
     TYPE_UINT16,
     TYPE_UINT32,
@@ -52,7 +52,7 @@ typedef enum {
     TYPE_SSIZE,
     TYPE_OFF,
     
-    // OS-specific
+    // OS development
     TYPE_PHYS_ADDR,
     TYPE_VIRT_ADDR,
     TYPE_PTE,
@@ -65,12 +65,11 @@ typedef enum {
     TYPE_VECTOR,
     TYPE_ISR_PTR,
     
-    // Atomics
+    // Atomic types
     TYPE_ATOMIC_U32,
     TYPE_ATOMIC_U64,
     TYPE_ATOMIC_PTR,
 } DataType;
-
 
 typedef enum {
   ROLE_OWNED,
@@ -112,6 +111,60 @@ typedef struct {
     bool is_pointer;
     bool is_const;
 } SuffixMapping;
+
+typedef struct {
+    DataType type;
+    const char *c_type;
+} TypeMapping;
+
+
+static const TypeMapping type_map[] = {
+    // Basic types
+    {TYPE_VOID,       "void"},
+    {TYPE_INT,        "int"},
+    {TYPE_FLOAT,      "float"},
+    {TYPE_CHAR,       "char"},
+    {TYPE_STRING,     "char*"},
+    {TYPE_SIZE_T,     "size_t"},
+    
+    // Fixed-width integers
+    {TYPE_UINT8,      "uint8_t"},
+    {TYPE_UINT16,     "uint16_t"},
+    {TYPE_UINT32,     "uint32_t"},
+    {TYPE_UINT64,     "uint64_t"},
+    {TYPE_INT8,       "int8_t"},
+    {TYPE_INT16,      "int16_t"},
+    {TYPE_INT32,      "int32_t"},
+    {TYPE_INT64,      "int64_t"},
+    
+    // Architecture types
+    {TYPE_UINTPTR,    "uintptr_t"},
+    {TYPE_INTPTR,     "intptr_t"},
+    {TYPE_SIZE,       "size_t"},
+    {TYPE_SSIZE,      "ssize_t"},
+    {TYPE_OFF,        "off_t"},
+    
+    // OS development types
+    {TYPE_PHYS_ADDR,  "phys_addr_t"},
+    {TYPE_VIRT_ADDR,  "virt_addr_t"},
+    {TYPE_PTE,        "pte_t"},
+    {TYPE_PDE,        "pde_t"},
+    {TYPE_PFN,        "pfn_t"},
+    {TYPE_PORT,       "port_t"},
+    {TYPE_MMIO,       "void*"},        // MMIO is typically void*
+    {TYPE_VOLATILE,   "volatile void*"},
+    {TYPE_IRQ,        "irq_t"},
+    {TYPE_VECTOR,     "vector_t"},
+    {TYPE_ISR_PTR,    "isr_t"},
+    
+    // Atomic types
+    {TYPE_ATOMIC_U32, "_Atomic uint32_t"},
+    {TYPE_ATOMIC_U64, "_Atomic uint64_t"},
+    {TYPE_ATOMIC_PTR, "_Atomic void*"},
+    
+    // Sentinel
+    {TYPE_VOID,       NULL}
+};
 
 static const SuffixMapping suffix_table[] = {
     // Primitive types
@@ -183,7 +236,6 @@ static const SuffixMapping suffix_table[] = {
     {"rp",   TYPE_VOID,    ROLE_RESTRICT, true, false}, // restrict pointer    
     {NULL, TYPE_VOID, ROLE_NONE, false, false} // Sentinel
 };
-
 
 // Add after the suffix_table definition, around line 140
 static void print_suffix_help(void) {
@@ -463,62 +515,50 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
 
 const char *get_c_type(const SuffixInfo *info) {
     static char type_buffer[256];
-    char base_type_str[128] = "void";
-
-    DataType type_to_check = (info->type == TYPE_ARRAY) ? info->array_base_type : info->type;
-    const char *user_name = (info->type == TYPE_ARRAY) ? info->array_user_type_name : info->user_type_name;
-
-    switch (type_to_check) {
-    case TYPE_USER:
-    if (user_name)
-      strcpy(base_type_str, user_name);
-    break;
-    case TYPE_INT:    strcpy(base_type_str, "int");     break;
-    case TYPE_FLOAT:  strcpy(base_type_str, "float");   break;
-    case TYPE_CHAR:   strcpy(base_type_str, "char");    break;
-    case TYPE_STRING: strcpy(base_type_str, "char*");   break;
-
-    case TYPE_VOID:      strcpy(base_type_str, "void");    break;
-    case TYPE_SIZE_T:    strcpy(base_type_str, "size_t");    break;
-    case TYPE_UINT8:   strcpy(base_type_str, "uint8_t"); break;
-    case TYPE_UINT16:  strcpy(base_type_str, "uint16_t"); break;
-    case TYPE_UINT32:  strcpy(base_type_str, "uint32_t"); break;
-    case TYPE_UINT64:  strcpy(base_type_str, "uint64_t"); break;
-    case TYPE_INT8:    strcpy(base_type_str, "int8_t"); break;
-    case TYPE_INT16:   strcpy(base_type_str, "int16_t"); break;
-    case TYPE_INT32:   strcpy(base_type_str, "int32_t"); break;
-    case TYPE_INT64:   strcpy(base_type_str, "int64_t"); break;
-
-    case TYPE_UINTPTR: strcpy(base_type_str, "uintptr_t"); break;
-    case TYPE_INTPTR:  strcpy(base_type_str, "intptr_t"); break;
-    case TYPE_SIZE:    strcpy(base_type_str, "size_t"); break;
-    case TYPE_SSIZE:   strcpy(base_type_str, "ssize_t"); break;
-    case TYPE_OFF:     strcpy(base_type_str, "off_t"); break;
-
-    case TYPE_PHYS_ADDR: strcpy(base_type_str, "phys_addr_t"); break;
-    case TYPE_VIRT_ADDR: strcpy(base_type_str, "virt_addr_t"); break;
-    case TYPE_PTE:     strcpy(base_type_str, "pte_t"); break;
-    case TYPE_PDE:     strcpy(base_type_str, "pde_t"); break;
-    case TYPE_PFN:     strcpy(base_type_str, "pfn_t"); break;
-    case TYPE_PORT:    strcpy(base_type_str, "port_t"); break;
-    case TYPE_IRQ:     strcpy(base_type_str, "irq_t"); break;
-    case TYPE_VECTOR:  strcpy(base_type_str, "vector_t"); break;
-
-    case TYPE_ATOMIC_U32: strcpy(base_type_str, "atomic_uint32_t"); break;
-    case TYPE_ATOMIC_U64: strcpy(base_type_str, "atomic_uint64_t"); break;
-    default:
-      break;
+    
+    // Handle special cases first
+    if (info->type == TYPE_USER) {
+        if (info->user_type_name) {
+            snprintf(type_buffer, sizeof(type_buffer), "%s%s%s",
+                     info->is_const ? "const " : "",
+                     info->user_type_name,
+                     info->is_pointer ? "*" : "");
+            return type_buffer;
+        }
     }
-
-    if (info->type == TYPE_ARRAY) {
-      strcpy(type_buffer, base_type_str);
-    } else if (info->type == TYPE_STRING) {
-      strcpy(type_buffer, base_type_str);
+    
+    // Determine base type
+    DataType lookup_type = (info->type == TYPE_ARRAY) ? 
+                           info->array_base_type : info->type;
+    
+    // Handle array with user type
+    if (info->type == TYPE_ARRAY && info->array_base_type == TYPE_USER) {
+        strcpy(type_buffer, info->array_user_type_name ? 
+               info->array_user_type_name : "void");
+        return type_buffer;
+    }
+    
+    // Look up in table
+    const char *base_type = "void";
+    for (const TypeMapping *m = type_map; m->c_type; m++) {
+        if (m->type == lookup_type) {
+            base_type = m->c_type;
+            break;
+        }
+    }
+    
+    // Build final type string
+    if (info->type == TYPE_ARRAY || info->type == TYPE_STRING) {
+        strcpy(type_buffer, base_type);
+    } else if (info->type == TYPE_FUNC_POINTER) {
+        strcpy(type_buffer, "void*");  // Generic function pointer
     } else {
-      snprintf(type_buffer, sizeof(type_buffer), "%s%s%s",
-               (info->is_const ? "const " : ""), base_type_str,
-               (info->is_pointer ? "*" : ""));
+        snprintf(type_buffer, sizeof(type_buffer), "%s%s%s",
+                 info->is_const ? "const " : "",
+                 base_type,
+                 info->is_pointer ? "*" : "");
     }
+    
     return type_buffer;
 }
 
@@ -556,6 +596,13 @@ typedef struct {
   const TypeTable *type_table;
 } Lexer;
 
+typedef struct {
+    char first;
+    char second;
+    char third;  // For three-char ops like <<=
+    const char *token;
+} MultiCharOp;
+
 static const char *KEYWORDS[] = {
     "if",
     "else",
@@ -582,6 +629,35 @@ static const char *KEYWORDS[] = {
      NULL
 };
 
+static const MultiCharOp multi_char_ops[] = {
+    // Three-character operators
+    {'<', '<', '=', "<<="},
+    {'>', '>', '=', ">>="},
+    
+    // Two-character operators
+    {'=', '=', '\0', "=="},
+    {'!', '=', '\0', "!="},
+    {'<', '=', '\0', "<="},
+    {'>', '=', '\0', ">="},
+    {'&', '&', '\0', "&&"},
+    {'|', '|', '\0', "||"},
+    {'<', '<', '\0', "<<"},
+    {'>', '>', '\0', ">>"},
+    {'+', '+', '\0', "++"},
+    {'-', '-', '\0', "--"},
+    {'+', '=', '\0', "+="},
+    {'-', '=', '\0', "-="},
+    {'*', '=', '\0', "*="},
+    {'/', '=', '\0', "/="},
+    {'%', '=', '\0', "%="},
+    {'&', '=', '\0', "&="},
+    {'|', '=', '\0', "|="},
+    {'^', '=', '\0', "^="},
+    {'-', '>', '\0', "->"},  // For completeness
+    
+    {'\0', '\0', '\0', NULL}  // Sentinel
+};
+
 static bool is_keyword(const char *word) {
   for (int i = 0; KEYWORDS[i]; i++) {
     if (strcmp(word, KEYWORDS[i]) == 0)
@@ -600,7 +676,9 @@ Lexer *lexer_create(const char *source, const TypeTable *type_table) {
   return lex;
 }
 
-void lexer_destroy(Lexer *lex) { free(lex); }
+void lexer_destroy(Lexer *lex) { 
+    free(lex); 
+}
 
 void token_free(Token *tok) {
   if (tok) {
@@ -788,44 +866,40 @@ Token *lexer_next(Lexer *lex) {
     return make_token(TOKEN_ARROW, "->", lex->line);
   }
 
-  // Operators and punctuation
-  char op_text[3] = {c, '\0', '\0'};
-  lex->pos++;
-  if (lex->pos < lex->len) {
-    char next_c = lex->source[lex->pos];
-    if ((c == '=' && next_c == '=') || (c == '!' && next_c == '=') ||
-        (c == '<' && next_c == '=') || (c == '>' && next_c == '=') ||
-        (c == '&' && next_c == '&') || (c == '|' && next_c == '|')) {
-      op_text[1] = next_c;
-      lex->pos++;
-    }
-  }
-    // Check for compound assignments
-    if (lex->pos < lex->len) {
-        char next_c = lex->source[lex->pos];
-        if ((c == '+' && next_c == '=') || (c == '-' && next_c == '=') ||
-            (c == '*' && next_c == '=') || (c == '/' && next_c == '=') ||
-            (c == '%' && next_c == '=') || (c == '&' && next_c == '=') ||
-            (c == '|' && next_c == '=') || (c == '^' && next_c == '=') ||
-            (c == '<' && next_c == '<') || (c == '>' && next_c == '>')) {
-            op_text[1] = next_c;
-            lex->pos++;
-            // Check for <<= and >>=
-            if ((c == '<' && next_c == '<') || (c == '>' && next_c == '>')) {
-                if (lex->pos < lex->len && lex->source[lex->pos] == '=') {
-                    op_text[2] = '=';
-                    lex->pos++;
-                }
+ // Operators and punctuation
+char op_text[4] = {c, '\0', '\0', '\0'};
+lex->pos++;
+
+// Check for multi-character operators
+if (lex->pos < lex->len) {
+    char next = lex->source[lex->pos];
+    
+    // Try three-character first
+    if (lex->pos + 1 < lex->len) {
+        char third = lex->source[lex->pos + 1];
+        for (const MultiCharOp *op = multi_char_ops; op->token; op++) {
+            if (c == op->first && next == op->second && 
+                op->third != '\0' && third == op->third) {
+                strcpy(op_text, op->token);
+                lex->pos += 2;  // Already moved past first char
+                goto make_op_token;
             }
         }
     }
-    if ((c == '+' && lex->pos < lex->len && lex->source[lex->pos] == '+') ||
-        (c == '-' && lex->pos < lex->len && lex->source[lex->pos] == '-')) {
-        op_text[1] = c;
-        lex->pos++;
+    
+    // Try two-character
+    for (const MultiCharOp *op = multi_char_ops; op->token; op++) {
+        if (c == op->first && next == op->second && op->third == '\0') {
+            strcpy(op_text, op->token);
+            lex->pos++;
+            goto make_op_token;
+        }
     }
-    TokenType type = strchr("{}[]();,.:", c) ? TOKEN_PUNCTUATION : TOKEN_OPERATOR;
-    return make_token(type, op_text, lex->line);
+}
+
+make_op_token:
+TokenType type = strchr("{}[]();,.:", c) ? TOKEN_PUNCTUATION : TOKEN_OPERATOR;
+return make_token(type, op_text, lex->line);
 }
 
 // ============================================================================
@@ -895,6 +969,67 @@ typedef struct FuncDecl {
   struct FuncDecl *next;
 } FuncDecl;
 
+typedef struct {
+    const char *op;
+    int precedence;
+    bool left_assoc;
+    bool is_binary;  // true for binary, false for unary
+} OpInfo;
+
+static const OpInfo operator_table[] = {
+    // Multiplicative (highest precedence for binary)
+    {"*",   10, true,  true},
+    {"/",   10, true,  true},
+    {"%",   10, true,  true},
+    
+    // Additive
+    {"+",   9,  true,  true},
+    {"-",   9,  true,  true},
+    
+    // Shift
+    {"<<",  8,  true,  true},
+    {">>",  8,  true,  true},
+    
+    // Relational
+    {"<",   7,  true,  true},
+    {">",   7,  true,  true},
+    {"<=",  7,  true,  true},
+    {">=",  7,  true,  true},
+    
+    // Equality
+    {"==",  6,  true,  true},
+    {"!=",  6,  true,  true},
+    
+    // Bitwise AND
+    {"&",   5,  true,  true},
+    
+    // Bitwise XOR
+    {"^",   4,  true,  true},
+    
+    // Bitwise OR
+    {"|",   3,  true,  true},
+    
+    // Logical AND
+    {"&&",  2,  true,  true},
+    
+    // Logical OR
+    {"||",  1,  true,  true},
+    
+    // Assignment (right associative)
+    {"=",   0,  false, true},
+    {"+=",  0,  false, true},
+    {"-=",  0,  false, true},
+    {"*=",  0,  false, true},
+    {"/=",  0,  false, true},
+    {"%=",  0,  false, true},
+    {"&=",  0,  false, true},
+    {"|=",  0,  false, true},
+    {"^=",  0,  false, true},
+    {"<<=", 0,  false, true},
+    {">>=", 0,  false, true},
+    
+    {NULL,  0,  false, false}  // Sentinel
+};
 // =======
 // PARSER
 // =======
@@ -904,7 +1039,6 @@ static ASTNode *parse_expression(Parser *p);
 static ASTNode *parse_block(Parser *p);
 static ASTNode *parse_member_access(Parser *p);
 static ASTNode *parse_ternary(Parser *p);
-static ASTNode *parse_logical_or(Parser *p);
 static ASTNode *parse_initializer_list(Parser *p);
 static ASTNode *parse_call(Parser *p);
 static ASTNode *parse_typedef(Parser *p);
@@ -1168,20 +1302,6 @@ static ASTNode *parse_member_access(Parser *p) {
   return left;
 }
 
-static ASTNode *parse_unary(Parser *p) {
-  if (check(p, TOKEN_OPERATOR) && (strcmp(p->current->text, "-") == 0 ||
-                                   strcmp(p->current->text, "!") == 0 ||
-                                   strcmp(p->current->text, "&") == 0 ||
-                                   strcmp(p->current->text, "*") == 0)) {
-    Token *op_tok = advance(p);
-    ASTNode *node = create_node(AST_UNARY_OP, op_tok->text);
-    add_child(node, parse_unary(p));
-    token_free(op_tok);
-    return node;
-  }
-  return parse_call(p);
-}
-
 static ASTNode *parse_typedef(Parser *p) {
   expect(p, TOKEN_KEYWORD, "typedef", "Expected 'typedef' keyword.");
 
@@ -1219,134 +1339,77 @@ static ASTNode *parse_typedef(Parser *p) {
   return node;
 }
 
-static ASTNode *parse_multiplicative(Parser *p) {
-  ASTNode *left = parse_unary(p);
-  while (check(p, TOKEN_OPERATOR) && (strcmp(p->current->text, "*") == 0 ||
-                                      strcmp(p->current->text, "/") == 0 ||
-                                      strcmp(p->current->text, "%") == 0)) {
+static ASTNode *parse_unary(Parser *p) {
+  if (check(p, TOKEN_OPERATOR) && (strcmp(p->current->text, "-") == 0 ||
+                                   strcmp(p->current->text, "!") == 0 ||
+                                   strcmp(p->current->text, "&") == 0 ||
+                                   strcmp(p->current->text, "*") == 0)) {
     Token *op_tok = advance(p);
-    ASTNode *op_node = create_node(AST_BINARY_OP, op_tok->text);
-    add_child(op_node, left);
-    add_child(op_node, parse_unary(p));
-    left = op_node;
+    ASTNode *node = create_node(AST_UNARY_OP, op_tok->text);
+    add_child(node, parse_unary(p));
     token_free(op_tok);
+    return node;
   }
-  return left;
+  return parse_call(p);
 }
 
-static ASTNode *parse_additive(Parser *p) {
-  ASTNode *left = parse_multiplicative(p);
-  while (check(p, TOKEN_OPERATOR) && (strcmp(p->current->text, "+") == 0 ||
-                                      strcmp(p->current->text, "-") == 0)) {
-    Token *op_tok = advance(p);
-    ASTNode *op_node = create_node(AST_BINARY_OP, op_tok->text);
-    add_child(op_node, left);
-    add_child(op_node, parse_multiplicative(p));
-    left = op_node;
-    token_free(op_tok);
-  }
-  return left;
+static ASTNode *parse_binary_expr(Parser *p, int min_precedence) {
+    ASTNode *left = parse_unary(p);
+    
+    while (true) {
+        // Find operator in table
+        const OpInfo *op_info = NULL;
+        if (check(p, TOKEN_OPERATOR)) {
+            for (const OpInfo *op = operator_table; op->op; op++) {
+                if (op->is_binary && strcmp(p->current->text, op->op) == 0 &&
+                    op->precedence >= min_precedence) {
+                    op_info = op;
+                    break;
+                }
+            }
+        }
+        
+        if (!op_info) break;
+        
+        Token *op_tok = advance(p);
+        
+        // Calculate next minimum precedence
+        int next_min_prec = op_info->left_assoc ? 
+                           (op_info->precedence + 1) : op_info->precedence;
+        
+        ASTNode *right = (op_info->precedence == 0) ? 
+                        parse_ternary(p) :  // Assignment recurses to ternary
+                        parse_binary_expr(p, next_min_prec);
+        
+        ASTNode *node = create_node(AST_BINARY_OP, op_tok->text);
+        add_child(node, left);
+        add_child(node, right);
+        token_free(op_tok);
+        left = node;
+    }
+    
+    return left;
 }
 
-static ASTNode *parse_relational(Parser *p) {
-  ASTNode *left = parse_additive(p);
-  while (check(p, TOKEN_OPERATOR) && (strcmp(p->current->text, "<") == 0 ||
-                                      strcmp(p->current->text, ">") == 0 ||
-                                      strcmp(p->current->text, "<=") == 0 ||
-                                      strcmp(p->current->text, ">=") == 0)) {
-    Token *op_tok = advance(p);
-    ASTNode *op_node = create_node(AST_BINARY_OP, op_tok->text);
-    add_child(op_node, left);
-    add_child(op_node, parse_additive(p));
-    left = op_node;
-    token_free(op_tok);
-  }
-  return left;
+// Simplify parse_expression to just:
+static ASTNode *parse_expression(Parser *p) {
+    return parse_binary_expr(p, 0);  // Start with precedence 0
 }
 
-static ASTNode *parse_equality(Parser *p) {
-  ASTNode *left = parse_relational(p);
-  while (check(p, TOKEN_OPERATOR) && (strcmp(p->current->text, "==") == 0 ||
-                                      strcmp(p->current->text, "!=") == 0)) {
-    Token *op_tok = advance(p);
-    ASTNode *op_node = create_node(AST_BINARY_OP, op_tok->text);
-    add_child(op_node, left);
-    add_child(op_node, parse_relational(p));
-    left = op_node;
-    token_free(op_tok);
-  }
-  return left;
-}
-
-static ASTNode *parse_logical_and(Parser *p) {
-  ASTNode *left = parse_equality(p);
-  while (check(p, TOKEN_OPERATOR) && strcmp(p->current->text, "&&") == 0) {
-    Token *op_tok = advance(p);
-    ASTNode *op_node = create_node(AST_BINARY_OP, op_tok->text);
-    add_child(op_node, left);
-    add_child(op_node, parse_equality(p));
-    left = op_node;
-    token_free(op_tok);
-  }
-  return left;
-}
-
-static ASTNode *parse_logical_or(Parser *p) {
-  ASTNode *left = parse_logical_and(p);
-  while (check(p, TOKEN_OPERATOR) && strcmp(p->current->text, "||") == 0) {
-    Token *op_tok = advance(p);
-    ASTNode *op_node = create_node(AST_BINARY_OP, op_tok->text);
-    add_child(op_node, left);
-    add_child(op_node, parse_logical_and(p));
-    left = op_node;
-    token_free(op_tok);
-  }
-  return left;
-}
-
+// Keep parse_ternary separate as it has special syntax
 static ASTNode *parse_ternary(Parser *p) {
-  ASTNode *condition = parse_logical_or(p);
-
-  if (match_and_consume(p, TOKEN_OPERATOR, "?")) {
-    ASTNode *ternary_node = create_node(AST_TERNARY_OP, "?");
-    add_child(ternary_node, condition);
-    add_child(ternary_node, parse_expression(p));
-    expect(p, TOKEN_PUNCTUATION, ":", "Expected ':' for ternary operator.");
-    add_child(ternary_node, parse_ternary(p));
-    return ternary_node;
-  }
-
-  return condition;
-}
-
-static ASTNode *parse_assignment(Parser *p) {
-  ASTNode *left = parse_ternary(p);
-  
-  // Check for all assignment operators
-  if (check(p, TOKEN_OPERATOR) && 
-      (strcmp(p->current->text, "=") == 0 ||
-       strcmp(p->current->text, "+=") == 0 ||
-       strcmp(p->current->text, "-=") == 0 ||
-       strcmp(p->current->text, "*=") == 0 ||
-       strcmp(p->current->text, "/=") == 0 ||
-       strcmp(p->current->text, "%=") == 0 ||
-       strcmp(p->current->text, "&=") == 0 ||
-       strcmp(p->current->text, "|=") == 0 ||
-       strcmp(p->current->text, "^=") == 0 ||
-       strcmp(p->current->text, "<<=") == 0 ||
-       strcmp(p->current->text, ">>=") == 0)) {
-    Token *op = advance(p);
-    ASTNode *op_node = create_node(AST_BINARY_OP, op->text);
-    add_child(op_node, left);
-    add_child(op_node, parse_assignment(p));
-    token_free(op);
-    return op_node;
-  }
-  return left;
-}
-
-static ASTNode *parse_expression(Parser *p) { 
-  return parse_assignment(p); 
+    ASTNode *condition = parse_binary_expr(p, 1); // Skip assignment precedence
+    
+    if (match_and_consume(p, TOKEN_OPERATOR, "?")) {
+        ASTNode *ternary_node = create_node(AST_TERNARY_OP, "?");
+        add_child(ternary_node, condition);
+        add_child(ternary_node, parse_expression(p));
+        expect(p, TOKEN_PUNCTUATION, ":", "Expected ':' for ternary operator.");
+        add_child(ternary_node, parse_ternary(p));
+        return ternary_node;
+    }
+    
+    return condition;
 }
 
 static ASTNode *parse_initializer_list(Parser *p) {
