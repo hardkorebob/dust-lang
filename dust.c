@@ -659,9 +659,32 @@ Token *lexer_next(Lexer *lex) {
       lex->pos++;
     }
   }
-
-  TokenType type = strchr("{}[]();,.:", c) ? TOKEN_PUNCTUATION : TOKEN_OPERATOR;
-  return make_token(type, op_text, lex->line);
+    // Check for compound assignments
+    if (lex->pos < lex->len) {
+        char next_c = lex->source[lex->pos];
+        if ((c == '+' && next_c == '=') || (c == '-' && next_c == '=') ||
+            (c == '*' && next_c == '=') || (c == '/' && next_c == '=') ||
+            (c == '%' && next_c == '=') || (c == '&' && next_c == '=') ||
+            (c == '|' && next_c == '=') || (c == '^' && next_c == '=') ||
+            (c == '<' && next_c == '<') || (c == '>' && next_c == '>')) {
+            op_text[1] = next_c;
+            lex->pos++;
+            // Check for <<= and >>=
+            if ((c == '<' && next_c == '<') || (c == '>' && next_c == '>')) {
+                if (lex->pos < lex->len && lex->source[lex->pos] == '=') {
+                    op_text[2] = '=';
+                    lex->pos++;
+                }
+            }
+        }
+    }
+    if ((c == '+' && lex->pos < lex->len && lex->source[lex->pos] == '+') ||
+        (c == '-' && lex->pos < lex->len && lex->source[lex->pos] == '-')) {
+        op_text[1] = c;
+        lex->pos++;
+    }
+    TokenType type = strchr("{}[]();,.:", c) ? TOKEN_PUNCTUATION : TOKEN_OPERATOR;
+    return make_token(type, op_text, lex->line);
 }
 
 // ============================================================================
@@ -1157,10 +1180,25 @@ static ASTNode *parse_ternary(Parser *p) {
 
 static ASTNode *parse_assignment(Parser *p) {
   ASTNode *left = parse_ternary(p);
-  if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
-    ASTNode *op_node = create_node(AST_BINARY_OP, "=");
+  
+  // Check for all assignment operators
+  if (check(p, TOKEN_OPERATOR) && 
+      (strcmp(p->current->text, "=") == 0 ||
+       strcmp(p->current->text, "+=") == 0 ||
+       strcmp(p->current->text, "-=") == 0 ||
+       strcmp(p->current->text, "*=") == 0 ||
+       strcmp(p->current->text, "/=") == 0 ||
+       strcmp(p->current->text, "%=") == 0 ||
+       strcmp(p->current->text, "&=") == 0 ||
+       strcmp(p->current->text, "|=") == 0 ||
+       strcmp(p->current->text, "^=") == 0 ||
+       strcmp(p->current->text, "<<=") == 0 ||
+       strcmp(p->current->text, ">>=") == 0)) {
+    Token *op = advance(p);
+    ASTNode *op_node = create_node(AST_BINARY_OP, op->text);
     add_child(op_node, left);
     add_child(op_node, parse_assignment(p));
+    token_free(op);
     return op_node;
   }
   return left;
@@ -1645,6 +1683,14 @@ ASTNode *parser_parse(Parser *p) {
 
   // Parse the rest of the program
   while (!check(p, TOKEN_EOF)) {
+    // Check for global variable declarations
+    if (check(p, TOKEN_KEYWORD) && strcmp(p->current->text, "let") == 0) {
+        token_free(advance(p));
+        ASTNode *global_var = parse_var_decl(p);
+        expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after global variable.");
+        add_child(program, global_var);
+        continue;
+    }
     if (check(p, TOKEN_DIRECTIVE)) {
       Token *dir_tok = advance(p);
       add_child(program, create_node(AST_DIRECTIVE, dir_tok->text));
