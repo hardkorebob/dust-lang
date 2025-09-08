@@ -440,7 +440,7 @@ typedef struct {
 static const char *KEYWORDS[] = {
     "if", "else", "while", "do", "for", "return", "break",
     "continue", "func",    "let", "struct", "sizeof", "switch", "case",
-    "default",  "typedef", "cast", "null", "enum",  NULL};
+    "default",  "typedef", "cast", "null", "enum", "static",  NULL};
 
 static bool is_keyword(const char *word) {
   for (int i = 0; KEYWORDS[i]; i++) {
