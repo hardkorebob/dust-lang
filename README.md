@@ -297,9 +297,7 @@ Will you please help me clean up all this Dust?
 
 "Dust does not fight complexity. It transcends it."
 
-### Pike's Philosophy in Dust
-
-Rob Pike's core principles manifest throughout Dust:
+### Philosophy in Dust
 
 1. **"Data dominates"** - In Dust, the identifier IS the data structure. `player_i` isn't a variable with hidden type metadata; it's an integer named player. The data (the suffix) dominates the design.
 
@@ -346,7 +344,7 @@ I notice your enum handling now correctly strips the suffix - `EOFF_TokenType` b
 
 ### Maybe... Pike Would Approve
 
-Pike wrote: "Fancy algorithms are slow when n is small, and n is usually small." 
+He wrote: "Fancy algorithms are slow when n is small, and n is usually small." 
 
 A type checker is a fancy algorithm. Dust's suffix system is not an algorithm at all - it's a naming convention enforced by simple string matching. When every variable carries its type, you don't need algorithms to figure out types.
 
