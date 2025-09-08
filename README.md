@@ -309,9 +309,7 @@ Will you please help me clean up all this Dust?
 
 ### Why No Type Checker Is Necessary
 
-Look at your enum test. When you write:
-
-    let token_type_TokenType = IDENTIFIER_TokenType;
+`let token_type_TokenType = IDENTIFIER_TokenType;`
 
 Three things happen:
 1. Dust sees `_TokenType` suffix and knows it's that enum type
