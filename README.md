@@ -18,49 +18,47 @@ It is ancient, ubiquitous, and enduring.
 
 It does not decay. It is the foundation.  
 
-**Dust is a systems programming language built on this principle.**  
+It is an "ancient C" for the modern world, designed not to fight complexity, but to transcend it through simplicity and clarity.
 
-It is an "ancient C" for the modern world, designed not to fight complexity, but to transcend it through simplicity and clarity.  
+**Dust is a systems programming language built on this principle.**    
 
 ---
 
 ## Principles of Dust
 
-### 1. Grammar over Punctuation
-Modern languages are a fortress of punctuation: `()`, `{}`, `[]`, `;`, `::`.  
-This syntax, while precise, creates cognitive overhead and visual noise. Dust replaces this complexity with the intuitive power of grammar, inspired by the timeless structure of Sanskrit.
+### 1. Identifiers as Grammar
+C syntax is powerful but can obscure intent. The meaning of `char* name` is determined by punctuation (`*`) and word order. Dust clarifies this by embedding the core properties of a variable directly into its name, treating the identifier itself as a piece of grammar.
 
-- **Identifiers are Nouns**: Variables are the "things" in our programs.
-- **Keywords are Verbs**: Control flow words are the "actions" (`if`, `for`, `return`).
-- **Suffixes are Case Endings**: A single, unambiguous letter at the end of a noun defines its complete set of properties—its **Type** and its **Semantic Role**.  
-
-
----
+-   **Identifiers are Nouns**: The base name of a variable is the "thing" (`player`, `lexer`).
+-   **Keywords are Verbs**: Control flow words are the "actions" (`if`, `for`, `return`).
+-   **Suffixes are Adjectives**: A simple `_` suffix unambiguously defines a variable's **Type** and its **Semantic Role**. `player_i` is an integer; `player_ip` is a pointer to an integer you own.
 
 ### 2. An Entity-Component System for Code
 Dust is designed like a modern **Entity Component System (ECS)**. This is not just an analogy; it is the **core architecture** of the compiler.
 
-- **Entity**: The base name of an identifier (`player`).
-- **Components**: The properties attached to that entity, defined by its suffix (`Type: int`, `Role: agent`).
-- **System**: The compiler itself, which operates on these entities based on their components.
+-   **Entity**: The base name of an identifier (`player`).
+-   **Components**: The properties attached to that entity, defined by its suffix (`Type: int`, `Role: owned_pointer`).
+-   **System**: The compiler itself, which operates on these entities based on their components.
 
 This makes the language transparent. The code you write is a direct representation of the data and its roles, with no hidden abstractions.
 
----
-
 ### 3. Simplicity is the Ultimate Safeguard
-Rust ensures safety through a sophisticated compiler that enforces complex ownership and lifetime rules. This is a valid and powerful approach.  
+Many languages ensure safety through a complex compiler that enforces sophisticated rules. This is a valid and powerful approach.
 
-Dust ensures safety through **radical simplicity**.
+Dust ensures safety through **radical simplicity and deliberate explicitness**.
 
-By eliminating syntactic ambiguity and making the role and type of every piece of data explicit in its name, the possibility for many classes of errors is removed at the design level.  
+By forcing the type and role of every piece of data to be declared in its name, the possibility for many classes of errors is removed at the design level. This is a trade-off: a little more verbosity in exchange for a massive reduction in ambiguity. It is a system designed to honor our human nature—we forget things. Dust's suffixes serve as a constant, compiler-checked reminder. The code is not just safe; it is **transparently correct**.
 
-The code is not just safe; it is **transparently correct**.
+### The Escape Hatch
+For complex scenarios that don't fit the simple suffix model—like interacting with C libraries, complex function pointers, or platform-specific macros—Dust provides a pragmatic escape hatch: 
 
----
+```@c(...).
+```
+
+This allows you to embed raw C code directly into your Dust source, ensuring you are never limited by the language's core simplicity.
 
 ## The Vision
-Dust is for systems programmers who believe that the best solution is often the simplest one. 
+Dust is for systems programmers who believe that the best solution is often the simplest and most explicit one. 
 It is for those who want a direct, unfiltered connection between their ideas and the machine.  
 It is for rediscovering the foundational patterns that allow us to build software that is not just robust, but is also clear, concise, and enduring.  
 
