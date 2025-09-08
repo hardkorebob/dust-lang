@@ -1606,6 +1606,16 @@ static ASTNode *parse_switch_statement(Parser *p) {
 }
 
 static ASTNode *parse_statement(Parser *p) {
+
+  if (check(p, TOKEN_PASSTHROUGH)) {
+    Token *pass = advance(p);
+    ASTNode *node = create_node(AST_PASSTHROUGH, pass->text);
+    token_free(pass);
+    // Passthrough is a full statement, but Dust syntax requires a semicolon
+    expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after @c(...) statement.");
+    return node;
+  }
+
   if (check(p, TOKEN_KEYWORD)) {
     if (strcmp(p->current->text, "let") == 0) {
       token_free(advance(p));
