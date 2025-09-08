@@ -293,7 +293,7 @@ Will you please help me clean up all this Dust?
 <3 
 ---
 
-## Why Dust Doesn't Need a Type Checker
+## Testing...testing...type check?
 
 "Dust does not fight complexity. It transcends it."
 
