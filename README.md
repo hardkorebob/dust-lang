@@ -1,6 +1,6 @@
 # The Dust Manifesto
 
-We begin as dust, and to dust we return. 
+From dust our bodies spring and to dust we return. 
 
 It is the alpha and the omega, the substrate of all creation. 
 
