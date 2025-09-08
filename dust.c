@@ -184,6 +184,91 @@ static const SuffixMapping suffix_table[] = {
     {NULL, TYPE_VOID, ROLE_NONE, false, false} // Sentinel
 };
 
+
+// Add after the suffix_table definition, around line 140
+static void print_suffix_help(void) {
+    printf("Dust Language Suffix Reference\n");
+    printf("==============================\n\n");
+    
+    printf("PRIMITIVE TYPES:\n");
+    printf("  i     - int\n");
+    printf("  bl    - bool (as int)\n");
+    printf("  f     - float\n");
+    printf("  c     - char\n");
+    printf("  s     - string (char*)\n");
+    printf("  v     - void\n");
+    printf("  st    - size_t\n");
+    
+    printf("\nFIXED-WIDTH INTEGERS:\n");
+    printf("  u8    - uint8_t\n");
+    printf("  u16   - uint16_t\n");
+    printf("  u32   - uint32_t\n");
+    printf("  u64   - uint64_t\n");
+    printf("  i8    - int8_t\n");
+    printf("  i16   - int16_t\n");
+    printf("  i32   - int32_t\n");
+    printf("  i64   - int64_t\n");
+    
+    printf("\nARCHITECTURE TYPES:\n");
+    printf("  ux    - uintptr_t (native word)\n");
+    printf("  ix    - intptr_t\n");
+    printf("  sz    - size_t\n");
+    printf("  ssz   - ssize_t\n");
+    printf("  off   - off_t\n");
+    
+    printf("\nPOINTER SUFFIXES:\n");
+    printf("  _p    - owned pointer (suffix: ip, cp, etc.)\n");
+    printf("  _b    - borrowed pointer (const)\n");
+    printf("  _r    - reference pointer (const)\n");
+    printf("  vp    - void pointer\n");
+    printf("  fp    - function pointer\n");
+    
+    printf("\nOS DEVELOPMENT:\n");
+    printf("  pa    - physical address\n");
+    printf("  va    - virtual address\n");
+    printf("  pte   - page table entry\n");
+    printf("  pde   - page directory entry\n");
+    printf("  pfn   - page frame number\n");
+    printf("  port  - I/O port\n");
+    printf("  mmio  - memory-mapped I/O pointer\n");
+    printf("  vol   - volatile pointer\n");
+    printf("  irq   - IRQ number\n");
+    printf("  vec   - interrupt vector\n");
+    printf("  isr   - interrupt service routine ptr\n");
+    
+    printf("\nATOMICS:\n");
+    printf("  au32  - atomic uint32\n");
+    printf("  au64  - atomic uint64\n");
+    printf("  aptr  - atomic pointer\n");
+    
+    printf("\nARRAY SUFFIX:\n");
+    printf("  _a    - array (suffix: ia, ca, u8a, etc.)\n");
+    printf("         Example: buffer_u8a for uint8_t array\n");
+    
+    printf("\nUSER-DEFINED TYPES:\n");
+    printf("  After 'struct Foo', you can use:\n");
+    printf("    _Foo  - Foo instance\n");
+    printf("    _Foop - Foo* (owned pointer)\n");
+    printf("    _Foob - const Foo* (borrowed)\n");
+    printf("    _Foor - const Foo* (reference)\n");
+    printf("    _Fooa - Foo array\n");
+    
+    printf("\nEXAMPLES:\n");
+    printf("  let count_i = 42;           // int\n");
+    printf("  let name_s = \"Dust\";        // string\n");
+    printf("  let buffer_u8a[256];        // uint8_t array\n");
+    printf("  let player_Playerp;         // Player* (owned)\n");
+    printf("  let callback_fp;            // function pointer\n");
+    printf("  let gdt_base_pa = 0x1000;   // physical address\n");
+    
+    printf("\nSPECIAL KEYWORDS:\n");
+    printf("  func name_<suffix>()  - function with return type\n");
+    printf("  let name_<suffix>     - variable declaration\n");
+    printf("  cast_<suffix>(expr)   - type cast\n");
+    printf("  null                  - NULL constant\n");
+    printf("  @c(...)              - inline C code escape hatch\n");
+}
+
 TypeTable *type_table_create(void);
 void type_table_destroy(TypeTable *table);
 bool type_table_add(TypeTable *table, const char *type_name);
@@ -2429,10 +2514,18 @@ static char *read_file(const char *path) {
 
 
 int main(int argc, char **argv) {
-  if (argc != 2) {
-    fprintf(stderr, "Usage: dustc <file.dust>\n");
-    return 1;
-  }
+    if (argc == 2 && (strcmp(argv[1], "--help") == 0 || 
+                      strcmp(argv[1], "-h") == 0 ||
+                      strcmp(argv[1], "--suffixes") == 0)) {
+        print_suffix_help();
+        return 0;
+    }
+    
+    if (argc != 2) {
+        fprintf(stderr, "Usage: dustc <file.dust>\n");
+        fprintf(stderr, "       dustc --help     (show suffix reference)\n");
+        return 1;
+    }
 
   char *source = read_file(argv[1]);
   if (!source) {
