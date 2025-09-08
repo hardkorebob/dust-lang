@@ -52,7 +52,8 @@ By forcing the type and role of every piece of data to be declared in its name, 
 ### The Escape Hatch
 For complex scenarios that don't fit the simple suffix model—like interacting with C libraries, complex function pointers, or platform-specific macros—Dust provides a pragmatic escape hatch: 
 
-```@c(...).
+```
+@c(...)
 ```
 
 This allows you to embed raw C code directly into your Dust source, ensuring you are never limited by the language's core simplicity.
