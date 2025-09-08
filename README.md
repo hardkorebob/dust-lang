@@ -312,24 +312,24 @@ Will you please help me clean up all this Dust?
 `let token_type_TokenType = IDENTIFIER_TokenType;`
 
 Three things happen:
-1. Dust sees `_TokenType` suffix and knows it's that enum type
+1. Dust sees `_TokenType` suffix and knows it's that enum type.
 2. Dust emits correct C: `TokenType token_type = IDENTIFIER;`
-3. The C compiler validates everything
+3. The C compiler validates everything.
 
 What would a type checker add here? Nothing. The invalid states are already impossible:
-- Wrong suffix? Dust won't recognize it, C compiler catches it
-- Type mismatch? The suffixes make it obvious, C compiler catches it
-- Undefined variable? C compiler catches it
+- Wrong suffix? Dust won't recognize it, C compiler catches it.
+- Type mismatch? The suffixes make it obvious, C compiler catches it.
+- Undefined variable? C compiler catches it.
 
 ### The Philosophical Breakthrough
 
 Traditional languages fight a war on two fronts:
-1. They hide type information from the programmer (inference)
-2. They build complex machinery to track what they hid
+1. They hide type information from the programmer (inference).
+2. They build complex machinery to track what they hid.
 
 Dust surrenders this war entirely:
-1. Types are explicit, always, in the name
-2. Therefore no tracking is needed
+1. Types are explicit, always, in the name.
+2. Therefore no tracking is needed.
 
 This is like Unix philosophy: instead of building smart programs that guess what you want, build simple programs that do exactly what you say. Dust doesn't guess types; you declare them in every identifier.
 
