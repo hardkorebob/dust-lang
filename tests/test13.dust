@@ -15,9 +15,9 @@ struct Player {
 
 // Test enum
 enum GameState {
-    MENU = 0,
-    PLAYING = 1,
-    PAUSED,
+    MENU = 0
+    PLAYING = 1
+    PAUSED
     GAME_OVER
 }
 

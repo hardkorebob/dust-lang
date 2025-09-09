@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 // ====================
 // ARENA ALLOCATOR
 // ====================
@@ -31,7 +30,6 @@ typedef enum {
     TYPE_FUNC_POINTER,
     TYPE_SIZE_T,
     
-    // Fixed-width integers
     TYPE_UINT8,
     TYPE_UINT16,
     TYPE_UINT32,
@@ -41,14 +39,12 @@ typedef enum {
     TYPE_INT32,
     TYPE_INT64,
     
-    // Architecture types
     TYPE_UINTPTR,
     TYPE_INTPTR,
     TYPE_SIZE,
     TYPE_SSIZE,
     TYPE_OFF,
     
-    // OS development
     TYPE_PHYS_ADDR,
     TYPE_VIRT_ADDR,
     TYPE_PTE,
@@ -61,7 +57,6 @@ typedef enum {
     TYPE_VECTOR,
     TYPE_ISR_PTR,
     
-    // Atomic types
     TYPE_ATOMIC_U32,
     TYPE_ATOMIC_U64,
     TYPE_ATOMIC_PTR,
@@ -113,9 +108,7 @@ typedef struct {
     const char *c_type;
 } TypeMapping;
 
-
 static const TypeMapping type_map[] = {
-    // Basic types
     {TYPE_VOID,       "void"},
     {TYPE_INT,        "int"},
     {TYPE_FLOAT,      "float"},
@@ -123,7 +116,6 @@ static const TypeMapping type_map[] = {
     {TYPE_STRING,     "char*"},
     {TYPE_SIZE_T,     "size_t"},
     
-    // Fixed-width integers
     {TYPE_UINT8,      "uint8_t"},
     {TYPE_UINT16,     "uint16_t"},
     {TYPE_UINT32,     "uint32_t"},
@@ -133,37 +125,32 @@ static const TypeMapping type_map[] = {
     {TYPE_INT32,      "int32_t"},
     {TYPE_INT64,      "int64_t"},
     
-    // Architecture types
     {TYPE_UINTPTR,    "uintptr_t"},
     {TYPE_INTPTR,     "intptr_t"},
     {TYPE_SIZE,       "size_t"},
     {TYPE_SSIZE,      "ssize_t"},
     {TYPE_OFF,        "off_t"},
     
-    // OS development types
     {TYPE_PHYS_ADDR,  "phys_addr_t"},
     {TYPE_VIRT_ADDR,  "virt_addr_t"},
     {TYPE_PTE,        "pte_t"},
     {TYPE_PDE,        "pde_t"},
     {TYPE_PFN,        "pfn_t"},
     {TYPE_PORT,       "port_t"},
-    {TYPE_MMIO,       "void*"},        // MMIO is typically void*
+    {TYPE_MMIO,       "void*"},       
     {TYPE_VOLATILE,   "volatile void*"},
     {TYPE_IRQ,        "irq_t"},
     {TYPE_VECTOR,     "vector_t"},
     {TYPE_ISR_PTR,    "isr_t"},
     
-    // Atomic types
     {TYPE_ATOMIC_U32, "_Atomic uint32_t"},
     {TYPE_ATOMIC_U64, "_Atomic uint64_t"},
     {TYPE_ATOMIC_PTR, "_Atomic void*"},
     
-    // Sentinel
     {TYPE_VOID,       NULL}
 };
 
 static const SuffixMapping suffix_table[] = {
-    // Primitive types
     {"i",   TYPE_INT,    ROLE_NONE,   false, false},
     {"bl",  TYPE_INT,    ROLE_NONE,   false, false}, // bool as int
     {"st",  TYPE_SIZE_T, ROLE_NONE,   false, false},
@@ -172,7 +159,6 @@ static const SuffixMapping suffix_table[] = {
     {"s",   TYPE_STRING, ROLE_NONE,   true,  false},
     {"v",   TYPE_VOID,   ROLE_NONE,   false, false},
     
-    // Primitive pointers with ownership
     {"ip",  TYPE_INT,    ROLE_OWNED,     true,  false},
     {"ib",  TYPE_INT,    ROLE_BORROWED,  true,  true},
     {"ir",  TYPE_INT,    ROLE_REFERENCE, true,  true},
@@ -180,31 +166,27 @@ static const SuffixMapping suffix_table[] = {
     {"cb",  TYPE_CHAR,   ROLE_BORROWED,  true,  true},
     {"cr",  TYPE_CHAR,   ROLE_REFERENCE, true,  true},
     {"fp",  TYPE_FUNC_POINTER, ROLE_OWNED, true, false},
-    
-    // Generic borrowed pointer
     {"b",   TYPE_POINTER, ROLE_BORROWED, true,  true},
-    // Fixed-width integer types (essential for OS dev)
-    {"u8",   TYPE_UINT8,   ROLE_NONE,   false, false},  // uint8_t
-    {"u16",  TYPE_UINT16,  ROLE_NONE,   false, false},  // uint16_t  
-    {"u32",  TYPE_UINT32,  ROLE_NONE,   false, false},  // uint32_t
-    {"u64",  TYPE_UINT64,  ROLE_NONE,   false, false},  // uint64_t
-    {"i8",   TYPE_INT8,    ROLE_NONE,   false, false},  // int8_t
-    {"i16",  TYPE_INT16,   ROLE_NONE,   false, false},  // int16_t
-    {"i32",  TYPE_INT32,   ROLE_NONE,   false, false},  // int32_t
-    {"i64",  TYPE_INT64,   ROLE_NONE,   false, false},  // int64_t
 
-    // Architecture-specific types
-    {"ux",   TYPE_UINTPTR, ROLE_NONE,   false, false},  // uintptr_t (native word)
-    {"ix",   TYPE_INTPTR,  ROLE_NONE,   false, false},  // intptr_t  
-    {"sz",   TYPE_SIZE,    ROLE_NONE,   false, false},  // size_t
-    {"ssz",  TYPE_SSIZE,   ROLE_NONE,   false, false},  // ssize_t
-    {"off",  TYPE_OFF,     ROLE_NONE,   false, false},  // off_t
+    {"u8",   TYPE_UINT8,   ROLE_NONE,   false, false},  
+    {"u16",  TYPE_UINT16,  ROLE_NONE,   false, false},   
+    {"u32",  TYPE_UINT32,  ROLE_NONE,   false, false},  
+    {"u64",  TYPE_UINT64,  ROLE_NONE,   false, false},  
+    {"i8",   TYPE_INT8,    ROLE_NONE,   false, false},  
+    {"i16",  TYPE_INT16,   ROLE_NONE,   false, false},  
+    {"i32",  TYPE_INT32,   ROLE_NONE,   false, false},  
+    {"i64",  TYPE_INT64,   ROLE_NONE,   false, false},  
 
-    // Special pointer qualifiers (combine with base types)
-    {"vp",   TYPE_VOID,    ROLE_OWNED,  true,  false},  // void pointer
-    {"cvp",  TYPE_VOID,    ROLE_BORROWED, true, true},  // const void pointer
-    {"rp",   TYPE_VOID,    ROLE_RESTRICT, true, false}, // restrict pointer    
-    {NULL, TYPE_VOID, ROLE_NONE, false, false} // Sentinel
+    {"ux",   TYPE_UINTPTR, ROLE_NONE,   false, false},  
+    {"ix",   TYPE_INTPTR,  ROLE_NONE,   false, false},  
+    {"sz",   TYPE_SIZE,    ROLE_NONE,   false, false},  
+    {"ssz",  TYPE_SSIZE,   ROLE_NONE,   false, false},  
+    {"off",  TYPE_OFF,     ROLE_NONE,   false, false},  
+ 
+    {"vp",   TYPE_VOID,    ROLE_OWNED,  true,  false},  
+    {"cvp",  TYPE_VOID,    ROLE_BORROWED, true, true},  
+    {"rp",   TYPE_VOID,    ROLE_RESTRICT, true, false}, 
+    {NULL, TYPE_VOID, ROLE_NONE, false, false} 
 };
 
 static void print_suffix_help(void) {
@@ -257,12 +239,12 @@ static void print_suffix_help(void) {
     printf("    _Fooa - Foo array\n");
     
     printf("\nEXAMPLES:\n");
-    printf("  let count_i = 42;           // int\n");
-    printf("  let name_s = \"Dust\";        // string\n");
-    printf("  let buffer_u8a[256];        // uint8_t array\n");
-    printf("  let player_Playerp;         // Player* (owned)\n");
-    printf("  let callback_fp;            // function pointer\n");
-    printf("  let gdt_base_pa = 0x1000;   // physical address\n");
+    printf("  let count_i = 42");           
+    printf("  let name_s = \"Dust\"");     
+    printf("  let buffer_u8a[256]");       
+    printf("  let player_Playerp");      
+    printf("  let callback_fp");        
+    printf("  let gdt_base_pa = 0x1000");   
     
     printf("\nSPECIAL KEYWORDS:\n");
     printf("  func name_<suffix>()  - function with return type\n");
@@ -288,7 +270,7 @@ void arena_init(size_t size) {
 
 /* Allocate memory from arena (8-byte aligned) */
 void *arena_alloc(size_t size) {
-    size = (size + 7) & ~7;  // Align to 8 bytes
+    size = (size + 7) & ~7;  
     
     if (g_arena.used + size > g_arena.size) {
         fprintf(stderr, "Arena out of memory (used: %zu, requested: %zu, total: %zu)\n", 
@@ -298,7 +280,7 @@ void *arena_alloc(size_t size) {
     
     void *ptr = g_arena.data + g_arena.used;
     g_arena.used += size;
-    memset(ptr, 0, size);  // Zero-initialize
+    memset(ptr, 0, size);  
     return ptr;
 }
 
@@ -313,7 +295,6 @@ void arena_free_all(void) {
 // ====================
 // UTILITY FUNCTIONS
 // ====================
-
 
 char *clone_string(const char *str) {
     if (!str) return NULL;
@@ -338,7 +319,6 @@ TypeTable *type_table_create(void) {
   table->struct_capacity = 8;
   table->struct_count = 0;
   table->struct_names = arena_alloc(sizeof(char *) * table->struct_capacity);
-
   table->typedef_capacity = 8;
   table->typedef_count = 0;
   table->typedefs = malloc(sizeof(TypedefInfo) * table->typedef_capacity);
@@ -351,7 +331,6 @@ bool type_table_add(TypeTable *table, const char *type_name) {
       return true;
     }
   }
-
   if (table->struct_count >= table->struct_capacity) {
     table->struct_capacity *= 2;
     table->struct_names = realloc(table->struct_names, sizeof(char *) * table->struct_capacity);
@@ -361,8 +340,7 @@ bool type_table_add(TypeTable *table, const char *type_name) {
 }
 
 bool type_table_add_enum(TypeTable *table, const char *enum_name) {
-  // For now, enums are tracked the same as structs
-  // Later you might want separate tracking
+  // For now, enums are tracked the same as structs 
   return type_table_add(table, enum_name);
 }
 
@@ -376,7 +354,6 @@ const char *type_table_lookup(const TypeTable *table, const char *type_name) {
 }
 
 bool type_table_add_typedef(TypeTable *table, const char *name, const SuffixInfo *type_info) {
-
   for (size_t i = 0; i < table->typedef_count; i++) {
     if (strcmp(table->typedefs[i].name, name) == 0) {
       return false;
@@ -411,33 +388,24 @@ const char *find_suffix_separator(const char *name) {
 }
 
 bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, SuffixInfo *result_info) {
-    *result_info = (SuffixInfo){TYPE_VOID, ROLE_NONE, false, false, NULL, false, TYPE_VOID, NULL};
-    
+    *result_info = (SuffixInfo){TYPE_VOID, ROLE_NONE, false, false, NULL, false, TYPE_VOID, NULL};    
     const char *separator = find_suffix_separator(full_variable_name);
-    if (!separator) return false;
-    
+    if (!separator) return false;    
     const char *suffix_str = separator + 1;
     size_t suffix_len = strlen(suffix_str);
     if (suffix_len == 0) return false;
-
-    // --- NEW, ROBUST LOGIC ---
-
-    // 1. Check for arrays FIRST. This handles both primitive (_ia) and user-defined (_PCIDevicea) arrays.
+    
     if (suffix_len > 1 && suffix_str[suffix_len - 1] == 'a') {
         char base_suffix[128];
         strncpy(base_suffix, suffix_str, suffix_len - 1);
-        base_suffix[suffix_len - 1] = '\0';
-
-        // Check for primitive array base (e.g., 'i' in 'ia')
+        base_suffix[suffix_len - 1] = '\0';      
         for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
             if (strcmp(base_suffix, m->suffix) == 0) {
                 result_info->type = TYPE_ARRAY;
                 result_info->array_base_type = m->type;
                 return true;
             }
-        }
-        
-        // Check for user-defined array base (e.g., 'PCIDevice' in 'PCIDevicea')
+        }   
         const char *user_type = type_table_lookup(type_table, base_suffix);
         if (user_type) {
             result_info->type = TYPE_ARRAY;
@@ -445,10 +413,7 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
             result_info->array_user_type_name = user_type;
             return true;
         }
-    }
-
-    // 2. Check for user-defined types with pointer modifiers (e.g., _PCIDevicep)
-    // This logic MUST come before the generic primitive check.
+    }    
     for (size_t i = 0; i < type_table->struct_count; i++) {
         const char *user_type_name = type_table->struct_names[i];
         size_t user_type_len = strlen(user_type_name);
@@ -466,9 +431,6 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
             }
         }
     }
-
-    // 3. Handle exact matches for ALL other suffixes (primitives like _i, and plain user types like _PCIDevice)
-    // This uses your clean, data-driven table.
     for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
         if (strcmp(suffix_str, m->suffix) == 0) {
             result_info->type = m->type; result_info->role = m->role;
@@ -481,8 +443,6 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
         result_info->type = TYPE_USER; result_info->user_type_name = user_type;
         return true;
     }
-
-    // 4. Fallback for typedefs
     const TypedefInfo *typedef_info = type_table_lookup_typedef(type_table, suffix_str);
     if (typedef_info) {
         *result_info = typedef_info->type_info;
@@ -491,10 +451,9 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
     
     return false;
 }
+
 const char *get_c_type(const SuffixInfo *info) {
     static char type_buffer[256];
-    
-    // Handle special cases first
     if (info->type == TYPE_USER) {
         if (info->user_type_name) {
             snprintf(type_buffer, sizeof(type_buffer), "%s%s%s",
@@ -503,40 +462,31 @@ const char *get_c_type(const SuffixInfo *info) {
                      info->is_pointer ? "*" : "");
             return type_buffer;
         }
-    }
-    
-    // Determine base type
+    } 
     DataType lookup_type = (info->type == TYPE_ARRAY) ? 
                            info->array_base_type : info->type;
-    
-    // Handle array with user type
     if (info->type == TYPE_ARRAY && info->array_base_type == TYPE_USER) {
         strcpy(type_buffer, info->array_user_type_name ? 
                info->array_user_type_name : "void");
         return type_buffer;
     }
-    
-    // Look up in table
     const char *base_type = "void";
     for (const TypeMapping *m = type_map; m->c_type; m++) {
         if (m->type == lookup_type) {
             base_type = m->c_type;
             break;
         }
-    }
-    
-    // Build final type string
+    } 
     if (info->type == TYPE_ARRAY || info->type == TYPE_STRING) {
         strcpy(type_buffer, base_type);
     } else if (info->type == TYPE_FUNC_POINTER) {
-        strcpy(type_buffer, "void*");  // Generic function pointer
+        strcpy(type_buffer, "void*");  
     } else {
         snprintf(type_buffer, sizeof(type_buffer), "%s%s%s",
                  info->is_const ? "const " : "",
                  base_type,
                  info->is_pointer ? "*" : "");
-    }
-    
+    }   
     return type_buffer;
 }
 
@@ -577,7 +527,7 @@ typedef struct {
 typedef struct {
     char first;
     char second;
-    char third;  // For three-char ops like <<=
+    char third;  
     const char *token;
 } MultiCharOp;
 
@@ -602,18 +552,17 @@ static const char *KEYWORDS[] = {
     "null",
     "enum",
     "static",
-    "const",
     "extern",
     "union",
      NULL
 };
 
 static const MultiCharOp multi_char_ops[] = {
-    // Three-character operators
+    
     {'<', '<', '=', "<<="},
     {'>', '>', '=', ">>="},
     
-    // Two-character operators
+    
     {'=', '=', '\0', "=="},
     {'!', '=', '\0', "!="},
     {'<', '=', '\0', "<="},
@@ -632,9 +581,9 @@ static const MultiCharOp multi_char_ops[] = {
     {'&', '=', '\0', "&="},
     {'|', '=', '\0', "|="},
     {'^', '=', '\0', "^="},
-    {'-', '>', '\0', "->"},  // For completeness
+    {'-', '>', '\0', "->"},  
     
-    {'\0', '\0', '\0', NULL}  // Sentinel
+    {'\0', '\0', '\0', NULL}  
 };
 
 static bool is_keyword(const char *word) {
@@ -679,7 +628,7 @@ Token *lexer_next(Lexer *lex) {
   int start = lex->pos;
   char c = lex->source[lex->pos];
 
-  // Preprocessor directives
+  
   if (c == '#') {
     lex->pos++;
     start = lex->pos;
@@ -697,10 +646,9 @@ Token *lexer_next(Lexer *lex) {
   // Escape Hatch
   if (c == '@' && lex->pos + 2 < lex->len && lex->source[lex->pos + 1] == 'c' &&
       lex->source[lex->pos + 2] == '(') {
-    lex->pos += 3; // Skip @c(
+    lex->pos += 3; 
     start = lex->pos;
 
-    // Find the closing )
     int paren_count = 1;
     while (lex->pos < lex->len && paren_count > 0) {
       if (lex->source[lex->pos] == '(')
@@ -774,7 +722,7 @@ Token *lexer_next(Lexer *lex) {
             lex->pos++;
         }
         int len = lex->pos - start;
-        char *hex_num = arena_alloc(len + 3); // for 0x prefix and null terminator
+        char *hex_num = arena_alloc(len + 3); 
         strcpy(hex_num, "0x");
         memcpy(hex_num + 2, lex->source + start, len);
         hex_num[len + 2] = '\0';
@@ -856,7 +804,7 @@ if (lex->pos < lex->len) {
             if (c == op->first && next == op->second && 
                 op->third != '\0' && third == op->third) {
                 strcpy(op_text, op->token);
-                lex->pos += 2;  // Already moved past first char
+                lex->pos += 2;  
                 goto make_op_token;
             }
         }
@@ -955,45 +903,45 @@ typedef struct {
 } OpInfo;
 
 static const OpInfo operator_table[] = {
-    // Multiplicative (highest precedence for binary)
+    
     {"*",   10, true,  true},
     {"/",   10, true,  true},
     {"%",   10, true,  true},
     
-    // Additive
+    
     {"+",   9,  true,  true},
     {"-",   9,  true,  true},
     
-    // Shift
+    
     {"<<",  8,  true,  true},
     {">>",  8,  true,  true},
     
-    // Relational
+    
     {"<",   7,  true,  true},
     {">",   7,  true,  true},
     {"<=",  7,  true,  true},
     {">=",  7,  true,  true},
     
-    // Equality
+    
     {"==",  6,  true,  true},
     {"!=",  6,  true,  true},
     
-    // Bitwise AND
+    
     {"&",   5,  true,  true},
     
-    // Bitwise XOR
+    
     {"^",   4,  true,  true},
     
-    // Bitwise OR
+    
     {"|",   3,  true,  true},
     
-    // Logical AND
+    
     {"&&",  2,  true,  true},
     
-    // Logical OR
+    
     {"||",  1,  true,  true},
     
-    // Assignment (right associative)
+    
     {"=",   0,  false, true},
     {"+=",  0,  false, true},
     {"-=",  0,  false, true},
@@ -1006,7 +954,7 @@ static const OpInfo operator_table[] = {
     {"<<=", 0,  false, true},
     {">>=", 0,  false, true},
     
-    {NULL,  0,  false, false}  // Sentinel
+    {NULL,  0,  false, false}  
 };
 // =======
 // PARSER
@@ -1039,7 +987,7 @@ static void add_child(ASTNode *parent, ASTNode *child) {
     return;
   if (parent->child_count >= parent->child_cap) {
     parent->child_cap *= 2;
-    // Allocate new array and copy
+    
     ASTNode **new_children = arena_alloc(parent->child_cap * sizeof(ASTNode *));
     memcpy(new_children, parent->children, parent->child_count * sizeof(ASTNode *));
     parent->children = new_children;
@@ -1169,7 +1117,7 @@ static ASTNode *parse_primary(Parser *p) {
   if (match_and_consume(p, TOKEN_KEYWORD, "cast")) {
     expect(p, TOKEN_PUNCTUATION, "_", "Expected '_' after 'cast'.");
 
-    // Parse the type suffix
+    
     Token *type_tok = advance(p);
     if (type_tok->type != TOKEN_IDENTIFIER) {
       parser_error(p, "Expected type suffix after 'cast_'.");
@@ -1196,10 +1144,10 @@ static ASTNode *parse_call(Parser *p) {
 
   while (match_and_consume(p, TOKEN_PUNCTUATION, "(")) {
     ASTNode *call_node = create_node(AST_CALL, NULL);
-    // The thing being called is the expression we just parsed
+    
     add_child(call_node, expr);
 
-    // Now parse the arguments
+    
     if (!check(p, TOKEN_PUNCTUATION) || strcmp(p->current->text, ")") != 0) {
       do {
         add_child(call_node, parse_expression(p));
@@ -1310,8 +1258,8 @@ static ASTNode *parse_unary(Parser *p) {
                                    strcmp(p->current->text, "!") == 0 ||
                                    strcmp(p->current->text, "&") == 0 ||
                                    strcmp(p->current->text, "*") == 0 ||
-                                   strcmp(p->current->text, "++") == 0 ||  // prefix
-                                   strcmp(p->current->text, "--") == 0)) {  // prefix{
+                                   strcmp(p->current->text, "++") == 0 ||   // prefix
+                                   strcmp(p->current->text, "--") == 0)) {  
     Token *op_tok = advance(p);
     ASTNode *node = create_node(AST_UNARY_OP, op_tok->text);
     add_child(node, parse_unary(p));
@@ -1373,11 +1321,9 @@ static ASTNode *parse_binary_expr(Parser *p, int min_precedence) {
     return left;
 }
 
-
 static ASTNode *parse_expression(Parser *p) {
     return parse_ternary(p);  
 }
-
 
 static ASTNode *parse_ternary(Parser *p) {
     ASTNode *condition = parse_binary_expr(p, 0); 
@@ -1421,34 +1367,31 @@ static ASTNode *parse_var_decl(Parser *p) {
     node->suffix_info = name->suffix_info;
   }
   
-  // Check if this is an array declaration (has array type suffix)
   if (node->suffix_info.type == TYPE_ARRAY) {
     // Array declaration with size
     if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "[") == 0) {
-         advance(p);// Consume '['
-      add_child(node, parse_expression(p));  // Child 0: array size
+         advance(p);
+      add_child(node, parse_expression(p));  
       expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after array size.");
     }
     
     // Optional initializer for array
     if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
-      // Check if it's a char array and next token is a string literal
       if (node->suffix_info.array_base_type == TYPE_CHAR && 
           check(p, TOKEN_STRING)) {
-        // String literal initialization for char array
         Token *str_tok = advance(p);
         ASTNode *str_node = create_node(AST_STRING, str_tok->text);
-        add_child(node, str_node);  // Child 1: string initializer
+        add_child(node, str_node);  
         
       } else {
         // Regular initializer list
-        add_child(node, parse_initializer_list(p));  // Child 1: initializer
+        add_child(node, parse_initializer_list(p));  
       }
     }
   } else {
     // Regular variable initialization
     if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
-      add_child(node, parse_expression(p));  // Child 0: initializer
+      add_child(node, parse_expression(p));  
     }
   }
 
@@ -1592,8 +1535,6 @@ static ASTNode *parse_statement(Parser *p) {
   if (check(p, TOKEN_PASSTHROUGH)) {
     Token *pass = advance(p);
     ASTNode *node = create_node(AST_PASSTHROUGH, pass->text);
-    
-    // Passthrough is a full statement, but Dust syntax requires a semicolon
     match_and_consume(p, TOKEN_PUNCTUATION, ";");
     return node;
   }
@@ -1642,7 +1583,7 @@ static ASTNode *parse_statement(Parser *p) {
         !(check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "}") == 0)) {
         add_child(node, parse_expression(p));
     }
-    match_and_consume(p, TOKEN_PUNCTUATION, ";");  // Optional
+    match_and_consume(p, TOKEN_PUNCTUATION, ";");
     return node;
 }
     if (check(p, TOKEN_PASSTHROUGH)) {
@@ -1693,13 +1634,13 @@ static ASTNode *parse_struct_definition(Parser *p) {
     if (check(p, TOKEN_IDENTIFIER)) {
       Token *member_tok = advance(p);
 
-      // Check if the member is a function pointer
+      
       if (member_tok->suffix_info.type == TYPE_FUNC_POINTER) {
         ASTNode *fp_node = create_node(AST_FUNC_PTR_DECL, member_tok->base_name);
 
         expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' for function pointer signature.");
 
-        // Parse return type and parameter types
+        
         do {
           if (p->current->type != TOKEN_IDENTIFIER) {
             parser_error(p, "Expected a type specifier (e.g., dummy_i) in signature.");
@@ -1835,18 +1776,18 @@ static ASTNode *parse_enum_definition(Parser *p) {
       
       // Check for explicit value assignment
       if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
-        // Parse the value
+        
         if (check(p, TOKEN_NUMBER)) {
           Token *val_tok = advance(p);
           ASTNode *val_node = create_node(AST_NUMBER, val_tok->text);
           add_child(member_node, val_node);
-          next_value = atoi(val_tok->text) + 1;  // Update auto-increment
+          next_value = atoi(val_tok->text) + 1;  
           
         } else {
           parser_error(p, "Expected number after '=' in enum.");
         }
       } else {
-        // Use auto-incremented value
+        
         char val_str[32];
         snprintf(val_str, sizeof(val_str), "%d", next_value);
         ASTNode *val_node = create_node(AST_NUMBER, val_str);
@@ -1940,7 +1881,7 @@ ASTNode *parser_parse(Parser *p) {
       } else if (strcmp(p->current->text, "struct") == 0) {
         advance(p);
         add_child(program, parse_struct_definition(p));
-      } else if (strcmp(p->current->text, "union") == 0) {  // Add this
+      } else if (strcmp(p->current->text, "union") == 0) {  
         advance(p);
         add_child(program, parse_union_definition(p));
       } else if (strcmp(p->current->text, "enum") == 0) {  
@@ -2048,7 +1989,7 @@ static void emit_var_decl(ASTNode *node) {
 if (node->suffix_info.type == TYPE_ARRAY) {
     fprintf(output_file, "[");
     
-    // For char arrays initialized with string literals, leave size empty
+    
     if (node->suffix_info.array_base_type == TYPE_CHAR && 
         node->child_count > 0 && 
         node->children[0]->type == AST_STRING) {
@@ -2105,9 +2046,9 @@ static void emit_node(ASTNode *node) {
     return;
 
   switch (node->type) {
-    // Update the AST_PROGRAM case to emit in correct order:
+    
     case AST_PROGRAM:
-      // 1. Emit directives (includes)
+      
       for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_DIRECTIVE) {
           emit_node(node->children[i]);
@@ -2115,7 +2056,7 @@ static void emit_node(ASTNode *node) {
       }
       fprintf(output_file, "\n");
       
-      // 2. Emit typedefs, enums, and structs (type definitions)
+      
       for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_STRUCT_DEF ||
             node->children[i]->type == AST_UNION_DEF ||
@@ -2132,13 +2073,13 @@ static void emit_node(ASTNode *node) {
             fprintf(output_file, ";\n");
         }
       }
-      // 3. NOW emit forward declarations (after types are defined)
+      
       FuncDecl *funcs = collect_functions(node, NULL);
       if (funcs) {
         emit_forward_declarations(funcs, output_file);
       }
       
-      // 4. Finally emit function implementations
+      
       for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_FUNCTION) {
           emit_node(node->children[i]);
@@ -2288,13 +2229,10 @@ static void emit_node(ASTNode *node) {
 
   case AST_CALL:
     if (node->child_count < 1)
-      break; // Should not happen
-
+      break; 
     // Child 0 is the callee (the function name or expression)
     emit_node(node->children[0]);
-
     fprintf(output_file, "(");
-
     // Children 1 to N are the arguments
     for (int i = 1; i < node->child_count; i++) {
       if (i > 1)
@@ -2350,24 +2288,24 @@ static void emit_node(ASTNode *node) {
     for (int i = 0; i < node->child_count; i++) {
       ASTNode *member = node->children[i];
       if (member->type == AST_VAR_DECL) {
-        // --- FINAL, CORRECT LOGIC FOR STRUCT MEMBERS ---
-        // 1. Print indentation, type, and name
+        
+        
         fprintf(output_file, "    %s %s", get_c_type(&member->suffix_info),
                 member->value);
 
-        // 2. If there's a child node, it MUST be the array size.
-        //    (No initializers are allowed here).
+        
+        
         if (member->child_count > 0) {
           fprintf(output_file, "[");
-          emit_node(member->children[0]); // Emit the size expression
+          emit_node(member->children[0]); 
           fprintf(output_file, "]");
         }
 
-        // 3. End the declaration
+        
         fprintf(output_file, ";\n");
 
       } else if (member->type == AST_FUNC_PTR_DECL) {
-        // Function pointers are handled correctly by the main emitter
+        
         emit_node(member);
       }
     }
@@ -2496,8 +2434,8 @@ static void emit_node(ASTNode *node) {
     break;
 
   case AST_POSTFIX_OP:
-    emit_node(node->children[0]);  // Emit the operand
-    fprintf(output_file, "%s", node->value);  // Emit ++ or --
+    emit_node(node->children[0]);  
+    fprintf(output_file, "%s", node->value);  
     break;
   default:
     if (node->child_count > 0) {
@@ -2509,7 +2447,6 @@ static void emit_node(ASTNode *node) {
   }
 }
 
-// Collect all function declarations from the AST
 FuncDecl *collect_functions(ASTNode *node, FuncDecl *list) {
   if (!node) return list;
   
@@ -2522,14 +2459,13 @@ FuncDecl *collect_functions(ASTNode *node, FuncDecl *list) {
     return decl;
   }
   
-  // Recurse through children
+  
   for (int i = 0; i < node->child_count; i++) {
     list = collect_functions(node->children[i], list);
   }
   return list;
 }
 
-// Emit forward declarations
 void emit_forward_declarations(FuncDecl *decls, FILE *out) {
   fprintf(out, "// Forward declarations\n");
   
@@ -2542,7 +2478,7 @@ void emit_forward_declarations(FuncDecl *decls, FILE *out) {
         if (i > 0) fprintf(out, ", ");
         ASTNode *param = d->params->children[i];
         
-        // Handle array parameters as pointers
+        
         if (param->suffix_info.type == TYPE_ARRAY) {
           const char *base_type = "void";
           switch (param->suffix_info.array_base_type) {
@@ -2576,8 +2512,6 @@ void codegen(ASTNode *ast, const TypeTable *table, FILE *out) {
 
 static void pre_scan_for_types(const char *source, TypeTable *table) {
   const char *cursor = source;
-
-  // Scan for structs first
   while ((cursor = strstr(cursor, "struct"))) {
     cursor += strlen("struct");
     while (*cursor && isspace(*cursor))
@@ -2649,11 +2583,9 @@ static char *read_file(const char *path) {
 
   fread(buffer, 1, size, f);
   buffer[size] = '\0';
-
   fclose(f);
   return buffer;
 }
-
 
 int main(int argc, char **argv) {
     if (argc == 2 && (strcmp(argv[1], "--help") == 0 || 
@@ -2678,10 +2610,8 @@ int main(int argc, char **argv) {
 
   TypeTable *type_table = type_table_create();
   pre_scan_for_types(source, type_table);
-
   Parser *parser = parser_create(source, type_table);
   ASTNode *ast = parser_parse(parser);
-
   if (parser->had_error) {
     fprintf(stderr, "Compilation failed.\n");
     arena_free_all();
@@ -2707,11 +2637,9 @@ int main(int argc, char **argv) {
 
   codegen(ast, type_table, out);
   fclose(out);
-
   printf("Successfully compiled '%s' to '%s'\n", argv[1], outname);
 
   arena_free_all();
-
   return 0;
 }
 
