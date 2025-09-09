@@ -1,0 +1,61 @@
+#include <stdio.h>
+#include <stdint.h>
+
+// Use typedef to create a custom type alias for a score
+typedef dummy_u32 Score_t
+
+// A union to hold different types of packet data
+union Packet {
+    id_u32
+    value_i
+    code_c[4]
+}
+
+// A function that sums an array using pointer arithmetic
+func process_data_i(data_ip, count_i) {
+    let total_i = 0
+    for (let i_i = 0 ; i_i < count_i ; i_i++) {
+        // Use pointer dereferencing and increment
+        total_i += *data_ip
+        data_ip++
+    }
+    return total_i
+}
+
+// The main entry point of the program
+func main_i() {
+    printf("--- Dust Language Test 2 ---\n")
+
+    // Test arrays and pointers
+    let numbers_ia[5] = {10, 20, 30, 40, 50}
+    let sum_i = process_data_i(&numbers_ia[0], 5)
+    printf("Sum of array: %d\n", sum_i)
+
+    // Test the union
+    let data_packet_Packet
+    data_packet_Packet.id = 12345
+    printf("Packet ID: %u\n", data_packet_Packet.id)
+
+    // The 'value' member overwrites the 'id' member
+    data_packet_Packet.value = -100
+    printf("Packet Value: %d\n", data_packet_Packet.value)
+    
+    // Test the switch statement
+    let status_code_i = 1
+    switch (status_code_i) {
+        case 0:
+            printf("Status: OK\n")
+            break
+        case 1:
+            printf("Status: Warning\n")
+            break
+        case 2:
+            printf("Status: Error\n")
+            break
+        default:
+            printf("Status: Unknown\n")
+    }
+
+    printf("Test complete!\n")
+    return 0
+}

@@ -1,5 +1,5 @@
-
 #include <stdio.h>
+
 union Variant {
     i_value_i
     f_value_f

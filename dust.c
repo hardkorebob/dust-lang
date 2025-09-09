@@ -1686,14 +1686,10 @@ static ASTNode *parse_union_definition(Parser *p) {
   Token *name_tok = advance(p);
   if (name_tok->type != TOKEN_IDENTIFIER) {
     parser_error(p, "Expected union name.");
-    
     return NULL;
   }
-
   type_table_add((TypeTable *)p->type_table, name_tok->text);
   ASTNode *union_node = create_node(AST_UNION_DEF, name_tok->text);
-  
-
   expect(p, TOKEN_PUNCTUATION, "{", "Expected '{' after union name.");
 
   while (!check(p, TOKEN_PUNCTUATION) || strcmp(p->current->text, "}") != 0) {
@@ -1704,11 +1700,9 @@ static ASTNode *parse_union_definition(Parser *p) {
 
     if (check(p, TOKEN_IDENTIFIER)) {
       Token *member_tok = advance(p);
-
       // Unions can have the same member types as structs
       if (member_tok->suffix_info.type == TYPE_FUNC_POINTER) {
         ASTNode *fp_node = create_node(AST_FUNC_PTR_DECL, member_tok->base_name);
-        
         expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' for function pointer signature.");
         
         do {
@@ -1736,9 +1730,7 @@ static ASTNode *parse_union_definition(Parser *p) {
           expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after array size.");
         }
         add_child(union_node, member_node);
-      }
-      
-      
+      }            
       match_and_consume(p, TOKEN_PUNCTUATION, ";");
     } else {
       parser_error(p, "Expected member declaration inside union.");
@@ -1748,7 +1740,6 @@ static ASTNode *parse_union_definition(Parser *p) {
 
   expect(p, TOKEN_PUNCTUATION, "}", "Expected '}' to close union definition.");
   match_and_consume(p, TOKEN_PUNCTUATION, ";");
-  advance(p);
   return union_node;
 }
 
@@ -1862,18 +1853,15 @@ ASTNode *parser_parse(Parser *p) {
     if (check(p, TOKEN_DIRECTIVE)) {
       Token *dir_tok = advance(p);
       add_child(program, create_node(AST_DIRECTIVE, dir_tok->text));
-    } else if (strcmp(p->current->text, "let") == 0) {
-        advance(p);
-        ASTNode *global = parse_var_decl(p);
-        match_and_consume(p, TOKEN_PUNCTUATION, ";");
-        add_child(program, global);
     } else if (check(p, TOKEN_PASSTHROUGH)) {
       Token *pass = advance(p);
       add_child(program, create_node(AST_PASSTHROUGH, pass->text));
-      match_and_consume(p, TOKEN_PUNCTUATION, ";");
     } else if (check(p, TOKEN_KEYWORD)) {
-      if (strcmp(p->current->text, "typedef") == 0) {
+      if (strcmp(p->current->text, "let") == 0) {
         advance(p);
+        ASTNode *global = parse_var_decl(p);
+        add_child(program, global);
+      } else if (strcmp(p->current->text, "typedef") == 0) {
         add_child(program, parse_typedef(p));
       } else if (strcmp(p->current->text, "func") == 0) {   
         advance(p);
