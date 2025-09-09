@@ -204,32 +204,6 @@ static const SuffixMapping suffix_table[] = {
     {"ssz",  TYPE_SSIZE,   ROLE_NONE,   false, false},  // ssize_t
     {"off",  TYPE_OFF,     ROLE_NONE,   false, false},  // off_t
 
-    // Physical/Virtual memory addresses  
-    {"pa",   TYPE_PHYS_ADDR, ROLE_NONE, false, false},  // physical address
-    {"va",   TYPE_VIRT_ADDR, ROLE_NONE, false, false},  // virtual address
-    {"pap",  TYPE_PHYS_ADDR, ROLE_OWNED, true, false},  // physical addr pointer
-    {"vap",  TYPE_VIRT_ADDR, ROLE_OWNED, true, false},  // virtual addr pointer
-
-    // Page table specific
-    {"pte",  TYPE_PTE,     ROLE_NONE,   false, false},  // page table entry
-    {"pde",  TYPE_PDE,     ROLE_NONE,   false, false},  // page directory entry
-    {"pfn",  TYPE_PFN,     ROLE_NONE,   false, false},  // page frame number
-
-    // Port I/O and MMIO
-    {"port", TYPE_PORT,    ROLE_NONE,   false, false},  // I/O port (u16 typically)
-    {"mmio", TYPE_MMIO,    ROLE_NONE,   true,  false},  // memory-mapped I/O ptr
-    {"vol",  TYPE_VOLATILE, ROLE_NONE,  true,  false},  // volatile ptr
-
-    // Interrupt handling
-    {"irq",  TYPE_IRQ,     ROLE_NONE,   false, false},  // IRQ number
-    {"vec",  TYPE_VECTOR,  ROLE_NONE,   false, false},  // interrupt vector
-    {"isr",  TYPE_ISR_PTR, ROLE_OWNED,  true,  false},  // interrupt service routine ptr
-
-    // Atomics
-    {"au32", TYPE_ATOMIC_U32, ROLE_NONE, false, false}, // atomic uint32
-    {"au64", TYPE_ATOMIC_U64, ROLE_NONE, false, false}, // atomic uint64
-    {"aptr", TYPE_ATOMIC_PTR, ROLE_NONE, true,  false}, // atomic pointer
-
     // Special pointer qualifiers (combine with base types)
     {"vp",   TYPE_VOID,    ROLE_OWNED,  true,  false},  // void pointer
     {"cvp",  TYPE_VOID,    ROLE_BORROWED, true, true},  // const void pointer
@@ -274,24 +248,6 @@ static void print_suffix_help(void) {
     printf("  _r    - reference pointer (const)\n");
     printf("  vp    - void pointer\n");
     printf("  fp    - function pointer\n");
-    
-    printf("\nOS DEVELOPMENT:\n");
-    printf("  pa    - physical address\n");
-    printf("  va    - virtual address\n");
-    printf("  pte   - page table entry\n");
-    printf("  pde   - page directory entry\n");
-    printf("  pfn   - page frame number\n");
-    printf("  port  - I/O port\n");
-    printf("  mmio  - memory-mapped I/O pointer\n");
-    printf("  vol   - volatile pointer\n");
-    printf("  irq   - IRQ number\n");
-    printf("  vec   - interrupt vector\n");
-    printf("  isr   - interrupt service routine ptr\n");
-    
-    printf("\nATOMICS:\n");
-    printf("  au32  - atomic uint32\n");
-    printf("  au64  - atomic uint64\n");
-    printf("  aptr  - atomic pointer\n");
     
     printf("\nARRAY SUFFIX:\n");
     printf("  _a    - array (suffix: ia, ca, u8a, etc.)\n");
@@ -429,81 +385,70 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
     const char *suffix_str = separator + 1;
     size_t suffix_len = strlen(suffix_str);
     if (suffix_len == 0) return false;
-    
-    // Check for array suffix (ends with 'a')
+
+    // --- NEW, ROBUST LOGIC ---
+
+    // 1. Check for arrays FIRST. This handles both primitive (_ia) and user-defined (_PCIDevicea) arrays.
     if (suffix_len > 1 && suffix_str[suffix_len - 1] == 'a') {
-        result_info->type = TYPE_ARRAY;
-        
-        // Extract base type suffix
         char base_suffix[128];
         strncpy(base_suffix, suffix_str, suffix_len - 1);
         base_suffix[suffix_len - 1] = '\0';
-        
-        // Look up base type in suffix table
+
+        // Check for primitive array base (e.g., 'i' in 'ia')
         for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
             if (strcmp(base_suffix, m->suffix) == 0) {
+                result_info->type = TYPE_ARRAY;
                 result_info->array_base_type = m->type;
                 return true;
             }
         }
         
-        // Check for user-defined array type
+        // Check for user-defined array base (e.g., 'PCIDevice' in 'PCIDevicea')
         const char *user_type = type_table_lookup(type_table, base_suffix);
         if (user_type) {
+            result_info->type = TYPE_ARRAY;
             result_info->array_base_type = TYPE_USER;
             result_info->array_user_type_name = user_type;
             return true;
         }
-        return false;
     }
-    
-    // Check standard suffix table
-    for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
-        if (strcmp(suffix_str, m->suffix) == 0) {
-            result_info->type = m->type;
-            result_info->role = m->role;
-            result_info->is_pointer = m->is_pointer;
-            result_info->is_const = m->is_const;
-            return true;
-        }
-    }
-    
-    // Check for user-defined type with pointer suffix
-    if (suffix_len > 1) {
-        char last_char = suffix_str[suffix_len - 1];
-        if (last_char == 'p' || last_char == 'b' || last_char == 'r') {
-            char type_name[128];
-            strncpy(type_name, suffix_str, suffix_len - 1);
-            type_name[suffix_len - 1] = '\0';
-            
-            const char *user_type = type_table_lookup(type_table, type_name);
-            if (user_type) {
+
+    // 2. Check for user-defined types with pointer modifiers (e.g., _PCIDevicep)
+    // This logic MUST come before the generic primitive check.
+    for (size_t i = 0; i < type_table->struct_count; i++) {
+        const char *user_type_name = type_table->struct_names[i];
+        size_t user_type_len = strlen(user_type_name);
+
+        if (strncmp(suffix_str, user_type_name, user_type_len) == 0) {
+            const char *modifier = suffix_str + user_type_len;
+            if (strcmp(modifier, "p") == 0 || strcmp(modifier, "b") == 0 || strcmp(modifier, "r") == 0) {
                 result_info->type = TYPE_USER;
-                result_info->user_type_name = user_type;
+                result_info->user_type_name = user_type_name;
                 result_info->is_pointer = true;
-                
-                switch (last_char) {
-                    case 'p': result_info->role = ROLE_OWNED; break;
-                    case 'b': result_info->is_const = true; 
-                             result_info->role = ROLE_BORROWED; break;
-                    case 'r': result_info->is_const = true;
-                             result_info->role = ROLE_REFERENCE; break;
-                }
+                if (modifier[0] == 'p') { result_info->role = ROLE_OWNED; }
+                if (modifier[0] == 'b') { result_info->is_const = true; result_info->role = ROLE_BORROWED; }
+                if (modifier[0] == 'r') { result_info->is_const = true; result_info->role = ROLE_REFERENCE; }
                 return true;
             }
         }
     }
-    
-    // Check for plain user-defined type
+
+    // 3. Handle exact matches for ALL other suffixes (primitives like _i, and plain user types like _PCIDevice)
+    // This uses your clean, data-driven table.
+    for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
+        if (strcmp(suffix_str, m->suffix) == 0) {
+            result_info->type = m->type; result_info->role = m->role;
+            result_info->is_pointer = m->is_pointer; result_info->is_const = m->is_const;
+            return true;
+        }
+    }
     const char *user_type = type_table_lookup(type_table, suffix_str);
     if (user_type) {
-        result_info->type = TYPE_USER;
-        result_info->user_type_name = user_type;
-        result_info->is_pointer = false;
+        result_info->type = TYPE_USER; result_info->user_type_name = user_type;
         return true;
     }
-    
-    // Check for typedef
+
+    // 4. Fallback for typedefs
     const TypedefInfo *typedef_info = type_table_lookup_typedef(type_table, suffix_str);
     if (typedef_info) {
         *result_info = typedef_info->type_info;
@@ -512,7 +457,6 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
     
     return false;
 }
-
 const char *get_c_type(const SuffixInfo *info) {
     static char type_buffer[256];
     
@@ -1903,30 +1847,20 @@ Parser *parser_create(const char *source, const TypeTable *type_table) {
 ASTNode *parser_parse(Parser *p) {
   ASTNode *program = create_node(AST_PROGRAM, NULL);
 
-  // Collect preprocessor directives first
-  while (check(p, TOKEN_DIRECTIVE)) {
-    Token *dir_tok = advance(p);
-    add_child(program, create_node(AST_DIRECTIVE, dir_tok->text));
-    token_free(dir_tok);
-  }
-
-  // Parse the rest of the program
   while (!check(p, TOKEN_EOF)) {
-    // Check for global variable declarations
-    if (check(p, TOKEN_KEYWORD) && strcmp(p->current->text, "let") == 0) {
-        token_free(advance(p));
-        ASTNode *global_var = parse_var_decl(p);
-        expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after global variable.");
-        add_child(program, global_var);
-        continue;
-    }
     if (check(p, TOKEN_DIRECTIVE)) {
       Token *dir_tok = advance(p);
       add_child(program, create_node(AST_DIRECTIVE, dir_tok->text));
       token_free(dir_tok);
-    } else if (check(p, TOKEN_KEYWORD)) {
+    } 
+    else if (check(p, TOKEN_PASSTHROUGH)) {
+      Token *pass = advance(p);
+      add_child(program, create_node(AST_PASSTHROUGH, pass->text));
+      token_free(pass);
+      expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after @c(...) statement.");
+    }
+    else if (check(p, TOKEN_KEYWORD)) {
       if (strcmp(p->current->text, "typedef") == 0) {
-        token_free(advance(p));
         add_child(program, parse_typedef(p));
       } else if (strcmp(p->current->text, "func") == 0) {
         token_free(advance(p));
@@ -1934,20 +1868,15 @@ ASTNode *parser_parse(Parser *p) {
       } else if (strcmp(p->current->text, "struct") == 0) {
         token_free(advance(p));
         add_child(program, parse_struct_definition(p));
-      } else if (check(p, TOKEN_PASSTHROUGH)) {
-        Token *pass = advance(p);
-        add_child(program, create_node(AST_PASSTHROUGH, pass->text));
-        token_free(pass);
       } else if (strcmp(p->current->text, "enum") == 0) {
         token_free(advance(p));
         add_child(program, parse_enum_definition(p));
-
       } else {
-        parser_error(p, "Only function, struct, or preprocessor directives are "
-                        "allowed at the top level.");
+        parser_error(p, "Unexpected keyword at top level.");
         token_free(advance(p));
       }
-    } else {
+    } 
+    else {
       parser_error(p, "Unexpected token at top level.");
       token_free(advance(p));
     }
@@ -2110,7 +2039,8 @@ static void emit_node(ASTNode *node) {
       for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_STRUCT_DEF ||
             node->children[i]->type == AST_ENUM_DEF ||
-            node->children[i]->type == AST_TYPEDEF) {
+            node->children[i]->type == AST_TYPEDEF ||
+            node->children[i]->type == AST_PASSTHROUGH) {
           emit_node(node->children[i]);
           fprintf(output_file, "\n");
         }
@@ -2544,6 +2474,8 @@ static void pre_scan_for_types(const char *source, TypeTable *table) {
         if (name_len < sizeof(type_name)) {
           strncpy(type_name, name_start, name_len);
           type_name[name_len] = '\0';
+          printf("DEBUG: Found struct, adding to type table: '%s'\n", type_name);
+
           type_table_add(table, type_name);
         }
       }

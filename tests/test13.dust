@@ -1,74 +1,67 @@
 // test13.dust
 // A test for advanced systems-programming features in Dust.
-// This simulates setting up a simple hardware device driver.
+// This version is written in pure, idiomatic Dust, using the built-in types.
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h> // For fixed-width integer types
+#include <stdint.h>
+@c(puts(););
+typedef func_ptr_fp isr_t_isr;
 
-// Test the 'enum' keyword with explicit values.
 enum DeviceStatus {
-    STATUS_OFFLINE_i = 0,
-    STATUS_ONLINE_i  = 1,
-    STATUS_ERROR_i   = 5,
+    STATUS_OFFLINE = 0,
+    STATUS_ONLINE = 1,
+    STATUS_ERROR  = 5,
 };
 
-// Test the 'struct' keyword with the new OS-dev types.
+// Test the 'struct' keyword using the powerful, built-in OS suffixes.
+// No typedefs needed! The compiler already knows what _pa, _irq, and _isr mean.
 struct PCIDevice {
-    status_u32;          // A 32-bit status register.
-    vendor_id_u16;       // A 16-bit vendor ID.
-    mmio_base_pa;        // A physical address for MMIO.
-    interrupt_line_irq;  // An IRQ number.
-    handler_isr;         // A function pointer for the ISR.
+    status_u32;
+    vendor_id_u16;
+    mmio_base_u8;
+    interrupt_line_irq;
+    handler_isr;
 };
 
-// A test function to verify the operator precedence parser.
-// It should correctly calculate: ((10 + 20) * 4) / 2 = 60
+// Test function for operator precedence.
 func calculate_offset_i(base_i, offset_i, multiplier_i, divisor_i) {
-    // This complex expression will fail if precedence isn't handled correctly.
     let result_i = (base_i + offset_i) * multiplier_i / divisor_i;
     return result_i;
 }
 
 // A stub for a fake Interrupt Service Routine.
 func my_interrupt_handler_v() {
-    @c("puts(\"Interrupt handler called!\");");
+    @c(puts("Interrupt handler called!"))
 }
 
 // Main test function.
 func main_i() {
     printf("--- Dust Advanced Systems Test ---\n");
 
-    // Test struct allocation and member access.
-    // Use the 'cast' keyword to make the type explicit.
-    let my_device_Devicep = cast_Devicep(malloc(sizeof(PCIDevice)));
+    let my_device_PCIDevicep = cast_PCIDevicep(malloc(sizeof(PCIDevice)));
 
     printf("1. Testing Struct Initialization...\n");
-    my_device_Devicep->status = STATUS_ONLINE_i;
-    my_device_Devicep->vendor_id = 0x8086; // Intel
-    my_device_Devicep->mmio_base = 0xF0000000;
-    my_device_Devicep->interrupt_line = 9;
-    my_device_Devicep->handler = &my_interrupt_handler_v;
+    my_device_PCIDevicep->status = STATUS_ONLINE_i;
+    my_device_PCIDevicep->vendor_id = 0x8086;
+    my_device_PCIDevicep->mmio_base = 0xF0000000;
+    my_device_PCIDevicep->interrupt_line = 9;
+    my_device_PCIDevicep->handler = &my_interrupt_handler_v;
     
-    // Test printf with new types.
-    // Note: We use @c for PRIx64 until we add format specifiers to Dust.
-    @c("printf(\"   Device MMIO base: 0x%lx\\n\", my_device_Devicep->mmio_base);");
-    printf("   Device Status: %d\n", my_device_Devicep->status);
+    printf(" Device MMIO base: 0x%lx\n", my_device_PCIDevicep->mmio_base);
+    printf("   Device Status: %d\n", my_device_PCIDevicep->status);
 
-    // Test operator precedence.
     printf("\n2. Testing Operator Precedence...\n");
     let calculated_offset_i = calculate_offset_i(10, 20, 4, 2);
     printf("   (10 + 20) * 4 / 2 = %d (should be 60)\n", calculated_offset_i);
 
-    // Test function pointers.
     printf("\n3. Testing Function Pointers...\n");
-    if (my_device_Devicep->handler != null) {
+    if (my_device_PCIDevicep->handler != null) {
         printf("   Calling device ISR via function pointer...\n   ");
-        my_device_Devicep->handler();
+        my_device_PCIDevicep->handler();
     }
 
-    // Cleanup.
-    free(my_device_Devicep);
+    free(my_device_PCIDevicep);
 
     printf("\n--- Test Complete ---\n");
     return 0;
