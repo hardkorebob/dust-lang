@@ -905,6 +905,8 @@ typedef enum {
   AST_ENUM_DEF,
   AST_ENUM_VALUE,
   AST_POSTFIX_OP,
+  AST_UNION_DEF,
+
 } ASTType;
 
 typedef struct ASTNode {
@@ -1006,6 +1008,7 @@ static ASTNode *parse_typedef(Parser *p);
 static ASTNode *parse_enum_definition(Parser *p);
 static ASTNode *parse_unary(Parser *p);
 static ASTNode *parse_postfix(Parser *p);
+static ASTNode *parse_union_definition(Parser *p);
 
 // AST helper functions
 static ASTNode *create_node(ASTType type, const char *value) {
@@ -1740,6 +1743,77 @@ static ASTNode *parse_struct_definition(Parser *p) {
   return struct_node;
 }
 
+static ASTNode *parse_union_definition(Parser *p) {
+  Token *name_tok = advance(p);
+  if (name_tok->type != TOKEN_IDENTIFIER) {
+    parser_error(p, "Expected union name.");
+    token_free(name_tok);
+    return NULL;
+  }
+
+  type_table_add((TypeTable *)p->type_table, name_tok->text);
+  ASTNode *union_node = create_node(AST_UNION_DEF, name_tok->text);
+  token_free(name_tok);
+
+  expect(p, TOKEN_PUNCTUATION, "{", "Expected '{' after union name.");
+
+  while (!check(p, TOKEN_PUNCTUATION) || strcmp(p->current->text, "}") != 0) {
+    if (check(p, TOKEN_EOF)) {
+      parser_error(p, "Unterminated union definition.");
+      ast_destroy(union_node);
+      return NULL;
+    }
+
+    if (check(p, TOKEN_IDENTIFIER)) {
+      Token *member_tok = advance(p);
+
+      // Unions can have the same member types as structs
+      if (member_tok->suffix_info.type == TYPE_FUNC_POINTER) {
+        ASTNode *fp_node = create_node(AST_FUNC_PTR_DECL, member_tok->base_name);
+        
+        expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' for function pointer signature.");
+        
+        do {
+          if (p->current->type != TOKEN_IDENTIFIER) {
+            parser_error(p, "Expected a type specifier in signature.");
+            break;
+          }
+          Token *type_tok = advance(p);
+          ASTNode *type_node = create_node(AST_IDENTIFIER, NULL);
+          type_node->suffix_info = type_tok->suffix_info;
+          add_child(fp_node, type_node);
+          token_free(type_tok);
+        } while (match_and_consume(p, TOKEN_PUNCTUATION, ","));
+        
+        expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' to close signature.");
+        add_child(union_node, fp_node);
+        
+      } else {
+        ASTNode *member_node = create_node(AST_VAR_DECL, member_tok->base_name ? member_tok->base_name : member_tok->text);
+        member_node->suffix_info = member_tok->suffix_info;
+        
+        // Check for array declaration
+        if (match_and_consume(p, TOKEN_PUNCTUATION, "[")) {
+          add_child(member_node, parse_expression(p));
+          expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after array size.");
+        }
+        add_child(union_node, member_node);
+      }
+      
+      token_free(member_tok);
+      expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after union member.");
+    } else {
+      parser_error(p, "Expected member declaration inside union.");
+      token_free(advance(p));
+    }
+  }
+
+  expect(p, TOKEN_PUNCTUATION, "}", "Expected '}' to close union definition.");
+  expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after union definition.");
+
+  return union_node;
+}
+
 static ASTNode *parse_enum_definition(Parser *p) {
   Token *name_tok = advance(p);
   if (name_tok->type != TOKEN_IDENTIFIER) {
@@ -1891,6 +1965,9 @@ ASTNode *parser_parse(Parser *p) {
       } else if (strcmp(p->current->text, "struct") == 0) {
         token_free(advance(p));
         add_child(program, parse_struct_definition(p));
+      } else if (strcmp(p->current->text, "union") == 0) {  // Add this
+        token_free(advance(p));
+        add_child(program, parse_union_definition(p));
       } else if (strcmp(p->current->text, "enum") == 0) {
         token_free(advance(p));
         add_child(program, parse_enum_definition(p));
@@ -2076,6 +2153,7 @@ static void emit_node(ASTNode *node) {
       // 2. Emit typedefs, enums, and structs (type definitions)
       for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_STRUCT_DEF ||
+            node->children[i]->type == AST_UNION_DEF ||
             node->children[i]->type == AST_ENUM_DEF ||
             node->children[i]->type == AST_TYPEDEF ||
             node->children[i]->type == AST_PASSTHROUGH) {
@@ -2387,6 +2465,36 @@ static void emit_node(ASTNode *node) {
     fprintf(output_file, "%s", get_c_type(&node->suffix_info));
     fprintf(output_file, ")");
     emit_node(node->children[0]);
+    break;
+  case AST_UNION_DEF:
+    // Check for forward declaration (no children)
+    if (node->child_count == 0) {
+      fprintf(output_file, "union %s;", node->value);
+      break;
+    }
+
+    fprintf(output_file, "typedef union %s %s;\n", node->value, node->value);
+    fprintf(output_file, "union %s {\n", node->value);
+    for (int i = 0; i < node->child_count; i++) {
+      ASTNode *member = node->children[i];
+      if (member->type == AST_VAR_DECL) {
+        fprintf(output_file, "    %s %s", get_c_type(&member->suffix_info),
+                member->value);
+        
+        if (member->child_count > 0) {
+          fprintf(output_file, "[");
+          emit_node(member->children[0]);
+          fprintf(output_file, "]");
+        }
+        
+        fprintf(output_file, ";\n");
+        
+      } else if (member->type == AST_FUNC_PTR_DECL) {
+        fprintf(output_file, "    ");
+        emit_node(member);
+      }
+    }
+    fprintf(output_file, "};");
     break;
 
   case AST_ENUM_DEF:
