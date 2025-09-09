@@ -1347,7 +1347,12 @@ static ASTNode *parse_initializer_list(Parser *p) {
   if (!check(p, TOKEN_PUNCTUATION) || strcmp(p->current->text, "}") != 0) {
     do {
       add_child(list, parse_expression(p));
-    } while (match_and_consume(p, TOKEN_PUNCTUATION, ","));
+      // In Dust, commas are optional in initializer lists
+      // Check if there's a comma, but don't require it
+      if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ",") == 0) {
+        advance(p);
+      }
+    } while (!check(p, TOKEN_PUNCTUATION) || strcmp(p->current->text, "}") != 0);
   }
 
   expect(p, TOKEN_PUNCTUATION, "}", "Expected '}' to end initializer list.");
@@ -1367,36 +1372,38 @@ static ASTNode *parse_var_decl(Parser *p) {
     node->suffix_info = name->suffix_info;
   }
   
-  if (node->suffix_info.type == TYPE_ARRAY) {
-    // Array declaration with size
-    if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "[") == 0) {
-         advance(p);
-      add_child(node, parse_expression(p));  
-      expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after array size.");
-    }
+      if (node->suffix_info.type == TYPE_ARRAY) {
+        // Array declaration with possible size
+        if (match_and_consume(p, TOKEN_PUNCTUATION, "[")) {
+            if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "]") == 0) {
+                // Empty brackets - add NULL child to indicate unsized array
+                add_child(node, NULL);
+                advance(p); // Consume ']'
+            } else {
+                // Parse size expression
+                add_child(node, parse_expression(p));
+                expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after array size.");
+            }
+        }
     
-    // Optional initializer for array
-    if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
-      if (node->suffix_info.array_base_type == TYPE_CHAR && 
-          check(p, TOKEN_STRING)) {
-        Token *str_tok = advance(p);
-        ASTNode *str_node = create_node(AST_STRING, str_tok->text);
-        add_child(node, str_node);  
-        
-      } else {
-        // Regular initializer list
-        add_child(node, parse_initializer_list(p));  
-      }
+        // Optional initializer
+        if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
+            if (node->suffix_info.array_base_type == TYPE_CHAR && check(p, TOKEN_STRING)) {
+                Token *str_tok = advance(p);
+                ASTNode *str_node = create_node(AST_STRING, str_tok->text);
+                add_child(node, str_node);
+            } else {
+                add_child(node, parse_initializer_list(p));
+            }
+        }
+    } else {
+        // Regular variable initialization
+        if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
+            add_child(node, parse_expression(p));
+        }
     }
-  } else {
-    // Regular variable initialization
-    if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
-      add_child(node, parse_expression(p));  
-    }
-  }
 
-  
-  return node;
+    return node;
 }
 
 static ASTNode *parse_if_statement(Parser *p) {
@@ -1970,32 +1977,27 @@ static void emit_function(ASTNode *node) {
 }
 
 static void emit_var_decl(ASTNode *node) {
-  const char *c_type = get_c_type(&node->suffix_info);
-  fprintf(output_file, "%s %s", c_type, node->value);
+    const char *c_type = get_c_type(&node->suffix_info);
+    fprintf(output_file, "%s %s", c_type, node->value);
 
-// Handle arrays properly
-if (node->suffix_info.type == TYPE_ARRAY) {
-    fprintf(output_file, "[");
+    if (node->suffix_info.type == TYPE_ARRAY) {
+        fprintf(output_file, "[");
     
-    
-    if (node->suffix_info.array_base_type == TYPE_CHAR && 
-        node->child_count > 0 && 
-        node->children[0]->type == AST_STRING) {
-        // Don't emit size - let C infer from string literal
-    } else if (node->child_count > 0 && node->children[0]) {
+    // FIX: Only emit the child as a size if it's NOT an initializer.
+    if (node->child_count > 0 && node->children[0] != NULL &&
+        node->children[0]->type != AST_INITIALIZER_LIST && 
+        node->children[0]->type != AST_STRING) 
+    {
         emit_node(node->children[0]); // Array size
     }
-    
     fprintf(output_file, "]");
 
-    // Array initializer (could be child 0 or 1 depending on whether size was specified)
-    if (node->child_count > 0) {
+        // Find initializer (could be in different child position)
         ASTNode *initializer = NULL;
-        
-        // Find the initializer (it's the string or initializer list)
         for (int i = 0; i < node->child_count; i++) {
-            if (node->children[i]->type == AST_STRING || 
-                node->children[i]->type == AST_INITIALIZER_LIST) {
+            if (node->children[i] && 
+                (node->children[i]->type == AST_STRING || 
+                 node->children[i]->type == AST_INITIALIZER_LIST)) {
                 initializer = node->children[i];
                 break;
             }
@@ -2009,14 +2011,13 @@ if (node->suffix_info.type == TYPE_ARRAY) {
                 emit_node(initializer);
             }
         }
-    }
     } else {
-        // Regular variable initializer is child 0
+        // Regular variable initializer
         if (node->child_count > 0) {
             fprintf(output_file, " = ");
             emit_node(node->children[0]);
         }
-  }
+    }
 }
 
 static void emit_typedef(ASTNode *node) {
@@ -2086,7 +2087,9 @@ static void emit_node(ASTNode *node) {
   case AST_BLOCK:
     fprintf(output_file, "{\n");
     for (int i = 0; i < node->child_count; i++) {
-      emit_statement(node->children[i]);
+        if (node->children[i]) {
+          emit_statement(node->children[i]);
+        }
     }
     fprintf(output_file, "}");
     break;
@@ -2141,7 +2144,9 @@ static void emit_node(ASTNode *node) {
     emit_node(node->children[0]);
     fprintf(output_file, ") {\n");
     for (int i = 1; i < node->child_count; i++) {
-      emit_node(node->children[i]);
+        if (node->children[i]) {
+          emit_node(node->children[i]);
+        }
     }
     fprintf(output_file, "}\n");
     break;
@@ -2151,7 +2156,9 @@ static void emit_node(ASTNode *node) {
     emit_node(node->children[0]);
     fprintf(output_file, ":\n");
     for (int i = 1; i < node->child_count; i++) {
-      emit_statement(node->children[i]);
+        if (node->children[i]) {
+          emit_statement(node->children[i]);
+        }
     }
     break;
 
@@ -2223,9 +2230,11 @@ static void emit_node(ASTNode *node) {
     fprintf(output_file, "(");
     // Children 1 to N are the arguments
     for (int i = 1; i < node->child_count; i++) {
-      if (i > 1)
-        fprintf(output_file, ", ");
-      emit_node(node->children[i]);
+        if (node->children[i]) {
+          if (i > 1)
+            fprintf(output_file, ", ");
+          emit_node(node->children[i]);
+          }
     }
     fprintf(output_file, ")");
     break;
@@ -2342,10 +2351,12 @@ static void emit_node(ASTNode *node) {
   case AST_INITIALIZER_LIST:
     fprintf(output_file, "{ ");
     for (int i = 0; i < node->child_count; i++) {
-      emit_node(node->children[i]);
-      if (i < node->child_count - 1) {
-        fprintf(output_file, ", ");
-      }
+        if (node->children[i]) {
+          emit_node(node->children[i]);
+          if (i < node->child_count - 1) {
+            fprintf(output_file, ", ");
+          }
+        }
     }
     fprintf(output_file, " }");
     break;
