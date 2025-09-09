@@ -4,20 +4,20 @@
 
 // Define an enum for token types
 enum TokenType {
-    EOFF = 0,
-    IDENTIFIER = 1,
-    NUMBER = 2,
-    KEYWORD,      // Auto-increments to 3
+    EOFF = 0
+    IDENTIFIER = 1
+    NUMBER = 2
+    KEYWORD      // Auto-increments to 3
     OPERATOR      // Auto-increments to 4
 }
 
 // Define an enum for AST node types  
 enum ASTType {
-    AST_PROGRAM,
-    AST_FUNCTION,
-    AST_VAR_DECL,
-    AST_BLOCK,
-    AST_IF,
+    AST_PROGRAM
+    AST_FUNCTION
+    AST_VAR_DECL
+    AST_BLOCK
+    AST_IF
     AST_WHILE
 }
 
