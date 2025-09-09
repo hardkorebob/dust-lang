@@ -11,34 +11,34 @@ class DustEditor:
         # Common Dust suffixes organized by category
         self.suffixes = {
             # Primitives
-            'i': 'int',
-            'bl': 'bool', 
-            'f': 'float',
-            'c': 'char',
-            's': 'string (char*)',
-            'v': 'void',
+            'i ': 'int',
+            'bl ': 'bool', 
+            'f ': 'float',
+            'c ': 'char',
+            's ': 'string (char*)',
+            'v ': 'void',
             
             # Pointers
-            'ip': 'int pointer',
-            'cp': 'char pointer',
-            'vp': 'void pointer',
-            'fp': 'function pointer',
-            'p': 'owned pointer (suffix)',
-            'b': 'borrowed pointer (suffix)',
-            'r': 'reference pointer (suffix)',
+            'ip ': 'int pointer',
+            'cp ': 'char pointer',
+            'vp ': 'void pointer',
+            'fp ': 'function pointer',
+            'p ': 'owned pointer (suffix)',
+            'b ': 'borrowed pointer (suffix)',
+            'r ': 'reference pointer (suffix)',
             
             # Arrays (append 'a' to base type)
-            'ia': 'int array',
-            'ca': 'char array',
-            'u8a': 'uint8_t array',
+            'ia ': 'int array',
+            'ca ': 'char array',
+            'u8a ': 'uint8_t array',
             
             # Fixed-width
-            'u8': 'uint8_t',
-            'u16': 'uint16_t',
-            'u32': 'uint32_t',
-            'u64': 'uint64_t',
-            'st': 'size_t',
-            'ux': 'uintptr_t',
+            'u8 ': 'uint8_t',
+            'u16 ': 'uint16_t',
+            'u32 ': 'uint32_t',
+            'u64 ': 'uint64_t',
+            'st ': 'size_t',
+            'ux ': 'uintptr_t',
         }
         
         self.suffix_window = None
@@ -75,20 +75,32 @@ class DustEditor:
         """Get the word at cursor position"""
         try:
             insert_pos = self.text.index(tk.INSERT)
-            line_start = f"{insert_pos.split('.')[0]}.0"
-            line_text = self.text.get(line_start, insert_pos)
+            line_num, col_num = map(int, insert_pos.split('.'))
             
-            # Find last word boundary
-            match = re.findall(r'[\w_]+$', line_text)
-            if match:
-                word = match[0]
-                word_start = f"{insert_pos} -{len(word)}c"
-                return word, word_start, insert_pos
+            # Get the current line text
+            line_start = f"{line_num}.0"
+            line_end = f"{line_num}.end"
+            line_text = self.text.get(line_start, line_end)
+            
+            # Find word at cursor position
+            if col_num > len(line_text):
+                col_num = len(line_text)
                 
+            # Find start of word
+            start_col = col_num
+            while start_col > 0 and (line_text[start_col-1].isalnum() or line_text[start_col-1] == '_'):
+                start_col -= 1
+                
+            # Get the word
+            word = line_text[start_col:col_num]
+            word_start = f"{line_num}.{start_col}"
+            word_end = f"{line_num}.{col_num}"
+            
+            return word, word_start, word_end
+            
         except Exception as e:
             print(f"Error getting word: {e}")
-            
-        return "", insert_pos, insert_pos
+            return "", insert_pos, insert_pos
         
     def show_completions(self, event):
         """Show suffix completion popup"""
@@ -118,8 +130,23 @@ class DustEditor:
             suffixes = [(f'{word}{k}', f'{v}') for k, v in self.suffixes.items()]
             
         self.show_suffix_menu(suffixes, start_pos, end_pos)
-        return "break"
         
+    def hide_completions(self, event=None):
+        """Hide the completion window and unbind navigation keys"""
+        try:
+            # Unbind navigation keys
+            self.text.unbind('<Up>')
+            self.text.unbind('<Down>')
+            self.text.unbind('<Return>')
+            
+            if self.suffix_window:
+                self.suffix_window.destroy()
+        except:
+            pass
+        finally:
+            self.suffix_window = None
+        return "break"
+
     def show_suffix_menu(self, suffixes, start_pos, end_pos):
         """Display suffix selection menu"""
         try:
@@ -149,7 +176,9 @@ class DustEditor:
                 frame, 
                 height=min(len(suffixes), 10),
                 width=40,
-                font=('Consolas', 10)
+                font=('Consolas', 10),
+                selectmode=tk.SINGLE,
+                activestyle='dotbox'
             )
             self.listbox.pack()
             
@@ -165,40 +194,59 @@ class DustEditor:
             # Position window
             self.suffix_window.geometry(f"+{x}+{y}")
             
-            # Bind events to listbox
-            self.listbox.bind('<Double-Button-1>', lambda e: self.select_completion())
-            self.listbox.bind('<Up>', self.navigate_list)
-            self.listbox.bind('<Down>', self.navigate_list)
+            # Bind navigation keys to the main text widget (which keeps focus)
+            self.text.bind('<Up>', self.navigate_up)
+            self.text.bind('<Down>', self.navigate_down)
+            self.text.bind('<Return>', self.select_completion)
             
-            # Focus on main window to capture keyboard
-            self.text.focus_set()
+            # Also allow clicking
+            self.listbox.bind('<Double-Button-1>', self.select_completion)
+            self.listbox.bind('<Button-1>', self.on_listbox_click)
             
         except Exception as e:
             print(f"Error showing menu: {e}")
             self.hide_completions()
-            
-    def navigate_list(self, event):
-        """Navigate the completion list with arrow keys"""
+
+    def on_listbox_click(self, event):
+        """Handle single click on listbox"""
+        self.listbox.selection_clear(0, tk.END)
+        self.listbox.selection_set(self.listbox.nearest(event.y))
+
+    def navigate_up(self, event):
+        """Navigate up in completion list"""
         if not self.suffix_window or not self.listbox:
             return
             
         current = self.listbox.curselection()
         if not current:
             self.listbox.selection_set(0)
+        else:
+            idx = current[0]
+            if idx > 0:
+                self.listbox.selection_clear(idx)
+                self.listbox.selection_set(idx - 1)
+                self.listbox.activate(idx - 1)
+                self.listbox.see(idx - 1)
+        return "break"  # Prevent default behavior
+
+    def navigate_down(self, event):
+        """Navigate down in completion list"""
+        if not self.suffix_window or not self.listbox:
             return
             
-        idx = current[0]
-        self.listbox.selection_clear(idx)
-        
-        if event.keysym == 'Up':
-            new_idx = max(0, idx - 1)
+        current = self.listbox.curselection()
+        if not current:
+            self.listbox.selection_set(0)
         else:
-            new_idx = min(self.listbox.size() - 1, idx + 1)
-            
-        self.listbox.selection_set(new_idx)
-        self.listbox.activate(new_idx)
-        self.listbox.see(new_idx)
-        
+            idx = current[0]
+            if idx < self.listbox.size() - 1:
+                self.listbox.selection_clear(idx)
+                self.listbox.selection_set(idx + 1)
+                self.listbox.activate(idx + 1)
+                self.listbox.see(idx + 1)
+        return "break"  # Prevent default behavior
+
+
     def select_completion(self, event=None):
         """Insert selected completion"""
         if not self.suffix_window or not hasattr(self, 'listbox'):
@@ -215,22 +263,18 @@ class DustEditor:
                     self.text.delete(self.current_start, self.current_end)
                     self.text.insert(self.current_start, full_name)
                     
+                    # Move cursor to end of inserted text
+                    new_pos = f"{self.current_start} +{len(full_name)}c"
+                    self.text.mark_set(tk.INSERT, new_pos)
+                    
                     self.status.config(text=f"Inserted: {full_name}")
                     
         except Exception as e:
             print(f"Error selecting: {e}")
         finally:
             self.hide_completions()
-            
-    def hide_completions(self, event=None):
-        """Hide the completion window"""
-        try:
-            if self.suffix_window:
-                self.suffix_window.destroy()
-        except:
-            pass
-        finally:
-            self.suffix_window = None
+        return "break"
+        
             
 if __name__ == "__main__":
     root = tk.Tk()
