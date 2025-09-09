@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-puts();
+puts()
 typedef void* isr_t_isr;
 
 typedef enum DeviceStatus {
@@ -18,6 +18,7 @@ struct PCIDevice {
     void interrupt_line_irq;
     void handler_isr;
 };
+int i;
 // Forward declarations
 int main();
 void my_interrupt_handler();

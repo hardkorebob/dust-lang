@@ -1852,14 +1852,17 @@ ASTNode *parser_parse(Parser *p) {
       Token *dir_tok = advance(p);
       add_child(program, create_node(AST_DIRECTIVE, dir_tok->text));
       token_free(dir_tok);
-    } 
-    else if (check(p, TOKEN_PASSTHROUGH)) {
+    } else if (strcmp(p->current->text, "let") == 0) {
+        token_free(advance(p));
+        ASTNode *global = parse_var_decl(p);
+        expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after global variable.");
+        add_child(program, global);
+    } else if (check(p, TOKEN_PASSTHROUGH)) {
       Token *pass = advance(p);
       add_child(program, create_node(AST_PASSTHROUGH, pass->text));
       token_free(pass);
       expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after @c(...) statement.");
-    }
-    else if (check(p, TOKEN_KEYWORD)) {
+    } else if (check(p, TOKEN_KEYWORD)) {
       if (strcmp(p->current->text, "typedef") == 0) {
         add_child(program, parse_typedef(p));
       } else if (strcmp(p->current->text, "func") == 0) {
@@ -2045,7 +2048,12 @@ static void emit_node(ASTNode *node) {
           fprintf(output_file, "\n");
         }
       }
-      
+      for (int i = 0; i < node->child_count; i++) {
+        if (node->children[i]->type == AST_VAR_DECL) {
+            emit_node(node->children[i]);
+            fprintf(output_file, ";\n");
+        }
+      }
       // 3. NOW emit forward declarations (after types are defined)
       FuncDecl *funcs = collect_functions(node, NULL);
       if (funcs) {
@@ -2474,8 +2482,6 @@ static void pre_scan_for_types(const char *source, TypeTable *table) {
         if (name_len < sizeof(type_name)) {
           strncpy(type_name, name_start, name_len);
           type_name[name_len] = '\0';
-          printf("DEBUG: Found struct, adding to type table: '%s'\n", type_name);
-
           type_table_add(table, type_name);
         }
       }
