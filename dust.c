@@ -570,6 +570,7 @@ static const char *KEYWORDS[] = {
     "static",
     "const",
     "extern",
+    "union",
      NULL
 };
 
@@ -903,6 +904,7 @@ typedef enum {
   AST_CAST,
   AST_ENUM_DEF,
   AST_ENUM_VALUE,
+  AST_POSTFIX_OP,
 } ASTType;
 
 typedef struct ASTNode {
@@ -1002,7 +1004,8 @@ static ASTNode *parse_initializer_list(Parser *p);
 static ASTNode *parse_call(Parser *p);
 static ASTNode *parse_typedef(Parser *p);
 static ASTNode *parse_enum_definition(Parser *p);
-
+static ASTNode *parse_unary(Parser *p);
+static ASTNode *parse_postfix(Parser *p);
 
 // AST helper functions
 static ASTNode *create_node(ASTType type, const char *value) {
@@ -1302,14 +1305,31 @@ static ASTNode *parse_unary(Parser *p) {
   if (check(p, TOKEN_OPERATOR) && (strcmp(p->current->text, "-") == 0 ||
                                    strcmp(p->current->text, "!") == 0 ||
                                    strcmp(p->current->text, "&") == 0 ||
-                                   strcmp(p->current->text, "*") == 0)) {
+                                   strcmp(p->current->text, "*") == 0 ||
+                                   strcmp(p->current->text, "++") == 0 ||  // prefix
+                                   strcmp(p->current->text, "--") == 0)) {  // prefix{
     Token *op_tok = advance(p);
     ASTNode *node = create_node(AST_UNARY_OP, op_tok->text);
     add_child(node, parse_unary(p));
     token_free(op_tok);
     return node;
   }
-  return parse_call(p);
+  return parse_postfix(p);
+}
+
+static ASTNode *parse_postfix(Parser *p) {
+    ASTNode *expr = parse_call(p);
+    
+    if (check(p, TOKEN_OPERATOR) && 
+        (strcmp(p->current->text, "++") == 0 || 
+         strcmp(p->current->text, "--") == 0)) {
+        Token *op = advance(p);
+        ASTNode *node = create_node(AST_POSTFIX_OP, op->text);
+        add_child(node, expr);
+        token_free(op);
+        return node;
+    }
+    return expr;
 }
 
 static ASTNode *parse_binary_expr(Parser *p, int min_precedence) {
@@ -1350,14 +1370,14 @@ static ASTNode *parse_binary_expr(Parser *p, int min_precedence) {
     return left;
 }
 
-// Simplify parse_expression to just:
+
 static ASTNode *parse_expression(Parser *p) {
-    return parse_binary_expr(p, 0);  // Start with precedence 0
+    return parse_ternary(p);  
 }
 
-// Keep parse_ternary separate as it has special syntax
+
 static ASTNode *parse_ternary(Parser *p) {
-    ASTNode *condition = parse_binary_expr(p, 1); // Skip assignment precedence
+    ASTNode *condition = parse_binary_expr(p, 0); 
     
     if (match_and_consume(p, TOKEN_OPERATOR, "?")) {
         ASTNode *ternary_node = create_node(AST_TERNARY_OP, "?");
@@ -1982,34 +2002,49 @@ static void emit_var_decl(ASTNode *node) {
   const char *c_type = get_c_type(&node->suffix_info);
   fprintf(output_file, "%s %s", c_type, node->value);
 
-  // Handle arrays properly
-  if (node->suffix_info.type == TYPE_ARRAY) {
+// Handle arrays properly
+if (node->suffix_info.type == TYPE_ARRAY) {
     fprintf(output_file, "[");
-    if (node->child_count > 0 && node->children[0]) {
-      emit_node(node->children[0]); // Array size
+    
+    // For char arrays initialized with string literals, leave size empty
+    if (node->suffix_info.array_base_type == TYPE_CHAR && 
+        node->child_count > 0 && 
+        node->children[0]->type == AST_STRING) {
+        // Don't emit size - let C infer from string literal
+    } else if (node->child_count > 0 && node->children[0]) {
+        emit_node(node->children[0]); // Array size
     }
+    
     fprintf(output_file, "]");
 
-    // Array initializer is child 1 if it exists
-    if (node->child_count > 1) {
-      fprintf(output_file, " = ");
-      
-      // Check if it's a string literal for char array
-      if (node->suffix_info.array_base_type == TYPE_CHAR &&
-          node->children[1]->type == AST_STRING) {
-        // Emit string literal with quotes
-        fprintf(output_file, "\"%s\"", node->children[1]->value);
-      } else {
-        // Regular initializer list
-        emit_node(node->children[1]);
-      }
-    }
-  } else {
-    // Regular variable initializer is child 0
+    // Array initializer (could be child 0 or 1 depending on whether size was specified)
     if (node->child_count > 0) {
-      fprintf(output_file, " = ");
-      emit_node(node->children[0]);
+        ASTNode *initializer = NULL;
+        
+        // Find the initializer (it's the string or initializer list)
+        for (int i = 0; i < node->child_count; i++) {
+            if (node->children[i]->type == AST_STRING || 
+                node->children[i]->type == AST_INITIALIZER_LIST) {
+                initializer = node->children[i];
+                break;
+            }
+        }
+        
+        if (initializer) {
+            fprintf(output_file, " = ");
+            if (initializer->type == AST_STRING) {
+                fprintf(output_file, "\"%s\"", initializer->value);
+            } else {
+                emit_node(initializer);
+            }
+        }
     }
+    } else {
+        // Regular variable initializer is child 0
+        if (node->child_count > 0) {
+            fprintf(output_file, " = ");
+            emit_node(node->children[0]);
+        }
   }
 }
 
@@ -2374,7 +2409,10 @@ static void emit_node(ASTNode *node) {
     }
     fprintf(output_file, "} %s;", node->value);
     break;
-
+  case AST_POSTFIX_OP:
+    emit_node(node->children[0]);  // Emit the operand
+    fprintf(output_file, "%s", node->value);  // Emit ++ or --
+    break;
   default:
     if (node->child_count > 0) {
       if (node->type == AST_EXPRESSION) {
