@@ -2530,6 +2530,7 @@ static void emit_node(ASTNode *node) {
     }
     fprintf(output_file, "} %s;", node->value);
     break;
+
   case AST_POSTFIX_OP:
     emit_node(node->children[0]);  // Emit the operand
     fprintf(output_file, "%s", node->value);  // Emit ++ or --
