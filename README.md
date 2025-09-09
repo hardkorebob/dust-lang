@@ -77,215 +77,201 @@ The Dust compiler leverages a **component-based system** to look up the correct 
 ---
 
 ```c
-// test_enum.dust - Test enum support with suffix style
+// test_complete.dust - Comprehensive Dust language test
 #include <stdio.h>
+#include <stdint.h>
 #include <stdbool.h>
 
-// Define an enum for token types
-enum TokenType {
-    EOFF = 0,
-    IDENTIFIER = 1,
-    NUMBER = 2,
-    KEYWORD,      // Auto-increments to 3
-    OPERATOR      // Auto-increments to 4
-};
-
-// Define an enum for AST node types  
-enum ASTType {
-    AST_PROGRAM,
-    AST_FUNCTION,
-    AST_VAR_DECL,
-    AST_BLOCK,
-    AST_IF,
-    AST_WHILE
-};
-
-// Function that returns an enum value
-func get_eof_token_TokenType() {
-    return EOFF_TokenType;
+// Test struct definition
+struct Player {
+    x_i
+    y_i
+    health_u32
+    name_cp
+    inventory_ia[10]
+    active_bl
 }
 
-// Function that takes an enum parameter
-func is_keyword_bl(type_TokenType) {
-    if (type_TokenType == KEYWORD_TokenType) {
-        return 1;
+// Test enum
+enum GameState {
+    MENU = 0,
+    PLAYING = 1,
+    PAUSED,
+    GAME_OVER
+}
+
+// Test typedef
+typedef dummy_u32 Score
+
+// Test function returning int
+func add_i(a_i, b_i) {
+    return a_i + b_i
+}
+
+// Test function with array parameter
+func sum_array_i(arr_ia, size_st) {
+    let total_i = 0
+    for (let i_st = 0 ; i_st < size_st ; i_st++) {
+        total_i += arr_ia[i_st]
     }
-    return 0;
+    return total_i
 }
 
-// Function that uses enum in switch
-func token_type_name_cp(type_TokenType) {
-    switch (type_TokenType) {
-        case EOFF_TokenType:
-            return "EOF";
-        case IDENTIFIER_TokenType:
-            return "IDENTIFIER";
-        case NUMBER_TokenType:
-            return "NUMBER";
-        case KEYWORD_TokenType:
-            return "KEYWORD";
-        case OPERATOR_TokenType:
-            return "OPERATOR";
+// Test function with struct pointer
+func update_player_v(p_Playerp) {
+    p_Playerp->x++
+    p_Playerp->y++
+    p_Playerp->health -= 10
+}
+
+// Test all operators
+func test_operators_v() {
+    let a_i = 10
+    let b_i = 3
+    
+    // Arithmetic
+    let sum_i = a_i + b_i
+    let diff_i = a_i - b_i
+    let prod_i = a_i * b_i
+    let quot_i = a_i / b_i
+    let rem_i = a_i % b_i
+    
+    // Bitwise
+    let andd_i = a_i & b_i
+    let orr_i = a_i | b_i
+    let xor_i = a_i ^ b_i
+    let lshift_i = a_i << 2
+    let rshift_i = a_i >> 1
+    
+    // Compound assignments
+    a_i += 5
+    a_i -= 2
+    a_i *= 2
+    a_i /= 3
+    a_i &= 0xFF
+    a_i |= 0x10
+    a_i ^= 0x0F
+    a_i <<= 1
+    a_i >>= 1
+    
+    // Increment/Decrement
+    let pre_i = ++a_i
+    let post_i = b_i++
+    --a_i
+    b_i--
+    
+    // Comparison
+    let eq_bl = (a_i == b_i)
+    let neq_bl = (a_i != b_i)
+    let lt_bl = (a_i < b_i)
+    let gt_bl = (a_i > b_i)
+    let lte_bl = (a_i <= b_i)
+    let gte_bl = (a_i >= b_i)
+    
+    // Logical
+    let and_bl = (a_i > 5) && (b_i < 10)
+    let or_bl = (a_i > 5) || (b_i < 10)
+    let not_bl = !(a_i == b_i)
+    
+    // Ternary
+    let max_i = (a_i > b_i) ? a_i : b_i
+    
+    printf("Operators test complete\n")
+}
+
+// Test control flow
+func test_control_flow_v() {
+    let state_GameState = PLAYING_GameState
+    
+    // Switch on enum
+    switch (state_GameState) {
+        case MENU_GameState:
+            printf("In menu\n")
+            break
+        case PLAYING_GameState:
+            printf("Playing game\n")
+            break
+        case PAUSED_GameState:
+            printf("Game paused\n")
+            break
+        case GAME_OVER_GameState:
+            printf("Game over\n")
+            break
         default:
-            return "UNKNOWN";
+            printf("Unknown state\n")
+    }
+    
+    // While loop
+    let count_i = 0
+    while (count_i < 5) {
+        count_i++
+    }
+    
+    // Do-while
+    do {
+        count_i--
+    } while (count_i > 0)
+    
+    // For loop
+    for (let i_i = 0 ; i_i < 10 ; i_i++) {
+        if (i_i == 5) {
+            continue
+        }
+        if (i_i == 8) {
+            break
+        }
     }
 }
 
-// Test struct containing enum
-struct Token {
-    type_TokenType;
-    text_cp;
-    line_i;
-};
+// Test arrays and pointers
+func test_arrays_v() {
+    let numbers_ia[5] = {1, 2, 3, 4, 5}
+    let buffer_u8a[256]
+    let message_ca = "Hello, Dust!"
+    
+    // Array indexing
+    numbers_ia[0] = 10
+    buffer_u8a[0] = 0xFF
+    
+    // Pointer arithmetic
+    let ptr_ip = &numbers_ia[0]
+    let val_i = *ptr_ip
+    ptr_ip++
+    
+    // String as char pointer
+    let name_s = "Dust Language"
+    let first_c = name_s[0]
+}
 
 func main_i() {
-    printf("Testing Dust enum support with suffix style\n\n");
+    printf("=== Dust Compiler Test Suite ===\n\n")
     
-    // Test direct enum value usage
-    let token_type_TokenType = IDENTIFIER_TokenType;
-    printf("Token type: %d\n", token_type_TokenType);
+    // Test basic operations
+    let result_i = add_i(5, 3)
+    printf("add(5, 3) = %d\n", result_i)
     
-    // Test enum in conditional
-    if (token_type_TokenType == IDENTIFIER_TokenType) {
-        printf("It's an identifier!\n");
-    }
+    // Test struct
+    let player_Player
+    player_Player.x = 100
+    player_Player.y = 200
+    player_Player.health = 100
+    player_Player.name = "Hero"
+    player_Player.active = 1
     
-    // Test function returning enum
-    let eof_TokenType = get_eof_token_TokenType();
-    printf("EOF value: %d\n", eof_TokenType);
+    printf("Player at (%d, %d) with %d health\n",player_Player.x, player_Player.y, player_Player.health)
     
-    // Test function taking enum parameter
-    let is_kw_bl = is_keyword_bl(KEYWORD_TokenType);
-    printf("KEYWORD is keyword: %d\n", is_kw_bl);
+    update_player_v(&player_Player)
+    printf("After update: (%d, %d) with %d health\n",player_Player.x, player_Player.y, player_Player.health)
     
-    // Test switch with enum
-    printf("Token names:\n");
-    let i_TokenType = EOF_TokenType;
-    while (i_TokenType <= OPERATOR_TokenType) {
-        let name_cp = token_type_name_cp(i_TokenType);
-        printf("  %d: %s\n", i_TokenType, name_cp);
-        i_TokenType = i_TokenType + 1;
-    }
+    // Test array operations
+    let nums_ia[3] = {10, 20, 30}
+    let sum_i = sum_array_i(nums_ia, 3)
+    printf("Array sum: %d\n", sum_i)
     
-    // Test struct with enum field
-    let tok_Token;
-    tok_Token.type = NUMBER_TokenType;
-    tok_Token.text = "42";
-    tok_Token.line = 1;
-    
-    printf("\nToken struct: type=%d, text=%s, line=%d\n", 
-           tok_Token.type, tok_Token.text, tok_Token.line);
-    
-    // Test AST enum
-    let node_type_ASTType = AST_FUNCTION_ASTType;
-    if (node_type_ASTType == AST_FUNCTION_ASTType) {
-        printf("Node is a function\n");
-    }
-    
-    return 0;
+    // Run test suites
+    test_operators_v()
+    test_control_flow()
 }
-
-//=====================Output=====================
-#include <stdbool.h>
-#include <stdio.h>
-
-typedef enum TokenType {
-  EOFF = 0,
-  IDENTIFIER = 1,
-  NUMBER = 2,
-  KEYWORD = 3,
-  OPERATOR = 4
-} TokenType;
-typedef enum ASTType {
-  AST_PROGRAM = 0,
-  AST_FUNCTION = 1,
-  AST_VAR_DECL = 2,
-  AST_BLOCK = 3,
-  AST_IF = 4,
-  AST_WHILE = 5
-} ASTType;
-typedef struct Token Token;
-struct Token {
-  TokenType type;
-  char *text;
-  int line;
-};
-// Forward declarations
-int main();
-char *token_type_name(TokenType type);
-bool is_keyword(TokenType type);
-TokenType get_eof_token();
-
-TokenType get_eof_token() { return EOFF; }
-bool is_keyword(TokenType type) {
-  if ((type == KEYWORD)) {
-    return 1;
-  }
-  return 0;
-}
-char *token_type_name(TokenType type) {
-  switch (type) {
-  case EOFF:
-    return "EOF";
-  case IDENTIFIER:
-    return "IDENTIFIER";
-  case NUMBER:
-    return "NUMBER";
-  case KEYWORD:
-    return "KEYWORD";
-  case OPERATOR:
-    return "OPERATOR";
-  default:
-    return "UNKNOWN";
-  }
-}
-int main() {
-  printf("Testing Dust enum support with suffix style\n\n");
-  TokenType token_type = IDENTIFIER;
-  printf("Token type: %d\n", token_type);
-  if ((token_type == IDENTIFIER)) {
-    printf("It's an identifier!\n");
-  }
-  TokenType eof = get_eof_token();
-  printf("EOF value: %d\n", eof);
-  bool is_kw = is_keyword(KEYWORD);
-  printf("KEYWORD is keyword: %d\n", is_kw);
-  printf("Token names:\n");
-  TokenType i = EOF;
-  while ((i <= OPERATOR)) {
-    char *name = token_type_name(i);
-    printf("  %d: %s\n", i, name);
-    (i = (i + 1));
-  }
-  Token tok;
-  (tok.type = NUMBER);
-  (tok.text = "42");
-  (tok.line = 1);
-  printf("\nToken struct: type=%d, text=%s, line=%d\n", tok.type, tok.text,
-         tok.line);
-  ASTType node_type = AST_FUNCTION;
-  if ((node_type == AST_FUNCTION)) {
-    printf("Node is a function\n");
-  }
-  return 0;
-}
-```
-
-```
-Compiled and Run:
-=================
-Testing Dust enum support with suffix style
-
-Token type: 1
-It's an identifier!
-EOF value: 0
-KEYWORD is keyword: 1
-Token names:
-
-Token struct: type=2, text=42, line=1
-Node is a function
-
-
 ```
 
 Will you please help me clean up all this Dust?
