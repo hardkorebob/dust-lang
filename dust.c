@@ -1821,13 +1821,10 @@ static ASTNode *parse_enum_definition(Parser *p) {
     token_free(name_tok);
     return NULL;
   }
-
   type_table_add_enum((TypeTable *)p->type_table, name_tok->text);
   ASTNode *enum_node = create_node(AST_ENUM_DEF, name_tok->text);
   token_free(name_tok);
-
   expect(p, TOKEN_PUNCTUATION, "{", "Expected '{' after enum name.");
-
   int next_value = 0;  // Auto-increment counter
   
   while (!check(p, TOKEN_PUNCTUATION) || strcmp(p->current->text, "}") != 0) {
@@ -1836,7 +1833,6 @@ static ASTNode *parse_enum_definition(Parser *p) {
       ast_destroy(enum_node);
       return NULL;
     }
-
     // Parse enum member name
     if (check(p, TOKEN_IDENTIFIER)) {
       Token *member_tok = advance(p);
@@ -1866,25 +1862,15 @@ static ASTNode *parse_enum_definition(Parser *p) {
       add_child(enum_node, member_node);
       token_free(member_tok);
       
-      // Handle comma or end of enum
-      if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ",") == 0) {
-        token_free(advance(p));  // Consume comma
-        // Allow trailing comma
-        if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "}") == 0) {
-          break;
-        }
-      } else if (!check(p, TOKEN_PUNCTUATION) || strcmp(p->current->text, "}") != 0) {
-        parser_error(p, "Expected ',' or '}' after enum value.");
-      }
+      // THE COMMA HANDLING LOGIC HAS BEEN REMOVED FROM HERE.
+      
     } else {
       parser_error(p, "Expected enum member name.");
       token_free(advance(p));
     }
   }
-
   expect(p, TOKEN_PUNCTUATION, "}", "Expected '}' to close enum definition.");
-  match_and_consume(p, TOKEN_PUNCTUATION, ";");
-
+  expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after enum definition."); // Changed for consistency
   return enum_node;
 }
 
