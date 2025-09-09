@@ -18,24 +18,24 @@
 // This struct uses all the newly implemented features.
 struct Widget {
     // A. Simple member
-    id_i;
+    id_i
 
     // B. Array as a member (SUCCESS)
     // PROOF: The compiler should correctly parse this array member.
-    name_c[32];
+    name_c[32]
 
     // C. Function pointer members (SUCCESS)
     // PROOF: The compiler should parse these function pointer signatures.
     
     // A simple pointer: takes nothing, returns nothing (void).
-    on_destroy_fp(ret_v);
+    on_destroy_fp(ret_v)
 
     // A pointer with parameters and a return value.
-    on_update_fp(ret_i, delta_time_f);
+    on_update_fp(ret_i, delta_time_f)
 
     // A pointer that takes a pointer to its own struct type. A great stress test!
-    on_event_fp(ret_v, self_Widgetp);
-};
+    on_event_fp(ret_v, self_Widgetp)
+}
 
 
 // --- 2. C Helper Functions ---
@@ -44,79 +44,79 @@ struct Widget {
 // These functions will be linked with the Dust-generated code.
 
 func widget_destroy_v() {
-    printf("  -> Event: Widget destroyed.\n");
+    printf("  -> Event: Widget destroyed.\n")
 }
 
 func widget_update_i(dt_f) {
-    printf("  -> Event: Widget updated with dt = %f.\n", dt_f);
-    return 1;
+    printf("  -> Event: Widget updated with dt = %f.\n", dt_f)
+    return 1
 }
 
 func widget_event_v(w_Widgetp) {
     // We can access the widget's members through the pointer.
-    printf("  -> Event: on widget ID %d, Name '%s'.\n", w_Widgetp->id_i, w_Widgetp->name_c);
+    printf("  -> Event: on widget ID %d, Name '%s'.\n", w_Widgetp->id_i, w_Widgetp->name_c)
 }
 
 
 // --- 3. Main Program Entry Point ---
 
 func main_i() {
-    printf("--- Dust Advanced Test Suite Running ---\n\n");
+    printf("--- Dust Advanced Test Suite Running ---\n\n")
 
     // --- 4. Struct Initialization and Member Access ---
-    printf("1. Initializing widget...\n");
-    let ui_button_Widget;
+    printf("1. Initializing widget...\n")
+    let ui_button_Widget
 
     // Test simple member assignment
-    ui_button_Widget.id_i = 101;
+    ui_button_Widget.id_i = 101
 
     // Test array member assignment using a C library function
     // This proves that the C code for the struct is correctly generated.
-    strcpy(ui_button_Widget.name_c, "Login Button");
+    strcpy(ui_button_Widget.name_c, "Login Button")
 
-    printf("Widget created with ID %d and Name '%s'.\n\n", ui_button_Widget.id_i, ui_button_Widget.name_c);
+    printf("Widget created with ID %d and Name '%s'.\n\n", ui_button_Widget.id_i, ui_button_Widget.name_c)
 
     // --- 5. Assigning to Function Pointers ---
-    printf("2. Assigning function pointers...\n");
+    printf("2. Assigning function pointers...\n")
 
     // This is the most critical test. We are assigning our C helper functions
     // to the function pointer members of the Dust struct.
-    ui_button_Widget.on_destroy_fp = &widget_destroy_v;
-    ui_button_Widget.on_update_fp = &widget_update_i;
-    ui_button_Widget.on_event_fp = &widget_event_v;
+    ui_button_Widget.on_destroy_fp = &widget_destroy_v
+    ui_button_Widget.on_update_fp = &widget_update_i
+    ui_button_Widget.on_event_fp = &widget_event_v
     
-    printf("Assignments successful.\n\n");
+    printf("Assignments successful.\n\n")
 
     // --- 6. Calling Function Pointers ---
-    printf("3. Calling functions via pointers...\n");
+    printf("3. Calling functions via pointers...\n")
     
     // If these lines work, our implementation is a success.
-    ui_button_Widget.on_event_fp(&ui_button_Widget);
-    ui_button_Widget.on_update_fp(0.016);
-    ui_button_Widget.on_destroy_fp();
+    ui_button_Widget.on_event_fp(&ui_button_Widget)
+    ui_button_Widget.on_update_fp(0.016)
+    ui_button_Widget.on_destroy_fp()
 
-    printf("\nFunction pointer calls successful.\n\n");
+    printf("\nFunction pointer calls successful.\n\n")
 
     // --- 7. Where We Are Lacking ---
-    printf("4. Highlighting Missing Features...\n");
+    printf("4. Highlighting Missing Features...\n")
     
     // LACKING FEATURE 1: Local function pointer variables.
     // The following line will cause a PARSE ERROR because the `let` statement parser
     // does not yet understand the function pointer `(...)` syntax.
-    // let my_callback_fp(ret_v, code_i);
-    printf("  - LACKING: Cannot declare local function pointers with 'let'.\n");
+    // let my_callback_fp(ret_v, code_i)
+    printf("  - LACKING: Cannot declare local function pointers with 'let'.\n")
 
     // LACKING FEATURE 2: Typedefs.
     // In C, you would use typedef to make the `on_event` signature reusable.
     // Dust has no equivalent yet.
-    // C example: typedef void (*event_handler_t)(struct Widget*);
-    printf("  - LACKING: No 'typedef' for simplifying complex types.\n");
+    // C example: typedef void (*event_handler_t)(struct Widget*)
+    printf("  - LACKING: No 'typedef' for simplifying complex types.\n")
     
     // LACKING FEATURE 3: Enums.
     // This is a natural next step for state management.
-    // enum ButtonState { IDLE, HOVER, PRESSED };
-    printf("  - LACKING: No 'enum' for defining states or constants.\n");
+    // enum ButtonState { IDLE, HOVER, PRESSED }
+    printf("  - LACKING: No 'enum' for defining states or constants.\n")
 
-    printf("\n--- Test Suite Complete ---\n");
-    return 0;
+    printf("\n--- Test Suite Complete ---\n")
+    return 0
 }

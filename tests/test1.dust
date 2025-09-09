@@ -1,0 +1,38 @@
+// test_array_debug.dust - Debug array access parsing
+#include <stdio.h>
+#include <stdlib.h>
+
+struct Lexer {
+    source_cp
+    pos_i
+}
+
+func test_array_access_v() {
+    // Create a simple lexer-like structure
+    let lex_Lexerp = cast_Lexerp(malloc(sizeof(Lexer)))
+    lex_Lexerp->source = "test string"
+    lex_Lexerp->pos = 4
+    
+    // Test the problematic line directly
+    let c_c = lex_Lexerp->source[lex_Lexerp->pos]
+    printf("Character at position %d: '%c'\n", lex_Lexerp->pos, c_c)
+    
+    // Test with a constant index
+    let c2_c = lex_Lexerp->source[0]
+    printf("First character: '%c'\n", c2_c)
+    
+    // Test with a simple array
+    let arr_ca[5] = {'a', 'b', 'c', 'd', 'e'}
+    let c3_c = arr_ca[2]
+    printf("Array element: '%c'\n", c3_c)
+    
+    free(lex_Lexerp)
+    return
+}
+
+func main_i() {
+    printf("Testing array access parsing...\n")
+    test_array_access_v()
+    printf("Test completed!\n")
+    return 0
+}

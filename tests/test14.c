@@ -12,9 +12,9 @@ int main();
 
 int main() {
 Variant v;
-(v.i_value = 42);
+v.i_value = 42;
 printf("Int: %d\n", v.i_value);
-(v.f_value = 3.14);
+v.f_value = 3.14;
 printf("Float: %f\n", v.f_value);
 return 0;
 }

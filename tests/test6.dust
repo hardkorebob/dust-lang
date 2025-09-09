@@ -2,36 +2,36 @@
 
 // This function uses a switch statement to print the day of the week.
 func print_day_type_v(day_number_i) {
-    printf("Day %d is a ", day_number_i);
+    printf("Day %d is a ", day_number_i)
     switch (day_number_i) {
         case 1:
         case 2:
         case 3:
         case 4:
         case 5:
-            printf("Weekday.\n");
-            break;
+            printf("Weekday.\n")
+            break
         
         case 6:
         case 7:
-            printf("Weekend day! Enjoy!\n");
-            break;
+            printf("Weekend day! Enjoy!\n")
+            break
             
         default:
-            printf("day of unknown type (invalid number).\n");
-            break;
+            printf("day of unknown type (invalid number).\n")
+            break
     }
 }
 
 
 func main_i() {
-    printf("--- Switch Statement Test ---\n\n");
+    printf("--- Switch Statement Test ---\n\n")
     
     // Test a weekday, a weekend day, and an invalid day
     for (let day_i = 4; day_i <= 8; day_i = day_i + 1) {
-        print_day_type_v(day_i);
+        print_day_type_v(day_i)
     }
     
-    printf("\n--- Test Complete ---\n");
-    return 0;
+    printf("\n--- Test Complete ---\n")
+    return 0
 }

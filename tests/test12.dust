@@ -13,22 +13,22 @@
 // Define a simple struct. In Dust, this will be scanned by the compiler
 // to recognize 'Greeter' as a valid type for suffixes like '_Greeterp'.
 struct Greeter {
-    message_s; // A member variable: a string named 'message'
-};
+    message_s // A member variable: a string named 'message'
+}
 
 // A function to create a new Greeter object on the heap.
 // The suffix '_Greeterp' signifies that this function returns an
 // owned pointer ('p') to a Greeter struct.
 func greeter_create_Greeterp(message_s) {
     // Allocate memory for the struct. 'cast_Greeterp' makes the type explicit.
-    let new_greeter_Greeterp = cast_Greeterp(malloc(sizeof(Greeter)));
+    let new_greeter_Greeterp = cast_Greeterp(malloc(sizeof(Greeter)))
     
     // Allocate memory for the message string and copy it.
-    let message_len_st = strlen(message_s);
-    new_greeter_Greeterp->message = cast_s(malloc(message_len_st + 1));
-    strcpy(new_greeter_Greeterp->message, message_s);
+    let message_len_st = strlen(message_s)
+    new_greeter_Greeterp->message = cast_s(malloc(message_len_st + 1))
+    strcpy(new_greeter_Greeterp->message, message_s)
 
-    return new_greeter_Greeterp;
+    return new_greeter_Greeterp
 }
 
 // A function that uses a Greeter.
@@ -36,14 +36,14 @@ func greeter_create_Greeterp(message_s) {
 // 'greeter_Greeterp' is an owned pointer passed into the function.
 func greeter_say_hello_v(greeter_Greeterp) {
     // Call a C function. '%s' is used for the string type.
-    printf("%s\n", greeter_Greeterp->message);
+    printf("%s\n", greeter_Greeterp->message)
 }
 
 // A function to clean up the Greeter object's memory.
 func greeter_destroy_v(greeter_Greeterp) {
     // Free the inner string first, then the struct itself.
-    free(greeter_Greeterp->message);
-    free(greeter_Greeterp);
+    free(greeter_Greeterp->message)
+    free(greeter_Greeterp)
 }
 
 // The main entry point of the program.
@@ -51,17 +51,17 @@ func greeter_destroy_v(greeter_Greeterp) {
 func main_i() {
     // Create a greeter object. The variable name 'world_greeter_Greeterp'
     // clearly states its type and role.
-    let world_greeter_Greeterp = greeter_create_Greeterp("Hello from Dust!");
+    let world_greeter_Greeterp = greeter_create_Greeterp("Hello from Dust!")
 
     // Use the greeter.
-    greeter_say_hello_v(world_greeter_Greeterp);
+    greeter_say_hello_v(world_greeter_Greeterp)
 
     // Clean up. After this call, 'world_greeter_Greeterp' is a dangling pointer.
-    greeter_destroy_v(world_greeter_Greeterp);
+    greeter_destroy_v(world_greeter_Greeterp)
 
-    printf("Dust program executed successfully.\n");
+    printf("Dust program executed successfully.\n")
     
     // Return an exit code.
-    return 0;
+    return 0
 }
 

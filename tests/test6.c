@@ -26,7 +26,7 @@ break;
 }
 int main() {
 printf("--- Switch Statement Test ---\n\n");
-for (int day = 4; (day <= 8); (day = (day + 1))) {
+for (int day = 4; (day <= 8); day = (day + 1)) {
 print_day_type(day);
 }
 printf("\n--- Test Complete ---\n");

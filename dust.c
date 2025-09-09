@@ -1297,7 +1297,7 @@ static ASTNode *parse_typedef(Parser *p) {
   }
   add_child(node, type_node);
   type_table_add_typedef((TypeTable *)p->type_table, name_tok->text, &type_tok->suffix_info);
-  expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after typedef.");
+  match_and_consume(p, TOKEN_PUNCTUATION, ";");
 
   token_free(type_tok);
   token_free(name_tok);
@@ -1490,7 +1490,7 @@ static ASTNode *parse_do_statement(Parser *p) {
   expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' after 'while'.");
   add_child(node, parse_expression(p));
   expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after do-while condition.");
-  expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after do-while statement.");
+  match_and_consume(p, TOKEN_PUNCTUATION, ";");
   return node;
 }
 
@@ -1594,7 +1594,7 @@ static ASTNode *parse_statement(Parser *p) {
     ASTNode *node = create_node(AST_PASSTHROUGH, pass->text);
     token_free(pass);
     // Passthrough is a full statement, but Dust syntax requires a semicolon
-    expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after @c(...) statement.");
+    match_and_consume(p, TOKEN_PUNCTUATION, ";");
     return node;
   }
 
@@ -1602,7 +1602,7 @@ static ASTNode *parse_statement(Parser *p) {
     if (strcmp(p->current->text, "let") == 0) {
       token_free(advance(p));
       ASTNode *decl = parse_var_decl(p);
-      expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after variable declaration.");
+      match_and_consume(p, TOKEN_PUNCTUATION, ";");
       return decl;
     }
     if (strcmp(p->current->text, "if") == 0) {
@@ -1627,24 +1627,24 @@ static ASTNode *parse_statement(Parser *p) {
     }
     if (strcmp(p->current->text, "break") == 0) {
       token_free(advance(p));
-      expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after 'break'.");
+      match_and_consume(p, TOKEN_PUNCTUATION, ";");
       return create_node(AST_BREAK, "break");
     }
     if (strcmp(p->current->text, "continue") == 0) {
       token_free(advance(p));
-      expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after 'continue'.");
+      match_and_consume(p, TOKEN_PUNCTUATION, ";");
       return create_node(AST_CONTINUE, "continue");
     }
     if (strcmp(p->current->text, "return") == 0) {
-      token_free(advance(p));
-      ASTNode *node = create_node(AST_RETURN, "return");
-      if (!(check(p, TOKEN_PUNCTUATION) &&
-            strcmp(p->current->text, ";") == 0)) {
+    token_free(advance(p));
+    ASTNode *node = create_node(AST_RETURN, "return");
+    if (!(check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ";") == 0) &&
+        !(check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "}") == 0)) {
         add_child(node, parse_expression(p));
-      }
-      expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after return value.");
-      return node;
     }
+    match_and_consume(p, TOKEN_PUNCTUATION, ";");  // Optional
+    return node;
+}
     if (check(p, TOKEN_PASSTHROUGH)) {
       Token *pass = advance(p);
       ASTNode *node = create_node(AST_PASSTHROUGH, pass->text);
@@ -1654,7 +1654,7 @@ static ASTNode *parse_statement(Parser *p) {
   }
 
   ASTNode *expr = parse_expression(p);
-  expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after expression.");
+  match_and_consume(p, TOKEN_PUNCTUATION, ";");
   return expr;
 }
 
@@ -1730,7 +1730,7 @@ static ASTNode *parse_struct_definition(Parser *p) {
       }
 
       token_free(member_tok);
-      expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after struct member.");
+      match_and_consume(p, TOKEN_PUNCTUATION, ";");
     } else {
       parser_error(p, "Expected member declaration inside struct.");
       token_free(advance(p));
@@ -1738,7 +1738,7 @@ static ASTNode *parse_struct_definition(Parser *p) {
   }
 
   expect(p, TOKEN_PUNCTUATION, "}", "Expected '}' to close struct definition.");
-  expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after struct definition.");
+  match_and_consume(p, TOKEN_PUNCTUATION, ";");
 
   return struct_node;
 }
@@ -1801,7 +1801,7 @@ static ASTNode *parse_union_definition(Parser *p) {
       }
       
       token_free(member_tok);
-      expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after union member.");
+      match_and_consume(p, TOKEN_PUNCTUATION, ";");
     } else {
       parser_error(p, "Expected member declaration inside union.");
       token_free(advance(p));
@@ -1809,7 +1809,7 @@ static ASTNode *parse_union_definition(Parser *p) {
   }
 
   expect(p, TOKEN_PUNCTUATION, "}", "Expected '}' to close union definition.");
-  expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after union definition.");
+  match_and_consume(p, TOKEN_PUNCTUATION, ";");
 
   return union_node;
 }
@@ -1883,7 +1883,7 @@ static ASTNode *parse_enum_definition(Parser *p) {
   }
 
   expect(p, TOKEN_PUNCTUATION, "}", "Expected '}' to close enum definition.");
-  expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after enum definition.");
+  match_and_consume(p, TOKEN_PUNCTUATION, ";");
 
   return enum_node;
 }
@@ -1949,13 +1949,13 @@ ASTNode *parser_parse(Parser *p) {
     } else if (strcmp(p->current->text, "let") == 0) {
         token_free(advance(p));
         ASTNode *global = parse_var_decl(p);
-        expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after global variable.");
+        match_and_consume(p, TOKEN_PUNCTUATION, ";");
         add_child(program, global);
     } else if (check(p, TOKEN_PASSTHROUGH)) {
       Token *pass = advance(p);
       add_child(program, create_node(AST_PASSTHROUGH, pass->text));
       token_free(pass);
-      expect(p, TOKEN_PUNCTUATION, ";", "Expected ';' after @c(...) statement.");
+      match_and_consume(p, TOKEN_PUNCTUATION, ";");
     } else if (check(p, TOKEN_KEYWORD)) {
       if (strcmp(p->current->text, "typedef") == 0) {
         add_child(program, parse_typedef(p));
@@ -2225,7 +2225,7 @@ static void emit_node(ASTNode *node) {
     emit_node(node->children[0]);
     fprintf(output_file, " while (");
     emit_node(node->children[1]);
-    fprintf(output_file, ");");
+    fprintf(output_file, ")");
     break;
 
   case AST_FOR:
@@ -2284,13 +2284,26 @@ static void emit_node(ASTNode *node) {
       emit_node(node->children[0]);
     }
     break;
-
-  case AST_BINARY_OP:
-    fprintf(output_file, "(");
+    
+    case AST_BINARY_OP:
+    // Only add parens for complex expressions, not simple assignments
+    if (strcmp(node->value, "=") != 0 && 
+        strcmp(node->value, "+=") != 0 &&
+        strcmp(node->value, "-=") != 0 &&
+        strcmp(node->value, "*=") != 0 &&
+        strcmp(node->value, "/=") != 0) {
+        fprintf(output_file, "(");
+    }
     emit_node(node->children[0]);
     fprintf(output_file, " %s ", node->value);
     emit_node(node->children[1]);
-    fprintf(output_file, ")");
+    if (strcmp(node->value, "=") != 0 && 
+        strcmp(node->value, "+=") != 0 &&
+        strcmp(node->value, "-=") != 0 &&
+        strcmp(node->value, "*=") != 0 &&
+        strcmp(node->value, "/=") != 0) {
+        fprintf(output_file, ")");
+    }
     break;
 
   case AST_UNARY_OP:

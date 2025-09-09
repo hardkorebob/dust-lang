@@ -29,13 +29,13 @@ int main() {
 printf("--- Dust Advanced Test Suite Running ---\n\n");
 printf("1. Initializing widget...\n");
 Widget ui_button;
-(ui_button.id = 101);
+ui_button.id = 101;
 strcpy(ui_button.name, "Login Button");
 printf("Widget created with ID %d and Name '%s'.\n\n", ui_button.id, ui_button.name);
 printf("2. Assigning function pointers...\n");
-(ui_button.on_destroy = &widget_destroy);
-(ui_button.on_update = &widget_update);
-(ui_button.on_event = &widget_event);
+ui_button.on_destroy = &widget_destroy;
+ui_button.on_update = &widget_update;
+ui_button.on_event = &widget_event;
 printf("Assignments successful.\n\n");
 printf("3. Calling functions via pointers...\n");
 ui_button.on_event(&ui_button);

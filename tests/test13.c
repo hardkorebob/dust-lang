@@ -34,14 +34,14 @@ return (a + b);
 int sum_array(int* arr, size_t size) {
 int total = 0;
 for (size_t i = 0; (i < size); i++) {
-(total += arr[i]);
+total += arr[i];
 }
 return total;
 }
 void update_player(Player* p) {
 p->x++;
 p->y++;
-(p->health -= 10);
+p->health -= 10;
 }
 void test_operators() {
 int a = 10;
@@ -56,10 +56,10 @@ int orr = (a | b);
 int xor = (a ^ b);
 int lshift = (a << 2);
 int rshift = (a >> 1);
-(a += 5);
-(a -= 2);
-(a *= 2);
-(a /= 3);
+a += 5;
+a -= 2;
+a *= 2;
+a /= 3;
 (a &= 0xFF);
 (a |= 0x10);
 (a ^= 0x0F);
@@ -106,7 +106,7 @@ count++;
 }
 do {
 count--;
-} while ((count > 0));;
+} while ((count > 0));
 for (int i = 0; (i < 10); i++) {
 if ((i == 5)) {
 continue;
@@ -120,8 +120,8 @@ void test_arrays() {
 int numbers[5] = { 1, 2, 3, 4, 5 };
 uint8_t buffer[256];
 char message[] = "Hello, Dust!";
-(numbers[0] = 10);
-(buffer[0] = 0xFF);
+numbers[0] = 10;
+buffer[0] = 0xFF;
 int* ptr = &numbers[0];
 int val = *ptr;
 ptr++;
@@ -133,11 +133,11 @@ printf("=== Dust Compiler Test Suite ===\n\n");
 int result = add(5, 3);
 printf("add(5, 3) = %d\n", result);
 Player player;
-(player.x = 100);
-(player.y = 200);
-(player.health = 100);
-(player.name = "Hero");
-(player.active = 1);
+player.x = 100;
+player.y = 200;
+player.health = 100;
+player.name = "Hero";
+player.active = 1;
 printf("Player at (%d, %d) with %d health\n", player.x, player.y, player.health);
 update_player(&player);
 printf("After update: (%d, %d) with %d health\n", player.x, player.y, player.health);

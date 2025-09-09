@@ -7,146 +7,146 @@
 // Simple string length function
 func my_strlen_i(str_cp) {
     if (str_cp == null) {
-        return 0;
+        return 0
     }
     
-    let len_i = 0;
+    let len_i = 0
     while (str_cp[len_i] != '\0') {
-        len_i = len_i + 1;
+        len_i = len_i + 1
     }
-    return len_i;
+    return len_i
 }
 
 // String copy function
 func my_strcpy_cp(dest_cp, src_cp) {
     if (dest_cp == null || src_cp == null) {
-        return dest_cp;
+        return dest_cp
     }
     
-    let i_i = 0;
+    let i_i = 0
     while (src_cp[i_i] != '\0') {
-        dest_cp[i_i] = src_cp[i_i];
-        i_i = i_i + 1;
+        dest_cp[i_i] = src_cp[i_i]
+        i_i = i_i + 1
     }
-    dest_cp[i_i] = '\0';
-    return dest_cp;
+    dest_cp[i_i] = '\0'
+    return dest_cp
 }
 
 // String concatenation
 func my_strcat_cp(dest_cp, src_cp) {
     if (dest_cp == null || src_cp == null) {
-        return dest_cp;
+        return dest_cp
     }
     
     // Find end of dest
-    let dest_len_i = my_strlen_i(dest_cp);
+    let dest_len_i = my_strlen_i(dest_cp)
     
     // Copy src to end
-    let i_i = 0;
+    let i_i = 0
     while (src_cp[i_i] != '\0') {
-        dest_cp[dest_len_i + i_i] = src_cp[i_i];
-        i_i = i_i + 1;
+        dest_cp[dest_len_i + i_i] = src_cp[i_i]
+        i_i = i_i + 1
     }
-    dest_cp[dest_len_i + i_i] = '\0';
+    dest_cp[dest_len_i + i_i] = '\0'
     
-    return dest_cp;
+    return dest_cp
 }
 
 // Simple string reversal (in-place)
 func reverse_cp(str_cp) {
     if (str_cp == null) {
-        return null;
+        return null
     }
     
-    let len_i = my_strlen_i(str_cp);
+    let len_i = my_strlen_i(str_cp)
     if (len_i <= 1) {
-        return str_cp;
+        return str_cp
     }
     
-    let start_i = 0;
-    let end_i = len_i - 1;
+    let start_i = 0
+    let end_i = len_i - 1
     
     while (start_i < end_i) {
         // Swap characters
-        let temp_c = str_cp[start_i];
-        str_cp[start_i] = str_cp[end_i];
-        str_cp[end_i] = temp_c;
+        let temp_c = str_cp[start_i]
+        str_cp[start_i] = str_cp[end_i]
+        str_cp[end_i] = temp_c
         
-        start_i = start_i + 1;
-        end_i = end_i - 1;
+        start_i = start_i + 1
+        end_i = end_i - 1
     }
     
-    return str_cp;
+    return str_cp
 }
 
 // Count occurrences of a character
 func count_char_i(str_cp, ch_c) {
     if (str_cp == null) {
-        return 0;
+        return 0
     }
     
-    let count_i = 0;
-    let i_i = 0;
+    let count_i = 0
+    let i_i = 0
     
     while (str_cp[i_i] != '\0') {
         if (str_cp[i_i] == ch_c) {
-            count_i = count_i + 1;
+            count_i = count_i + 1
         }
-        i_i = i_i + 1;
+        i_i = i_i + 1
     }
     
-    return count_i;
+    return count_i
 }
 
 // Convert string to uppercase (in-place)
 func to_upper_cp(str_cp) {
     if (str_cp == null) {
-        return null;
+        return null
     }
     
-    let i_i = 0;
+    let i_i = 0
     while (str_cp[i_i] != '\0') {
-        str_cp[i_i] = toupper(str_cp[i_i]);
-        i_i = i_i + 1;
+        str_cp[i_i] = toupper(str_cp[i_i])
+        i_i = i_i + 1
     }
     
-    return str_cp;
+    return str_cp
 }
 
 // Test all functions
 func main_i() {
-    printf("=== Dust String Utilities Demo ===\n\n");
+    printf("=== Dust String Utilities Demo ===\n\n")
     
     // Test strlen
-    let test1_s = "Hello, Dust!";
-    let len_i = my_strlen_i(test1_s);
-    printf("Length of '%s': %d\n", test1_s, len_i);
+    let test1_s = "Hello, Dust!"
+    let len_i = my_strlen_i(test1_s)
+    printf("Length of '%s': %d\n", test1_s, len_i)
     
     // Test strcpy
-    let buffer_ca[100];
-    my_strcpy_cp(buffer_ca, "Copied string");
-    printf("Copied: '%s'\n", buffer_ca);
+    let buffer_ca[100]
+    my_strcpy_cp(buffer_ca, "Copied string")
+    printf("Copied: '%s'\n", buffer_ca)
     
     // Test strcat
-    my_strcat_cp(buffer_ca, " + more");
-    printf("Concatenated: '%s'\n", buffer_ca);
+    my_strcat_cp(buffer_ca, " + more")
+    printf("Concatenated: '%s'\n", buffer_ca)
     
     // Test reverse
-    let rev_ca[50];
-    my_strcpy_cp(rev_ca, "Dust");
-    reverse_cp(rev_ca);
-    printf("'Dust' reversed: '%s'\n", rev_ca);
+    let rev_ca[50]
+    my_strcpy_cp(rev_ca, "Dust")
+    reverse_cp(rev_ca)
+    printf("'Dust' reversed: '%s'\n", rev_ca)
     
     // Test count_char
-    let count_i = count_char_i("Mississippi", 's');
-    printf("Number of 's' in 'Mississippi': %d\n", count_i);
+    let count_i = count_char_i("Mississippi", 's')
+    printf("Number of 's' in 'Mississippi': %d\n", count_i)
     
     // Test to_upper
-    let upper_ca[50];
-    my_strcpy_cp(upper_ca, "dust language");
-    to_upper_cp(upper_ca);
-    printf("Uppercase: '%s'\n", upper_ca);
+    let upper_ca[50]
+    my_strcpy_cp(upper_ca, "dust language")
+    to_upper_cp(upper_ca)
+    printf("Uppercase: '%s'\n", upper_ca)
     
-    printf("\n=== All tests passed! ===\n");
-    return 0;
+    printf("\n=== All tests passed! ===\n")
+    return 0
 }

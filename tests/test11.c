@@ -70,12 +70,12 @@ TokenType i = EOF;
 while ((i <= OPERATOR)) {
 char* name = token_type_name(i);
 printf("  %d: %s\n", i, name);
-(i = (i + 1));
+i = (i + 1);
 }
 Token tok;
-(tok.type = NUMBER);
-(tok.text = "42");
-(tok.line = 1);
+tok.type = NUMBER;
+tok.text = "42";
+tok.line = 1;
 printf("\nToken struct: type=%d, text=%s, line=%d\n", tok.type, tok.text, tok.line);
 ASTType node_type = AST_FUNCTION;
 if ((node_type == AST_FUNCTION)) {

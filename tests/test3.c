@@ -12,8 +12,8 @@ int i = 0;
 if ((size > 0)) {
 do {
 printf("  Element %d: %d\n", i, arr[i]);
-(i = (i + 1));
-} while ((i < size));;
+i = (i + 1);
+} while ((i < size));
 } else {
 printf("  (Array is empty)\n");
 }
@@ -27,9 +27,9 @@ int max_val = arr[0];
 int i = 1;
 while ((i < size)) {
 if ((arr[i] > max_val)) {
-(max_val = arr[i]);
+max_val = arr[i];
 }
-(i = (i + 1));
+i = (i + 1);
 }
 return max_val;
 }
@@ -39,8 +39,8 @@ int numbers[ARRAY_SIZE];
 printf("Initializing array...\n");
 int i = 0;
 while ((i < ARRAY_SIZE)) {
-(numbers[i] = ((i + 1) * 7));
-(i = (i + 1));
+numbers[i] = ((i + 1) * 7);
+i = (i + 1);
 }
 print_array(numbers, ARRAY_SIZE);
 int max_number = find_max(numbers, ARRAY_SIZE);

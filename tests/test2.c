@@ -43,7 +43,7 @@ srand(time(NULL));
 printWelcome();
 Game game;
 int secret = ((rand() % MAX_NUMBER) + MIN_NUMBER);
-(game.secret_number = secret);
+game.secret_number = secret;
 int player_guess = getPlayerGuess();
 checkGuess(&game, player_guess);
 if ((player_guess != game.secret_number)) {

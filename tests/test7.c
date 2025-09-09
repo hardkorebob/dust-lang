@@ -51,7 +51,7 @@ printf("It's warm.\n");
 printf("It's cool.\n");
 }
 printf("For loop: ");
-for (int i = 0; (i < 5); (i = (i + 1))) {
+for (int i = 0; (i < 5); i = (i + 1)) {
 if ((i == 3)) {
 continue;
 }
@@ -62,15 +62,15 @@ printf("While loop: ");
 int countdown = 3;
 while ((countdown > 0)) {
 printf("%d... ", countdown);
-(countdown = (countdown - 1));
+countdown = (countdown - 1);
 }
 printf("Lift off!\n");
 printf("Do-While loop: ");
 int num = 5;
 do {
 printf("%d ", num);
-(num = (num - 1));
-} while ((num > 5));;
+num = (num - 1);
+} while ((num > 5));
 printf("\n");
 }
 void test_operators() {
@@ -94,7 +94,7 @@ printf("\n--- Testing Memory Features ---\n");
 int numbers[5] = { 10, 20, 30, 40, 50 };
 printf("First number: %d\n", numbers[0]);
 printf("Third number: %d\n", numbers[2]);
-(numbers[2] = 35);
+numbers[2] = 35;
 printf("Modified third number: %d\n", numbers[2]);
 printf("Size of int: %zu bytes\n", sizeof(int));
 printf("Size of Point struct: %zu bytes\n", sizeof(Point));

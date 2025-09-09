@@ -15,7 +15,7 @@ Greeter* greeter_create(char* message);
 Greeter* greeter_create(char* message) {
 Greeter* new_greeter = (Greeter*)malloc(sizeof(Greeter));
 size_t message_len = strlen(message);
-(new_greeter->message = (char*)malloc((message_len + 1)));
+new_greeter->message = (char*)malloc((message_len + 1));
 strcpy(new_greeter->message, message);
 return new_greeter;
 }

@@ -18,7 +18,7 @@ return 0;
 }
 int len = 0;
 while ((str[len] != '\0')) {
-(len = (len + 1));
+len = (len + 1);
 }
 return len;
 }
@@ -28,10 +28,10 @@ return dest;
 }
 int i = 0;
 while ((src[i] != '\0')) {
-(dest[i] = src[i]);
-(i = (i + 1));
+dest[i] = src[i];
+i = (i + 1);
 }
-(dest[i] = '\0');
+dest[i] = '\0';
 return dest;
 }
 char* my_strcat(char* dest, char* src) {
@@ -41,10 +41,10 @@ return dest;
 int dest_len = my_strlen(dest);
 int i = 0;
 while ((src[i] != '\0')) {
-(dest[(dest_len + i)] = src[i]);
-(i = (i + 1));
+dest[(dest_len + i)] = src[i];
+i = (i + 1);
 }
-(dest[(dest_len + i)] = '\0');
+dest[(dest_len + i)] = '\0';
 return dest;
 }
 char* reverse(char* str) {
@@ -59,10 +59,10 @@ int start = 0;
 int end = (len - 1);
 while ((start < end)) {
 char temp = str[start];
-(str[start] = str[end]);
-(str[end] = temp);
-(start = (start + 1));
-(end = (end - 1));
+str[start] = str[end];
+str[end] = temp;
+start = (start + 1);
+end = (end - 1);
 }
 return str;
 }
@@ -74,9 +74,9 @@ int count = 0;
 int i = 0;
 while ((str[i] != '\0')) {
 if ((str[i] == ch)) {
-(count = (count + 1));
+count = (count + 1);
 }
-(i = (i + 1));
+i = (i + 1);
 }
 return count;
 }
@@ -86,8 +86,8 @@ return NULL;
 }
 int i = 0;
 while ((str[i] != '\0')) {
-(str[i] = toupper(str[i]));
-(i = (i + 1));
+str[i] = toupper(str[i]);
+i = (i + 1);
 }
 return str;
 }
