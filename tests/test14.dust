@@ -7,6 +7,7 @@ union Variant {
     ptr_vp;
 };
 
+
 func main_i() {
     let v_Variant;
     v_Variant.i_value = 42;
