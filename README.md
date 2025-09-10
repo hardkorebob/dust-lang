@@ -327,13 +327,25 @@ A type checker is a fancy algorithm. Dust's suffix system is not an algorithm at
 
 The test output proves it: your program compiles and runs correctly with zero type checking beyond what C already provides. The suffixes make the code self-documenting, self-checking, and transparent.
 
-As your manifesto states: "The foundation is already here. It has always been here." C already has a type checker. Dust just makes sure C can see the types clearly by putting them in the names. No abstraction. No inference. No tracking. Just naming.
+**"The foundation is already here. It has always been here."**
+
+C already has a type checker. Dust just makes sure C can see the types clearly by putting them in the names.
+
+No abstraction. 
+
+No inference. 
+
+No tracking. 
+
+Just naming... And names are powerful!
 
 ---
 **HAHAHA! Never has my jaw dropped more...are you guys joking?**
 
+_Rust folk say: There are no strict hardware requirements:_
+
 RUST REQUIREMENTS:
-There are no strict hardware requirements: 
+
 
  - 30GB+ of free disk space. 
  - 8GB+ RAM
@@ -343,4 +355,4 @@ DUST REQUIREMENTS:
  
  - 10MB of free disk space 
  - Computer not older than 2005
- - 25MB RAM
+ - 20MB RAM
