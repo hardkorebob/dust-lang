@@ -42,19 +42,17 @@ let operator_table_OpInfoa[] = {
     { ">>=", 0,false }
     { null, 0, false }
 }
-// Parses a binary expression using the operator precedence table.
-// It takes the parser state and a minimum precedence to handle nesting.
+
 func parse_binary_expr_ASTNodep(p_Parserp, min_precedence_i) {
-    // First, parse the left-hand side of the expression (a number, variable, or unary op).
+
     let left_ASTNodep = parse_unary_ASTNodep(p_Parserp)
 
-    // Loop as long as we find operators with enough precedence.
+
     while (true) {
         let current_op_text_s = p_Parserp->current->text
         let op_info_OpInfop = null
 
-        // Look up the current token in our operator table.
-        // NOTE: A direct translation of C's for-loop over a pointer.
+
         let op_iterator_OpInfop = &operator_table_OpInfoa[0]
         while (op_iterator_OpInfop->op != null) {
             if (strcmp_i(current_op_text_s, op_iterator_OpInfop->op) == 0 && op_iterator_OpInfop->precedence >= min_precedence_i) {
@@ -64,27 +62,28 @@ func parse_binary_expr_ASTNodep(p_Parserp, min_precedence_i) {
             op_iterator_OpInfop++
         }
         
-        // If we didn't find a valid operator, we're done with this expression.
+   
         if (op_info_OpInfop == null) {
             break
         }
 
-        // We found an operator, so consume it.
+        
         let op_tok_Tokenp = advance_Tokenp(p_Parserp)
 
-        // Recursively call the parser for the right-hand side of the expression.
-        // We adjust the precedence to handle associativity correctly.
+        
         let next_min_prec_i = op_info_OpInfop->left_assoc_bl ? (op_info_OpInfop->precedence + 1) : op_info_OpInfop->precedence
         let right_ASTNodep = parse_binary_expr_ASTNodep(p_Parserp, next_min_prec_i)
 
-        // Create a new AST node for this binary operation.
+        
         let node_ASTNodep = create_node_ASTNodep(AST_BINARY_OP, op_tok_Tokenp->text)
         add_child_v(node_ASTNodep, left_ASTNodep)
         add_child_v(node_ASTNodep, right_ASTNodep)
 
-        // This new node becomes the left-hand side for the next iteration.
+      
         left_ASTNodep = node_ASTNodep
     }
 
     return left_ASTNodep
 }
+
+

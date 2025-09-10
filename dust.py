@@ -240,21 +240,21 @@ class DustEditor:
         self.left_pressed = True
         self.left_press_pos = self.text.index(f"@{event.x},{event.y}")
         self.selection_start = self.left_press_pos
-        return "break"
-    
+        # Set cursor position
+        self.text.mark_set(tk.INSERT, self.left_press_pos)
+        # Don't return "break" to allow selection
+        
     def on_left_drag(self, event):
         """Handle left button drag for selection"""
         if self.left_pressed:
             current_pos = self.text.index(f"@{event.x},{event.y}")
             self.text.tag_remove('sel', '1.0', tk.END)
             self.text.tag_add('sel', self.selection_start, current_pos)
-        return "break"
-    
+            
     def on_left_release(self, event):
         """Handle left button release"""
         self.left_pressed = False
-        return "break"
-    
+        
     def on_middle_click(self, event):
         """Handle middle button - cut if left is pressed, otherwise paste from clipboard"""
         if self.left_pressed:
@@ -266,15 +266,19 @@ class DustEditor:
                 self.text.delete('sel.first', 'sel.last')
                 self.output_log("Cut text to clipboard")
             except tk.TclError:
-                pass  # No selection
+                # No selection, just report
+                self.output_log("No selection to cut")
         else:
             # Regular paste from system clipboard
             try:
                 text = self.root.clipboard_get()
+                insert_pos = self.text.index(f"@{event.x},{event.y}")
+                self.text.mark_set(tk.INSERT, insert_pos)
                 self.text.insert(tk.INSERT, text)
                 self.output_log("Pasted from clipboard")
             except tk.TclError:
-                pass
+                self.output_log("Nothing to paste")
+        self.left_pressed = False  # Reset after chord
         return "break"
     
     def on_right_click(self, event):
@@ -283,10 +287,19 @@ class DustEditor:
             # Paste operation (chord: left + right)
             try:
                 text = self.root.clipboard_get()
+                # Delete selection if exists
+                try:
+                    self.text.delete('sel.first', 'sel.last')
+                except tk.TclError:
+                    pass
+                # Insert at current position
+                insert_pos = self.text.index(f"@{event.x},{event.y}")
+                self.text.mark_set(tk.INSERT, insert_pos)
                 self.text.insert(tk.INSERT, text)
-                self.output_log("Pasted text")
+                self.output_log("Pasted text (L+R chord)")
             except tk.TclError:
-                pass
+                self.output_log("Nothing to paste")
+            self.left_pressed = False  # Reset after chord
         else:
             # Find next occurrence of word under cursor
             pos = self.text.index(f"@{event.x},{event.y}")
