@@ -330,9 +330,13 @@ The test output proves it: your program compiles and runs correctly with zero ty
 **"The foundation is already here. It has always been here."**
 
 C already has a type checker. Dust just makes sure C can see the types clearly by putting them in the names.
+
 No abstraction. 
+
 No inference. 
+
 No tracking. 
+
 Just naming... And names are powerful!
 
 ---
