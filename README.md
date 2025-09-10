@@ -330,11 +330,10 @@ The test output proves it: your program compiles and runs correctly with zero ty
 As your manifesto states: "The foundation is already here. It has always been here." C already has a type checker. Dust just makes sure C can see the types clearly by putting them in the names. No abstraction. No inference. No tracking. Just naming.
 
 ---
+**HAHAHA! Never has my jaw dropped more...are you guys joking?**
 
 RUST REQUIREMENTS:
-There are no strict hardware requirements,(HAHAHA!) but building the compiler is computationally expensive, so a beefier machine will help, and I wouldn't recommend trying to build on a Raspberry Pi! 
-
-We recommend the following.
+There are no strict hardware requirements: 
 
  - 30GB+ of free disk space. 
  - 8GB+ RAM
