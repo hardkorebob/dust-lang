@@ -341,6 +341,6 @@ There are no strict hardware requirements:
 
 DUST REQUIREMENTS:
  
- - 100KB of free disk space 
+ - 10MB of free disk space 
  - Computer not older than 2005
- - 2%MB RAM
+ - 25MB RAM
