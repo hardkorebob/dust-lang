@@ -629,9 +629,7 @@ static const char *KEYWORDS[] = {
 static const MultiCharOp multi_char_ops[] = {
     
     {'<', '<', '=', "<<="},
-    {'>', '>', '=', ">>="},
-    
-    
+    {'>', '>', '=', ">>="}, 
     {'=', '=', '\0', "=="},
     {'!', '=', '\0', "!="},
     {'<', '=', '\0', "<="},
@@ -650,8 +648,7 @@ static const MultiCharOp multi_char_ops[] = {
     {'&', '=', '\0', "&="},
     {'|', '=', '\0', "|="},
     {'^', '=', '\0', "^="},
-    {'-', '>', '\0', "->"},  
-    
+    {'-', '>', '\0', "->"},    
     {'\0', '\0', '\0', NULL}  
 };
 
@@ -971,46 +968,25 @@ typedef struct {
     bool is_binary;  // true for binary, false for unary
 } OpInfo;
 
-static const OpInfo operator_table[] = {
-    
+static const OpInfo operator_table[] = {  
     {"*",   10, true,  true},
     {"/",   10, true,  true},
-    {"%",   10, true,  true},
-    
-    
+    {"%",   10, true,  true}, 
     {"+",   9,  true,  true},
-    {"-",   9,  true,  true},
-    
-    
+    {"-",   9,  true,  true},    
     {"<<",  8,  true,  true},
-    {">>",  8,  true,  true},
-    
-    
+    {">>",  8,  true,  true},   
     {"<",   7,  true,  true},
     {">",   7,  true,  true},
     {"<=",  7,  true,  true},
-    {">=",  7,  true,  true},
-    
-    
+    {">=",  7,  true,  true},    
     {"==",  6,  true,  true},
-    {"!=",  6,  true,  true},
-    
-    
-    {"&",   5,  true,  true},
-    
-    
-    {"^",   4,  true,  true},
-    
-    
-    {"|",   3,  true,  true},
-    
-    
-    {"&&",  2,  true,  true},
-    
-    
-    {"||",  1,  true,  true},
-    
-    
+    {"!=",  6,  true,  true},   
+    {"&",   5,  true,  true},  
+    {"^",   4,  true,  true},  
+    {"|",   3,  true,  true},   
+    {"&&",  2,  true,  true},    
+    {"||",  1,  true,  true},   
     {"=",   0,  false, true},
     {"+=",  0,  false, true},
     {"-=",  0,  false, true},
@@ -1021,8 +997,7 @@ static const OpInfo operator_table[] = {
     {"|=",  0,  false, true},
     {"^=",  0,  false, true},
     {"<<=", 0,  false, true},
-    {">>=", 0,  false, true},
-    
+    {">>=", 0,  false, true},   
     {NULL,  0,  false, false}  
 };
 // =======
@@ -1970,79 +1945,185 @@ ASTNode *parser_parse(Parser *p) {
 
 static FILE *output_file;
 static const TypeTable *codegen_type_table;
-static void emit_statement(ASTNode *node);
-static void emit_node(ASTNode *node);
-static void emit_typedef(ASTNode *node);
-static void emit_function(ASTNode *node);
-static void emit_var_decl(ASTNode *node);
 FuncDecl *collect_functions(ASTNode *node, FuncDecl *list);
 void emit_forward_declarations(FuncDecl *decls, FILE *out);
+// ============================================================================
+// CODE GENERATOR WITH DISPATCH TABLE
+// ============================================================================
+
+// Forward declarations for all emit functions
+typedef void (*EmitFunc)(ASTNode *node);
+
+static void emit_program(ASTNode *node);
+static void emit_directive(ASTNode *node);
+static void emit_function(ASTNode *node);
+static void emit_block(ASTNode *node);
+static void emit_var_decl(ASTNode *node);
+static void emit_if(ASTNode *node);
+static void emit_while(ASTNode *node);
+static void emit_do(ASTNode *node);
+static void emit_for(ASTNode *node);
+static void emit_switch(ASTNode *node);
+static void emit_case(ASTNode *node);
+static void emit_default(ASTNode *node);
+static void emit_break(ASTNode *node);
+static void emit_continue(ASTNode *node);
+static void emit_return(ASTNode *node);
+static void emit_binary_op(ASTNode *node);
+static void emit_unary_op(ASTNode *node);
+static void emit_ternary_op(ASTNode *node);
+static void emit_call(ASTNode *node);
+static void emit_identifier(ASTNode *node);
+static void emit_number(ASTNode *node);
+static void emit_string(ASTNode *node);
+static void emit_character(ASTNode *node);
+static void emit_sizeof(ASTNode *node);
+static void emit_struct_def(ASTNode *node);
+static void emit_func_ptr_decl(ASTNode *node);
+static void emit_typedef(ASTNode *node);
+static void emit_subscript(ASTNode *node);
+static void emit_member_access(ASTNode *node);
+static void emit_initializer_list(ASTNode *node);
+static void emit_expression(ASTNode *node);
+static void emit_passthrough(ASTNode *node);
+static void emit_null(ASTNode *node);
+static void emit_cast(ASTNode *node);
+static void emit_union_def(ASTNode *node);
+static void emit_enum_def(ASTNode *node);
+static void emit_enum_value(ASTNode *node);
+static void emit_postfix_op(ASTNode *node);
+static void emit_node(ASTNode *node);
+static void emit_statement(ASTNode *node);
+
+// Dispatch table - indexed by ASTType
+static const EmitFunc emit_dispatch[] = {
+    [AST_PROGRAM]           = emit_program,
+    [AST_FUNCTION]          = emit_function,
+    [AST_VAR_DECL]          = emit_var_decl,
+    [AST_BLOCK]             = emit_block,
+    [AST_INITIALIZER_LIST]  = emit_initializer_list,
+    [AST_IF]                = emit_if,
+    [AST_WHILE]             = emit_while,
+    [AST_DO]                = emit_do,
+    [AST_FOR]               = emit_for,
+    [AST_CASE]              = emit_case,
+    [AST_SWITCH]            = emit_switch,
+    [AST_BREAK]             = emit_break,
+    [AST_DEFAULT]           = emit_default,
+    [AST_CONTINUE]          = emit_continue,
+    [AST_RETURN]            = emit_return,
+    [AST_EXPRESSION]        = emit_expression,
+    [AST_BINARY_OP]         = emit_binary_op,
+    [AST_UNARY_OP]          = emit_unary_op,
+    [AST_CALL]              = emit_call,
+    [AST_SUBSCRIPT]         = emit_subscript,
+    [AST_IDENTIFIER]        = emit_identifier,
+    [AST_NUMBER]            = emit_number,
+    [AST_STRING]            = emit_string,
+    [AST_CHARACTER]         = emit_character,
+    [AST_SIZEOF]            = emit_sizeof,
+    [AST_STRUCT_DEF]        = emit_struct_def,
+    [AST_MEMBER_DECL]       = NULL,  // Not used in current implementation
+    [AST_DIRECTIVE]         = emit_directive,
+    [AST_MEMBER_ACCESS]     = emit_member_access,
+    [AST_TERNARY_OP]        = emit_ternary_op,
+    [AST_FUNC_PTR_DECL]     = emit_func_ptr_decl,
+    [AST_TYPEDEF]           = emit_typedef,
+    [AST_PASSTHROUGH]       = emit_passthrough,
+    [AST_NULL]              = emit_null,
+    [AST_CAST]              = emit_cast,
+    [AST_ENUM_DEF]          = emit_enum_def,
+    [AST_ENUM_VALUE]        = emit_enum_value,
+    [AST_POSTFIX_OP]        = emit_postfix_op,
+    [AST_UNION_DEF]         = emit_union_def,
+};
+
+// Main dispatch function
+static void emit_node(ASTNode *node) {
+    if (!node) return;
+    
+    // Bounds check
+    if (node->type < 0 || node->type >= sizeof(emit_dispatch)/sizeof(emit_dispatch[0])) {
+        fprintf(stderr, "Invalid AST node type: %d\n", node->type);
+        return;
+    }
+    
+    EmitFunc emitter = emit_dispatch[node->type];
+    if (emitter) {
+        emitter(node);
+    } else {
+        // Handle cases with no specific emitter (fallback for expression types)
+        if (node->child_count > 0 && node->type == AST_EXPRESSION) {
+            emit_node(node->children[0]);
+        }
+    }
+}
 
 static void emit_statement(ASTNode *node) {
-  if (node->type == AST_BLOCK || node->type == AST_IF ||
-      node->type == AST_WHILE || node->type == AST_FOR ||
-      node->type == AST_SWITCH) {
-    emit_node(node);
-    fprintf(output_file, "\n");
-  } else if (node->type == AST_VAR_DECL) {
-    emit_node(node);
-    fprintf(output_file, ";\n");
-  } else if (node->type == AST_EXPRESSION) {
-    if (node->child_count > 0) {
-      emit_node(node->children[0]);
+    if (node->type == AST_BLOCK || node->type == AST_IF ||
+        node->type == AST_WHILE || node->type == AST_FOR ||
+        node->type == AST_SWITCH) {
+        emit_node(node);
+        fprintf(output_file, "\n");
+    } else if (node->type == AST_VAR_DECL) {
+        emit_node(node);
+        fprintf(output_file, ";\n");
+    } else if (node->type == AST_EXPRESSION) {
+        if (node->child_count > 0) {
+            emit_node(node->children[0]);
+        }
+        fprintf(output_file, ";\n");
+    } else {
+        emit_node(node);
+        fprintf(output_file, ";\n");
     }
-    fprintf(output_file, ";\n");
-  } else {
-    emit_node(node);
-    fprintf(output_file, ";\n");
-  }
 }
 
 static void emit_function(ASTNode *node) {
-  const char *return_type = get_c_type(&node->suffix_info);
-  fprintf(output_file, "%s %s(", return_type, node->value);
+    const char *return_type = get_c_type(&node->suffix_info);
+    fprintf(output_file, "%s %s(", return_type, node->value);
 
-  if (node->child_count > 0) {
-    ASTNode *params_node = node->children[0];
-    for (int i = 0; i < params_node->child_count; i++) {
-      if (i > 0)
-        fprintf(output_file, ", ");
-      ASTNode *param = params_node->children[i];
+    if (node->child_count > 0) {
+        ASTNode *params_node = node->children[0];
+        for (int i = 0; i < params_node->child_count; i++) {
+            if (i > 0)
+                fprintf(output_file, ", ");
+            ASTNode *param = params_node->children[i];
 
-      // Context-aware: arrays in parameters become pointers
-      if (param->suffix_info.type == TYPE_ARRAY) {
-        const char *base_type = "void";
-        switch (param->suffix_info.array_base_type) {
-        case TYPE_INT:
-          base_type = "int";
-          break;
-        case TYPE_FLOAT:
-          base_type = "float";
-          break;
-        case TYPE_CHAR:
-          base_type = "char";
-          break;
-        case TYPE_USER:
-          if (param->suffix_info.array_user_type_name) {
-            base_type = param->suffix_info.array_user_type_name;
-          }
-          break;
-        default:
-          break;
+            // Context-aware: arrays in parameters become pointers
+            if (param->suffix_info.type == TYPE_ARRAY) {
+                const char *base_type = "void";
+                switch (param->suffix_info.array_base_type) {
+                case TYPE_INT:
+                    base_type = "int";
+                    break;
+                case TYPE_FLOAT:
+                    base_type = "float";
+                    break;
+                case TYPE_CHAR:
+                    base_type = "char";
+                    break;
+                case TYPE_USER:
+                    if (param->suffix_info.array_user_type_name) {
+                        base_type = param->suffix_info.array_user_type_name;
+                    }
+                    break;
+                default:
+                    break;
+                }
+                fprintf(output_file, "%s* %s", base_type, param->value);
+            } else {
+                const char *param_type = get_c_type(&param->suffix_info);
+                fprintf(output_file, "%s %s", param_type, param->value);
+            }
         }
-        fprintf(output_file, "%s* %s", base_type, param->value);
-      } else {
-        const char *param_type = get_c_type(&param->suffix_info);
-        fprintf(output_file, "%s %s", param_type, param->value);
-      }
     }
-  }
-  fprintf(output_file, ") ");
-  if (node->child_count > 1) {
-    emit_node(node->children[1]);
-  } else {
-    fprintf(output_file, "{}\n");
-  }
+    fprintf(output_file, ") ");
+    if (node->child_count > 1) {
+        emit_node(node->children[1]);
+    } else {
+        fprintf(output_file, "{}\n");
+    }
 }
 
 static void emit_var_decl(ASTNode *node) {
@@ -2052,14 +2133,13 @@ static void emit_var_decl(ASTNode *node) {
     if (node->suffix_info.type == TYPE_ARRAY) {
         fprintf(output_file, "[");
     
-    // FIX: Only emit the child as a size if it's NOT an initializer.
-    if (node->child_count > 0 && node->children[0] != NULL &&
-        node->children[0]->type != AST_INITIALIZER_LIST && 
-        node->children[0]->type != AST_STRING) 
-    {
-        emit_node(node->children[0]); // Array size
-    }
-    fprintf(output_file, "]");
+        // Only emit the child as a size if it's NOT an initializer
+        if (node->child_count > 0 && node->children[0] != NULL &&
+            node->children[0]->type != AST_INITIALIZER_LIST && 
+            node->children[0]->type != AST_STRING) {
+            emit_node(node->children[0]); // Array size
+        }
+        fprintf(output_file, "]");
 
         // Find initializer (could be in different child position)
         ASTNode *initializer = NULL;
@@ -2090,198 +2170,206 @@ static void emit_var_decl(ASTNode *node) {
 }
 
 static void emit_typedef(ASTNode *node) {
-  if (node->child_count < 1)
-    return;
+    if (node->child_count < 1)
+        return;
 
-  ASTNode *original_type = node->children[0];
-  const char *original_c_type = get_c_type(&original_type->suffix_info);
+    ASTNode *original_type = node->children[0];
+    const char *original_c_type = get_c_type(&original_type->suffix_info);
 
-  fprintf(output_file, "typedef %s %s;\n", original_c_type, node->value);
+    fprintf(output_file, "typedef %s %s;\n", original_c_type, node->value);
 }
 
-static void emit_node(ASTNode *node) {
-  if (!node)
-    return;
+// Fix the unused parameter warnings by using the (void) idiom:
+static void emit_break(ASTNode *node) {
+    (void)node;  // Suppress unused parameter warning
+    fprintf(output_file, "break");
+}
 
-  switch (node->type) {
+static void emit_continue(ASTNode *node) {
+    (void)node;  // Suppress unused parameter warning
+    fprintf(output_file, "continue");
+}
+
+static void emit_null(ASTNode *node) {
+    (void)node;  // Suppress unused parameter warning
+    fprintf(output_file, "NULL");
+}
+
+// Add these helper functions at the end (before codegen function):
+
+FuncDecl *collect_functions(ASTNode *node, FuncDecl *list) {
+    if (!node) return list;
     
-    case AST_PROGRAM:
-      
-      for (int i = 0; i < node->child_count; i++) {
+    if (node->type == AST_FUNCTION) {
+        FuncDecl *decl = arena_alloc(sizeof(FuncDecl));
+        decl->name = clone_string(node->value);
+        decl->return_type = node->suffix_info;
+        decl->params = node->child_count > 0 ? node->children[0] : NULL;
+        decl->next = list;
+        return decl;
+    }
+    
+    for (int i = 0; i < node->child_count; i++) {
+        list = collect_functions(node->children[i], list);
+    }
+    return list;
+}
+
+// Individual emit functions
+static void emit_program(ASTNode *node) {
+    // Emit directives first
+    for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_DIRECTIVE) {
-          emit_node(node->children[i]);
+            emit_node(node->children[i]);
         }
-      }
-      fprintf(output_file, "\n");
-      
-      
-      for (int i = 0; i < node->child_count; i++) {
+    }
+    fprintf(output_file, "\n");
+    
+    // Emit type definitions
+    for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_STRUCT_DEF ||
             node->children[i]->type == AST_UNION_DEF ||
             node->children[i]->type == AST_ENUM_DEF ||
             node->children[i]->type == AST_TYPEDEF ||
             node->children[i]->type == AST_PASSTHROUGH) {
-          emit_node(node->children[i]);
-          fprintf(output_file, "\n");
+            emit_node(node->children[i]);
+            fprintf(output_file, "\n");
         }
-      }
-      for (int i = 0; i < node->child_count; i++) {
+    }
+    
+    // Emit global variables
+    for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_VAR_DECL) {
             emit_node(node->children[i]);
             fprintf(output_file, ";\n");
         }
-      }
-      
-      FuncDecl *funcs = collect_functions(node, NULL);
-      if (funcs) {
+    }
+    
+    // Emit forward declarations
+    FuncDecl *funcs = collect_functions(node, NULL);
+    if (funcs) {
         emit_forward_declarations(funcs, output_file);
-      }
-      
-      
-      for (int i = 0; i < node->child_count; i++) {
+    }
+    
+    // Emit function definitions
+    for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_FUNCTION) {
-          emit_node(node->children[i]);
-          fprintf(output_file, "\n");
+            emit_node(node->children[i]);
+            fprintf(output_file, "\n");
         }
-      }
-      break;
-  case AST_DIRECTIVE:
+    }
+}
+
+static void emit_directive(ASTNode *node) {
     fprintf(output_file, "%s\n", node->value);
-    break;
+}
 
-  case AST_FUNCTION:
-    emit_function(node);
-    break;
-
-  case AST_BLOCK:
+static void emit_block(ASTNode *node) {
     fprintf(output_file, "{\n");
     for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]) {
-          emit_statement(node->children[i]);
+            emit_statement(node->children[i]);
         }
     }
     fprintf(output_file, "}");
-    break;
+}
 
-  case AST_VAR_DECL:
-    emit_var_decl(node);
-    break;
-
-  case AST_IF:
+static void emit_if(ASTNode *node) {
     fprintf(output_file, "if (");
     emit_node(node->children[0]);
     fprintf(output_file, ") ");
     emit_node(node->children[1]);
     if (node->child_count > 2) {
-      fprintf(output_file, " else ");
-      emit_node(node->children[2]);
+        fprintf(output_file, " else ");
+        emit_node(node->children[2]);
     }
-    break;
+}
 
-  case AST_WHILE:
+static void emit_while(ASTNode *node) {
     fprintf(output_file, "while (");
     emit_node(node->children[0]);
     fprintf(output_file, ") ");
     emit_node(node->children[1]);
-    break;
+}
 
-  case AST_DO:
+static void emit_do(ASTNode *node) {
     fprintf(output_file, "do ");
     emit_node(node->children[0]);
     fprintf(output_file, " while (");
     emit_node(node->children[1]);
     fprintf(output_file, ")");
-    break;
+}
 
-  case AST_FOR:
+static void emit_for(ASTNode *node) {
     fprintf(output_file, "for (");
-    if (node->children[0])
-      emit_node(node->children[0]);
+    if (node->children[0]) emit_node(node->children[0]);
     fprintf(output_file, "; ");
-    if (node->children[1])
-      emit_node(node->children[1]);
+    if (node->children[1]) emit_node(node->children[1]);
     fprintf(output_file, "; ");
-    if (node->children[2])
-      emit_node(node->children[2]);
+    if (node->children[2]) emit_node(node->children[2]);
     fprintf(output_file, ") ");
-    if (node->children[3])
-      emit_node(node->children[3]);
-    break;
+    if (node->children[3]) emit_node(node->children[3]);
+}
 
-  case AST_SWITCH:
+static void emit_switch(ASTNode *node) {
     fprintf(output_file, "switch (");
     emit_node(node->children[0]);
     fprintf(output_file, ") {\n");
     for (int i = 1; i < node->child_count; i++) {
         if (node->children[i]) {
-          emit_node(node->children[i]);
+            emit_node(node->children[i]);
         }
     }
     fprintf(output_file, "}\n");
-    break;
+}
 
-  case AST_CASE:
+static void emit_case(ASTNode *node) {
     fprintf(output_file, "case ");
     emit_node(node->children[0]);
     fprintf(output_file, ":\n");
     for (int i = 1; i < node->child_count; i++) {
         if (node->children[i]) {
-          emit_statement(node->children[i]);
+            emit_statement(node->children[i]);
         }
     }
-    break;
+}
 
-  case AST_DEFAULT:
+static void emit_default(ASTNode *node) {
     fprintf(output_file, "default:\n");
     for (int i = 0; i < node->child_count; i++) {
-      emit_statement(node->children[i]);
+        emit_statement(node->children[i]);
     }
-    break;
+}
 
-  case AST_BREAK:
-    fprintf(output_file, "break");
-    break;
-
-  case AST_CONTINUE:
-    fprintf(output_file, "continue");
-    break;
-
-  case AST_RETURN:
+static void emit_return(ASTNode *node) {
     fprintf(output_file, "return");
     if (node->child_count > 0) {
-      fprintf(output_file, " ");
-      emit_node(node->children[0]);
+        fprintf(output_file, " ");
+        emit_node(node->children[0]);
     }
-    break;
-    
-    case AST_BINARY_OP:
+}
+
+static void emit_binary_op(ASTNode *node) {
     // Only add parens for complex expressions, not simple assignments
-    if (strcmp(node->value, "=") != 0 && 
-        strcmp(node->value, "+=") != 0 &&
-        strcmp(node->value, "-=") != 0 &&
-        strcmp(node->value, "*=") != 0 &&
-        strcmp(node->value, "/=") != 0) {
-        fprintf(output_file, "(");
-    }
+    int needs_parens = strcmp(node->value, "=") != 0 && 
+                      strcmp(node->value, "+=") != 0 &&
+                      strcmp(node->value, "-=") != 0 &&
+                      strcmp(node->value, "*=") != 0 &&
+                      strcmp(node->value, "/=") != 0;
+    
+    if (needs_parens) fprintf(output_file, "(");
     emit_node(node->children[0]);
     fprintf(output_file, " %s ", node->value);
     emit_node(node->children[1]);
-    if (strcmp(node->value, "=") != 0 && 
-        strcmp(node->value, "+=") != 0 &&
-        strcmp(node->value, "-=") != 0 &&
-        strcmp(node->value, "*=") != 0 &&
-        strcmp(node->value, "/=") != 0) {
-        fprintf(output_file, ")");
-    }
-    break;
+    if (needs_parens) fprintf(output_file, ")");
+}
 
-  case AST_UNARY_OP:
+static void emit_unary_op(ASTNode *node) {
     fprintf(output_file, "%s", node->value);
     emit_node(node->children[0]);
+}
 
-    break;
-
-  case AST_TERNARY_OP:
+static void emit_ternary_op(ASTNode *node) {
     fprintf(output_file, "(");
     emit_node(node->children[0]);
     fprintf(output_file, " ? ");
@@ -2289,287 +2377,235 @@ static void emit_node(ASTNode *node) {
     fprintf(output_file, " : ");
     emit_node(node->children[2]);
     fprintf(output_file, ")");
-    break;
+}
 
-  case AST_CALL:
-    if (node->child_count < 1)
-      break; 
-    // Child 0 is the callee (the function name or expression)
-    emit_node(node->children[0]);
+static void emit_call(ASTNode *node) {
+    if (node->child_count < 1) return;
+    
+    emit_node(node->children[0]);  // Function name/expression
     fprintf(output_file, "(");
-    // Children 1 to N are the arguments
+    
     for (int i = 1; i < node->child_count; i++) {
         if (node->children[i]) {
-          if (i > 1)
-            fprintf(output_file, ", ");
-          emit_node(node->children[i]);
-          }
+            if (i > 1) fprintf(output_file, ", ");
+            emit_node(node->children[i]);
+        }
     }
     fprintf(output_file, ")");
-    break;
+}
 
-  case AST_IDENTIFIER:
+static void emit_identifier(ASTNode *node) {
     fprintf(output_file, "%s", node->value);
-    break;
+}
 
-  case AST_NUMBER:
+static void emit_number(ASTNode *node) {
     fprintf(output_file, "%s", node->value);
-    break;
+}
 
-  case AST_STRING:
+static void emit_string(ASTNode *node) {
     fprintf(output_file, "\"%s\"", node->value);
-    break;
+}
 
-  case AST_CHARACTER:
+static void emit_character(ASTNode *node) {
     fprintf(output_file, "'%s'", node->value);
-    break;
+}
 
-  case AST_SIZEOF:
+static void emit_sizeof(ASTNode *node) {
     fprintf(output_file, "sizeof(");
     if (node->child_count > 0) {
-      ASTNode *child = node->children[0];
-      // Special case: if base name is "let", it's a type specifier not a
-      // variable
-      if (strcmp(child->value, "let") == 0 &&
-          child->suffix_info.type != TYPE_VOID) {
-        fprintf(output_file, "%s", get_c_type(&child->suffix_info));
-      } else {
-        // It's a real variable or struct name - emit it directly
-        const char *type_name = type_table_lookup(codegen_type_table, child->value);
-        fprintf(output_file, "%s", type_name ? type_name : child->value);
-      }
+        ASTNode *child = node->children[0];
+        if (strcmp(child->value, "let") == 0 && child->suffix_info.type != TYPE_VOID) {
+            fprintf(output_file, "%s", get_c_type(&child->suffix_info));
+        } else {
+            const char *type_name = type_table_lookup(codegen_type_table, child->value);
+            fprintf(output_file, "%s", type_name ? type_name : child->value);
+        }
     }
     fprintf(output_file, ")");
-    break;
+}
 
-  case AST_STRUCT_DEF:
-    // Check for forward declaration (no children)
+static void emit_struct_def(ASTNode *node) {
     if (node->child_count == 0) {
-      fprintf(output_file, "struct %s;", node->value);
-      break;
+        fprintf(output_file, "struct %s;", node->value);
+        return;
     }
-
+    
     fprintf(output_file, "typedef struct %s %s;\n", node->value, node->value);
     fprintf(output_file, "struct %s {\n", node->value);
+    
     for (int i = 0; i < node->child_count; i++) {
-      ASTNode *member = node->children[i];
-      if (member->type == AST_VAR_DECL) {
-        
-        
-        fprintf(output_file, "    %s %s", get_c_type(&member->suffix_info),
-                member->value);
-
-        
-        
-        if (member->child_count > 0) {
-          fprintf(output_file, "[");
-          emit_node(member->children[0]); 
-          fprintf(output_file, "]");
+        ASTNode *member = node->children[i];
+        if (member->type == AST_VAR_DECL) {
+            fprintf(output_file, "    %s %s", 
+                    get_c_type(&member->suffix_info), member->value);
+            
+            if (member->child_count > 0) {
+                fprintf(output_file, "[");
+                emit_node(member->children[0]);
+                fprintf(output_file, "]");
+            }
+            fprintf(output_file, ";\n");
+            
+        } else if (member->type == AST_FUNC_PTR_DECL) {
+            fprintf(output_file, "    ");
+            emit_node(member);
         }
-
-        
-        fprintf(output_file, ";\n");
-
-      } else if (member->type == AST_FUNC_PTR_DECL) {
-        
-        emit_node(member);
-      }
     }
     fprintf(output_file, "};");
-    break;
-  case AST_FUNC_PTR_DECL:
-    if (node->child_count < 1)
-      break; // Invalid signature
+}
 
-    // Child 0 is the return type
+static void emit_union_def(ASTNode *node) {
+    if (node->child_count == 0) {
+        fprintf(output_file, "union %s;", node->value);
+        return;
+    }
+    
+    fprintf(output_file, "typedef union %s %s;\n", node->value, node->value);
+    fprintf(output_file, "union %s {\n", node->value);
+    
+    for (int i = 0; i < node->child_count; i++) {
+        ASTNode *member = node->children[i];
+        if (member->type == AST_VAR_DECL) {
+            fprintf(output_file, "    %s %s", 
+                    get_c_type(&member->suffix_info), member->value);
+            
+            if (member->child_count > 0) {
+                fprintf(output_file, "[");
+                emit_node(member->children[0]);
+                fprintf(output_file, "]");
+            }
+            fprintf(output_file, ";\n");
+            
+        } else if (member->type == AST_FUNC_PTR_DECL) {
+            fprintf(output_file, "    ");
+            emit_node(member);
+        }
+    }
+    fprintf(output_file, "};");
+}
+
+static void emit_enum_def(ASTNode *node) {
+    fprintf(output_file, "typedef enum %s {\n", node->value);
+    for (int i = 0; i < node->child_count; i++) {
+        ASTNode *member = node->children[i];
+        if (member->type == AST_ENUM_VALUE) {
+            emit_node(member);
+            if (i < node->child_count - 1) {
+                fprintf(output_file, ",");
+            }
+            fprintf(output_file, "\n");
+        }
+    }
+    fprintf(output_file, "} %s;", node->value);
+}
+
+static void emit_enum_value(ASTNode *node) {
+    fprintf(output_file, "    %s", node->value);
+    if (node->child_count > 0) {
+        fprintf(output_file, " = ");
+        emit_node(node->children[0]);
+    }
+}
+
+static void emit_func_ptr_decl(ASTNode *node) {
+    if (node->child_count < 1) return;
+    
     const char *return_type = get_c_type(&node->children[0]->suffix_info);
     fprintf(output_file, "%s (*%s)(", return_type, node->value);
-
-    // Children 1..N are the parameter types
+    
     for (int i = 1; i < node->child_count; i++) {
-      if (i > 1)
-        fprintf(output_file, ", ");
-      const char *param_type = get_c_type(&node->children[i]->suffix_info);
-      fprintf(output_file, "%s", param_type);
+        if (i > 1) fprintf(output_file, ", ");
+        const char *param_type = get_c_type(&node->children[i]->suffix_info);
+        fprintf(output_file, "%s", param_type);
     }
-    // Handle case of no parameters (e.g. func(void))
-    if (node->child_count == 1) {
-      if (node->children[0]->suffix_info.type != TYPE_VOID) {
+    
+    if (node->child_count == 1 && node->children[0]->suffix_info.type != TYPE_VOID) {
         fprintf(output_file, "void");
-      }
     }
     fprintf(output_file, ");\n");
-    break;
+}
 
-  case AST_TYPEDEF:
-    emit_typedef(node);
-    break;
-  case AST_SUBSCRIPT:
+static void emit_subscript(ASTNode *node) {
     emit_node(node->children[0]);
     fprintf(output_file, "[");
     emit_node(node->children[1]);
     fprintf(output_file, "]");
-    break;
+}
 
-  case AST_MEMBER_ACCESS:
+static void emit_member_access(ASTNode *node) {
     emit_node(node->children[0]);
     fprintf(output_file, "%s", node->value);
     emit_node(node->children[1]);
-    break;
+}
 
-  case AST_INITIALIZER_LIST:
+static void emit_initializer_list(ASTNode *node) {
     fprintf(output_file, "{ ");
     for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]) {
-          emit_node(node->children[i]);
-          if (i < node->child_count - 1) {
-            fprintf(output_file, ", ");
-          }
+            emit_node(node->children[i]);
+            if (i < node->child_count - 1) {
+                fprintf(output_file, ", ");
+            }
         }
     }
     fprintf(output_file, " }");
-    break;
-
-  case AST_EXPRESSION:
-    if (node->child_count > 0)
-      emit_node(node->children[0]);
-    break;
-
-  case AST_PASSTHROUGH:
-    fprintf(output_file, "%s", node->value);
-    break;
-
-  case AST_NULL:
-    fprintf(output_file, "NULL");
-    break;
-
-  case AST_CAST:
-    fprintf(output_file, "(");
-    fprintf(output_file, "%s", get_c_type(&node->suffix_info));
-    fprintf(output_file, ")");
-    emit_node(node->children[0]);
-    break;
-  case AST_UNION_DEF:
-    // Check for forward declaration (no children)
-    if (node->child_count == 0) {
-      fprintf(output_file, "union %s;", node->value);
-      break;
-    }
-
-    fprintf(output_file, "typedef union %s %s;\n", node->value, node->value);
-    fprintf(output_file, "union %s {\n", node->value);
-    for (int i = 0; i < node->child_count; i++) {
-      ASTNode *member = node->children[i];
-      if (member->type == AST_VAR_DECL) {
-        fprintf(output_file, "    %s %s", get_c_type(&member->suffix_info),
-                member->value);
-        
-        if (member->child_count > 0) {
-          fprintf(output_file, "[");
-          emit_node(member->children[0]);
-          fprintf(output_file, "]");
-        }
-        
-        fprintf(output_file, ";\n");
-        
-      } else if (member->type == AST_FUNC_PTR_DECL) {
-        fprintf(output_file, "    ");
-        emit_node(member);
-      }
-    }
-    fprintf(output_file, "};");
-    break;
-
-  case AST_ENUM_DEF:
-    fprintf(output_file, "typedef enum %s {\n", node->value);
-    for (int i = 0; i < node->child_count; i++) {
-      ASTNode *member = node->children[i];
-      if (member->type == AST_ENUM_VALUE) {
-        fprintf(output_file, "    %s", member->value);
-        // If there's an explicit value
-        if (member->child_count > 0) {
-          fprintf(output_file, " = ");
-          emit_node(member->children[0]);
-        }
-        // Add comma except for last item
-        if (i < node->child_count - 1) {
-          fprintf(output_file, ",");
-        }
-        fprintf(output_file, "\n");
-      }
-    }
-    fprintf(output_file, "} %s;", node->value);
-    break;
-
-  case AST_POSTFIX_OP:
-    emit_node(node->children[0]);  
-    fprintf(output_file, "%s", node->value);  
-    break;
-  default:
-    if (node->child_count > 0) {
-      if (node->type == AST_EXPRESSION) {
-        emit_node(node->children[0]);
-      }
-    }
-    break;
-  }
 }
 
-FuncDecl *collect_functions(ASTNode *node, FuncDecl *list) {
-  if (!node) return list;
-  
-  if (node->type == AST_FUNCTION) {
-    FuncDecl *decl = arena_alloc(sizeof(FuncDecl));
-    decl->name = clone_string(node->value);
-    decl->return_type = node->suffix_info;
-    decl->params = node->child_count > 0 ? node->children[0] : NULL;
-    decl->next = list;
-    return decl;
-  }
-  
-  
-  for (int i = 0; i < node->child_count; i++) {
-    list = collect_functions(node->children[i], list);
-  }
-  return list;
+static void emit_expression(ASTNode *node) {
+    if (node->child_count > 0) {
+        emit_node(node->children[0]);
+    }
+}
+
+static void emit_passthrough(ASTNode *node) {
+    fprintf(output_file, "%s", node->value);
+}
+
+static void emit_cast(ASTNode *node) {
+    fprintf(output_file, "(%s)", get_c_type(&node->suffix_info));
+    emit_node(node->children[0]);
+}
+
+static void emit_postfix_op(ASTNode *node) {
+    emit_node(node->children[0]);
+    fprintf(output_file, "%s", node->value);
 }
 
 void emit_forward_declarations(FuncDecl *decls, FILE *out) {
-  fprintf(out, "// Forward declarations\n");
-  
-  for (FuncDecl *d = decls; d; d = d->next) {
-    const char *return_type = get_c_type(&d->return_type);
-    fprintf(out, "%s %s(", return_type, d->name);
+    fprintf(out, "// Forward declarations\n");
     
-    if (d->params && d->params->child_count > 0) {
-      for (int i = 0; i < d->params->child_count; i++) {
-        if (i > 0) fprintf(out, ", ");
-        ASTNode *param = d->params->children[i];
+    for (FuncDecl *d = decls; d; d = d->next) {
+        const char *return_type = get_c_type(&d->return_type);
+        fprintf(out, "%s %s(", return_type, d->name);
         
-        
-        if (param->suffix_info.type == TYPE_ARRAY) {
-          const char *base_type = "void";
-          switch (param->suffix_info.array_base_type) {
-            case TYPE_INT: base_type = "int"; break;
-            case TYPE_FLOAT: base_type = "float"; break;
-            case TYPE_CHAR: base_type = "char"; break;
-            case TYPE_USER:
-              if (param->suffix_info.array_user_type_name) {
-                base_type = param->suffix_info.array_user_type_name;
-              }
-              break;
-            default: break;
-          }
-          fprintf(out, "%s* %s", base_type, param->value);
-        } else {
-          const char *param_type = get_c_type(&param->suffix_info);
-          fprintf(out, "%s %s", param_type, param->value);
+        if (d->params && d->params->child_count > 0) {
+            for (int i = 0; i < d->params->child_count; i++) {
+                if (i > 0) fprintf(out, ", ");
+                ASTNode *param = d->params->children[i];
+                
+                if (param->suffix_info.type == TYPE_ARRAY) {
+                    const char *base_type = "void";
+                    switch (param->suffix_info.array_base_type) {
+                        case TYPE_INT: base_type = "int"; break;
+                        case TYPE_FLOAT: base_type = "float"; break;
+                        case TYPE_CHAR: base_type = "char"; break;
+                        case TYPE_USER:
+                            if (param->suffix_info.array_user_type_name) {
+                                base_type = param->suffix_info.array_user_type_name;
+                            }
+                            break;
+                        default: break;
+                    }
+                    fprintf(out, "%s* %s", base_type, param->value);
+                } else {
+                    const char *param_type = get_c_type(&param->suffix_info);
+                    fprintf(out, "%s %s", param_type, param->value);
+                }
+            }
         }
-      }
+        fprintf(out, ");\n");
     }
-    fprintf(out, ");\n");
-  }
-  fprintf(out, "\n");
+    fprintf(out, "\n");
 }
 
 void codegen(ASTNode *ast, const TypeTable *table, FILE *out) {
