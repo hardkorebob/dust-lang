@@ -13,8 +13,6 @@ typedef struct Arena {
     size_t used;
 } Arena;
 
-static Arena g_arena = {0};
-
 // =============
 // TYPE TABLE - 
 // =============
@@ -93,6 +91,7 @@ typedef struct {
   TypedefInfo *typedefs;
   size_t typedef_count;
   size_t typedef_capacity;
+  Arena type_arena;
 } TypeTable;
 
 typedef struct {
@@ -128,32 +127,13 @@ static const TypeMapping type_map[] = {
     {TYPE_UINTPTR,    "uintptr_t"},
     {TYPE_INTPTR,     "intptr_t"},
     {TYPE_SIZE,       "size_t"},
-    {TYPE_SSIZE,      "ssize_t"},
     {TYPE_OFF,        "off_t"},
-    
-    {TYPE_PHYS_ADDR,  "phys_addr_t"},
-    {TYPE_VIRT_ADDR,  "virt_addr_t"},
-    {TYPE_PTE,        "pte_t"},
-    {TYPE_PDE,        "pde_t"},
-    {TYPE_PFN,        "pfn_t"},
-    {TYPE_PORT,       "port_t"},
-    {TYPE_MMIO,       "void*"},       
-    {TYPE_VOLATILE,   "volatile void*"},
-    {TYPE_IRQ,        "irq_t"},
-    {TYPE_VECTOR,     "vector_t"},
-    {TYPE_ISR_PTR,    "isr_t"},
-    
-    {TYPE_ATOMIC_U32, "_Atomic uint32_t"},
-    {TYPE_ATOMIC_U64, "_Atomic uint64_t"},
-    {TYPE_ATOMIC_PTR, "_Atomic void*"},
-    
+
     {TYPE_VOID,       NULL}
 };
 
 static const SuffixMapping suffix_table[] = {
     {"i",   TYPE_INT,    ROLE_NONE,   false, false},
-    {"bl",  TYPE_INT,    ROLE_NONE,   false, false}, // bool as int
-    {"st",  TYPE_SIZE_T, ROLE_NONE,   false, false},
     {"f",   TYPE_FLOAT,  ROLE_NONE,   false, false},
     {"c",   TYPE_CHAR,   ROLE_NONE,   false, false},
     {"s",   TYPE_STRING, ROLE_NONE,   true,  false},
@@ -179,8 +159,7 @@ static const SuffixMapping suffix_table[] = {
 
     {"ux",   TYPE_UINTPTR, ROLE_NONE,   false, false},  
     {"ix",   TYPE_INTPTR,  ROLE_NONE,   false, false},  
-    {"sz",   TYPE_SIZE,    ROLE_NONE,   false, false},  
-    {"ssz",  TYPE_SSIZE,   ROLE_NONE,   false, false},  
+    {"st",   TYPE_SIZE,    ROLE_NONE,   false, false},    
     {"off",  TYPE_OFF,     ROLE_NONE,   false, false},  
  
     {"vp",   TYPE_VOID,    ROLE_OWNED,  true,  false},  
@@ -215,8 +194,7 @@ static void print_suffix_help(void) {
     printf("\nARCHITECTURE TYPES:\n");
     printf("  ux    - uintptr_t (native word)\n");
     printf("  ix    - intptr_t\n");
-    printf("  sz    - size_t\n");
-    printf("  ssz   - ssize_t\n");
+    printf("  st    - size_t\n");
     printf("  off   - off_t\n");
     
     printf("\nPOINTER SUFFIXES:\n");
@@ -257,7 +235,55 @@ static void print_suffix_help(void) {
 void *arena_alloc(size_t size);
 void arena_init(size_t size);
 void arena_free_all(void);
+/* TypeTable Arena */
+/* Initialize a dedicated arena for a specific size */
+static void arena_init_custom(Arena *arena, size_t size) {
+    arena->data = malloc(size);
+    if (!arena->data) {
+        fprintf(stderr, "Failed to allocate arena\n");
+        exit(1);
+    }
+    arena->size = size;
+    arena->used = 0;
+}
 
+/* Allocate from a specific arena */
+static void *arena_alloc_from(Arena *arena, size_t size) {
+    size = (size + 7) & ~7;  // 8-byte alignment
+    
+    if (arena->used + size > arena->size) {
+        fprintf(stderr, "Arena out of memory (used: %zu, requested: %zu, total: %zu)\n", 
+                arena->used, size, arena->size);
+        exit(1);
+    }
+    
+    void *ptr = arena->data + arena->used;
+    arena->used += size;
+    memset(ptr, 0, size);
+    return ptr;
+}
+
+/* Clone string using specific arena */
+static char *clone_string_to_arena(Arena *arena, const char *str) {
+    if (!str) return NULL;
+    size_t len = strlen(str) + 1;
+    char *new_str = arena_alloc_from(arena, len);
+    memcpy(new_str, str, len);
+    return new_str;
+}
+
+/* Free a specific arena */
+static void arena_free(Arena *arena) {
+    if (arena->data) {
+        free(arena->data);
+        arena->data = NULL;
+        arena->size = 0;
+        arena->used = 0;
+    }
+}
+
+// Global Arena
+static Arena g_arena = {0};
 void arena_init(size_t size) {
     g_arena.data = malloc(size);
     if (!g_arena.data) {
@@ -316,31 +342,53 @@ char *clone_string_malloc(const char *str) {
 /* Create new type table */
 TypeTable *type_table_create(void) {
   TypeTable *table = malloc(sizeof(TypeTable));
+ arena_init_custom(&table->type_arena, 1024 * 1024 * 5);
+  
   table->struct_capacity = 8;
   table->struct_count = 0;
-  table->struct_names = arena_alloc(sizeof(char *) * table->struct_capacity);
+  table->struct_names = arena_alloc_from(&table->type_arena, sizeof(char *) * table->struct_capacity);
+  
   table->typedef_capacity = 8;
   table->typedef_count = 0;
-  table->typedefs = malloc(sizeof(TypedefInfo) * table->typedef_capacity);
+  table->typedefs = arena_alloc_from(&table->type_arena, sizeof(TypedefInfo) * table->typedef_capacity);
+  
   return table;
 }
 
+/* Destroy type table and free its arena */
+void type_table_destroy(TypeTable *table) {
+    if (table) {
+        arena_free(&table->type_arena);
+        free(table);
+    }
+}
+
 bool type_table_add(TypeTable *table, const char *type_name) {
+  // Check for duplicates
   for (size_t i = 0; i < table->struct_count; i++) {
     if (strcmp(table->struct_names[i], type_name) == 0) {
       return true;
     }
   }
+  
+  // Grow array if needed
   if (table->struct_count >= table->struct_capacity) {
-    table->struct_capacity *= 2;
-    table->struct_names = realloc(table->struct_names, sizeof(char *) * table->struct_capacity);
+    size_t new_capacity = table->struct_capacity * 2;
+    char **new_names = arena_alloc_from(&table->type_arena, sizeof(char *) * new_capacity);
+    
+    // Copy existing pointers
+    memcpy(new_names, table->struct_names, sizeof(char *) * table->struct_count);
+    
+    table->struct_names = new_names;
+    table->struct_capacity = new_capacity;
   }
-  table->struct_names[table->struct_count++] = clone_string_malloc(type_name);
+  
+  // Clone string to type table's arena
+  table->struct_names[table->struct_count++] = clone_string_to_arena(&table->type_arena, type_name);
   return true;
 }
 
 bool type_table_add_enum(TypeTable *table, const char *enum_name) {
-  // For now, enums are tracked the same as structs 
   return type_table_add(table, enum_name);
 }
 
@@ -354,18 +402,39 @@ const char *type_table_lookup(const TypeTable *table, const char *type_name) {
 }
 
 bool type_table_add_typedef(TypeTable *table, const char *name, const SuffixInfo *type_info) {
+  // Check for duplicates
   for (size_t i = 0; i < table->typedef_count; i++) {
     if (strcmp(table->typedefs[i].name, name) == 0) {
       return false;
     }
   }
 
+  // Grow array if needed
   if (table->typedef_count >= table->typedef_capacity) {
-    table->typedef_capacity *= 2;
-    table->typedefs = realloc(table->typedefs, sizeof(TypedefInfo) * table->typedef_capacity);
+    size_t new_capacity = table->typedef_capacity * 2;
+    TypedefInfo *new_typedefs = arena_alloc_from(&table->type_arena, sizeof(TypedefInfo) * new_capacity);
+    
+    // Copy existing typedef info
+    memcpy(new_typedefs, table->typedefs, sizeof(TypedefInfo) * table->typedef_count);
+    
+    table->typedefs = new_typedefs;
+    table->typedef_capacity = new_capacity;
   }
-  table->typedefs[table->typedef_count].name = clone_string_malloc(name);
+  
+  // Clone string to type table's arena
+  table->typedefs[table->typedef_count].name = clone_string_to_arena(&table->type_arena, name);
   table->typedefs[table->typedef_count].type_info = *type_info;
+  
+  // Clone user type names if present
+  if (type_info->user_type_name) {
+    table->typedefs[table->typedef_count].type_info.user_type_name = 
+        clone_string_to_arena(&table->type_arena, type_info->user_type_name);
+  }
+  if (type_info->array_user_type_name) {
+    table->typedefs[table->typedef_count].type_info.array_user_type_name = 
+        clone_string_to_arena(&table->type_arena, type_info->array_user_type_name);
+  }
+  
   table->typedef_count++;
   return true;
 }
@@ -2637,7 +2706,7 @@ int main(int argc, char **argv) {
   codegen(ast, type_table, out);
   fclose(out);
   printf("Successfully compiled '%s' to '%s'\n", argv[1], outname);
-
+  type_table_destroy(type_table);
   arena_free_all();
   return 0;
 }

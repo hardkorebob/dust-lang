@@ -83,9 +83,9 @@ printf("a - b = %d\n", (a - b));
 printf("a * b = %d\n", (a * b));
 printf("a / b = %d\n", (a / b));
 printf("a %% b = %d\n", (a % b));
-int is_equal = (a == 10);
-int is_not_equal = (b != 4);
-if ((is_equal && !is_not_equal)) {
+void is_equal_bl = (a == 10);
+void is_not_equal_bl = (b != 4);
+if ((is_equal_bl && !is_not_equal_bl)) {
 printf("Logical operators work!\n");
 }
 }

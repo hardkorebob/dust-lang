@@ -9,7 +9,7 @@ struct Player {
     uint32_t health;
     char* name;
     int inventory[10];
-    int active;
+    void active_bl;
 };
 typedef enum GameState {
     MENU = 0,
@@ -69,15 +69,15 @@ int pre = ++a;
 int post = b++;
 --a;
 b--;
-int eq = (a == b);
-int neq = (a != b);
-int lt = (a < b);
-int gt = (a > b);
-int lte = (a <= b);
-int gte = (a >= b);
-int and = ((a > 5) && (b < 10));
-int or = ((a > 5) || (b < 10));
-int not = !(a == b);
+void eq_bl = (a == b);
+void neq_bl = (a != b);
+void lt_bl = (a < b);
+void gt_bl = (a > b);
+void lte_bl = (a <= b);
+void gte_bl = (a >= b);
+void and_bl = ((a > 5) && (b < 10));
+void or_bl = ((a > 5) || (b < 10));
+void not_bl = !(a == b);
 int max = ((a > b) ? a : b);
 printf("Operators test complete\n");
 }
