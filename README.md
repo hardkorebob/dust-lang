@@ -342,8 +342,10 @@ Just naming... And names are powerful!
 ---
 **HAHAHA! Never has my jaw dropped more...are you guys joking?**
 
+_Rust folk say: There are no strict hardware requirements:_
+
 RUST REQUIREMENTS:
-There are no strict hardware requirements: 
+
 
  - 30GB+ of free disk space. 
  - 8GB+ RAM
