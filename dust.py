@@ -1,15 +1,14 @@
-# dust_editor_acme.py
+#!/usr/bin/env python3
 import tkinter as tk
 from tkinter import ttk, scrolledtext, filedialog, messagebox
-import re
+from re import finditer
 import subprocess
 import os
-import threading
 
 class DustEditor:
     def __init__(self, root):
         self.root = root
-        self.root.title("Dust Editor - Acme-style")
+        self.root.title("Dustme")
         
         # Acme editor color scheme
         self.colors = {
@@ -20,15 +19,7 @@ class DustEditor:
             'listbox_bg': '#ffffea',    # Listbox background
             'listbox_fg': '#000000',    # Listbox text
             'listbox_select': '#eeeea0', # Listbox selection
-            # Syntax highlighting colors
-            'keyword': '#0000ff',       # Blue for keywords
-            'type': '#008080',          # Teal for types
-            'string': '#008000',        # Green for strings
-            'comment': '#808080',       # Gray for comments
-            'number': '#800080',        # Purple for numbers
-            'function': '#800000',      # Maroon for functions
-            'suffix': '#006060',        # Dark teal for suffixes
-            'output_bg': '#f0f0e0',     # Output pane background
+            'output_bg': '#ffffea'
         }
         
         # Mouse chord tracking
@@ -52,7 +43,6 @@ class DustEditor:
         self.suffix_categories = {
             'Primitives': [
                 ('i', 'int'),
-                ('bl', 'bool'), 
                 ('f', 'float'),
                 ('c', 'char'),
                 ('s', 'string (char*)'),
@@ -144,7 +134,7 @@ class DustEditor:
             width=4,
             padx=3,
             takefocus=0,
-            font=('Iosevka', 10),
+            font=('Iosevka', 12),
             bg=self.colors['status_bg'],
             fg=self.colors['fg'],
             state='disabled'
@@ -157,7 +147,7 @@ class DustEditor:
             wrap=tk.NONE,
             width=80,
             height=20,
-            font=('Iosevka', 10),
+            font=('Iosevka', 14),
             undo=True,
             bg=self.colors['bg'],
             fg=self.colors['fg'],
@@ -216,23 +206,11 @@ class DustEditor:
         # Status bar
         self.status = ttk.Label(self.root, text="Ready", relief=tk.SUNKEN)
         self.status.pack(fill=tk.X, side=tk.BOTTOM)
-        
-        # Configure syntax highlighting tags
-        self.configure_tags()
+       
         
         # Initial update
         self.update_line_numbers()
-        
-    def configure_tags(self):
-        """Configure text tags for syntax highlighting"""
-        self.text.tag_configure("keyword", foreground=self.colors['keyword'], font=('Iosevka', 10, 'bold'))
-        self.text.tag_configure("type", foreground=self.colors['type'])
-        self.text.tag_configure("string", foreground=self.colors['string'])
-        self.text.tag_configure("comment", foreground=self.colors['comment'], font=('Iosevka', 10, 'italic'))
-        self.text.tag_configure("number", foreground=self.colors['number'])
-        self.text.tag_configure("function", foreground=self.colors['function'], font=('Iosevka', 10, 'bold'))
-        self.text.tag_configure("suffix", foreground=self.colors['suffix'])
-        self.text.tag_configure("search_highlight", background='#ffff00')
+       
         
     # Mouse chord implementation
     def on_left_press(self, event):
@@ -365,7 +343,6 @@ class DustEditor:
     def on_text_change(self, event=None):
         """Handle text changes"""
         self.update_line_numbers()
-        self.highlight_syntax()
         
     def update_line_numbers(self):
         """Update line numbers display"""
@@ -377,91 +354,24 @@ class DustEditor:
         line_numbers_string = "\n".join(str(i) for i in range(1, line_count))
         self.line_numbers.insert('1.0', line_numbers_string)
         self.line_numbers.config(state='disabled')
-        
-    def highlight_syntax(self):
-        """Apply syntax highlighting to the text"""
-        # Remove all tags
-        for tag in ["keyword", "type", "string", "comment", "number", "function", "suffix"]:
-            self.text.tag_remove(tag, "1.0", tk.END)
-        
-        content = self.text.get("1.0", tk.END)
-        
-        # Highlight comments (// until end of line)
-        for match in re.finditer(r'//.*$', content, re.MULTILINE):
-            start = f"1.0+{match.start()}c"
-            end = f"1.0+{match.end()}c"
-            self.text.tag_add("comment", start, end)
-        
-        # Highlight strings
-        for match in re.finditer(r'"[^"\\]*(\\.[^"\\]*)*"', content):
-            start = f"1.0+{match.start()}c"
-            end = f"1.0+{match.end()}c"
-            self.text.tag_add("string", start, end)
-            
-        # Highlight character literals
-        for match in re.finditer(r"'[^'\\]*(\\.[^'\\]*)*'", content):
-            start = f"1.0+{match.start()}c"
-            end = f"1.0+{match.end()}c"
-            self.text.tag_add("string", start, end)
-        
-        # Highlight numbers (including hex)
-        for match in re.finditer(r'\b(0x[0-9a-fA-F]+|\d+\.?\d*)\b', content):
-            start = f"1.0+{match.start()}c"
-            end = f"1.0+{match.end()}c"
-            self.text.tag_add("number", start, end)
-        
-        # Highlight keywords
-        for keyword in self.keywords:
-            pattern = r'\b' + keyword + r'\b'
-            for match in re.finditer(pattern, content):
-                start = f"1.0+{match.start()}c"
-                end = f"1.0+{match.end()}c"
-                self.text.tag_add("keyword", start, end)
-        
-        # Highlight function definitions (func name_suffix)
-        for match in re.finditer(r'\bfunc\s+(\w+)', content):
-            func_start = f"1.0+{match.start(1)}c"
-            func_end = f"1.0+{match.end(1)}c"
-            self.text.tag_add("function", func_start, func_end)
-        
-        # Highlight Dust suffixes (identifier_suffix pattern)
-        for match in re.finditer(r'\b(\w+)_([a-zA-Z0-9]+)\b', content):
-            suffix_start = f"1.0+{match.start(2)}c"
-            suffix_end = f"1.0+{match.end(2)}c"
-            self.text.tag_add("suffix", suffix_start, suffix_end)
-            
-        # Highlight common types
-        types = ['void', 'int', 'float', 'char', 'bool', 'size_t', 
-                 'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t',
-                 'int8_t', 'int16_t', 'int32_t', 'int64_t']
-        for type_name in types:
-            pattern = r'\b' + type_name + r'\b'
-            for match in re.finditer(pattern, content):
-                start = f"1.0+{match.start()}c"
-                end = f"1.0+{match.end()}c"
-                self.text.tag_add("type", start, end)
     
     def get_word_at_cursor(self):
-        """Get the word at cursor position"""
-        insert = self.text.index(tk.INSERT)
+        """Get the word at cursor position, respecting proper boundaries."""
+        # Find the start of the word by moving backward
+        start_pos = self.text.search(r"\s", tk.INSERT, backwards=True, regexp=True)
+        if not start_pos:
+            start_pos = "1.0"
+        else:
+            start_pos = f"{start_pos}+1c" # Move one char forward from the space
+
+        # Find the end of the word by moving forward
+        end_pos = self.text.search(r"\s", tk.INSERT, forwards=True, regexp=True)
+        if not end_pos:
+            end_pos = tk.END
         
-        # Find word boundaries
-        start = insert
-        while True:
-            prev_char = self.text.get(f"{start} -1c", start)
-            if not prev_char or not (prev_char.isalnum() or prev_char == '_'):
-                break
-            start = f"{start} -1c"
-            
-        end = insert
-        while True:
-            next_char = self.text.get(end, f"{end} +1c")
-            if not next_char or not (next_char.isalnum() or next_char == '_'):
-                break
-            end = f"{end} +1c"
-            
-        word = self.text.get(start, end)
-        return word, start, end
+        word = self.text.get(start_pos, end_pos).strip()
+        # Return precise start/end for replacement
+        return word, start_pos, end_pos
     
     def show_completions(self, event):
         """Show suffix completion popup"""
@@ -553,7 +463,7 @@ class DustEditor:
                 frame,
                 height=min(len(suffixes), 10),
                 width=40,
-                font=('Iosevka', 9),
+                font=('Iosevka', 10),
                 bg=self.colors['listbox_bg'],
                 fg=self.colors['listbox_fg'],
                 selectbackground=self.colors['listbox_select']
@@ -627,10 +537,13 @@ class DustEditor:
         return "break"
     
     def hide_completions(self, event=None):
-        """Hide completion window"""
+        """Hide completion window and return focus to the text editor."""
         if self.suffix_window:
             self.suffix_window.destroy()
             self.suffix_window = None
+        
+        self.text.focus_set() 
+        
         return "break"
     
     def new_file(self):
@@ -834,6 +747,7 @@ class DustEditor:
                 if os.path.exists(exe_file):
                     self.output_log("")
                     self.run_program()
+
 
 if __name__ == "__main__":
     root = tk.Tk()
