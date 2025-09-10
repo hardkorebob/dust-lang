@@ -355,4 +355,4 @@ DUST REQUIREMENTS:
  
  - 10MB of free disk space 
  - Computer not older than 2005
- - 25MB RAM
+ - 20MB RAM
