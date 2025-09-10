@@ -1,437 +1,835 @@
-# dust_editor_refactored.py
+# dust_editor_acme.py
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, filedialog, messagebox
 import re
+import subprocess
+import os
+import threading
 
 class DustEditor:
     def __init__(self, root):
         self.root = root
-        self.root.title("Dust Editor - Shift+Space for suffix completion")
+        self.root.title("Dust Editor - Acme-style")
         
         # Acme editor color scheme
         self.colors = {
-            'bg': '#ffffea',      # Pale yellow background
-            'fg': '#000000',      # Black text
-            'select_bg': '#d0d0d0', # Light gray selection
-            'status_bg': '#e8e8e8', # Status bar background
-            'listbox_bg': '#ffffea', # Listbox background
-            'listbox_fg': '#000000', # Listbox text
-            'listbox_select': '#d0d0d0', # Listbox selection
+            'bg': '#ffffea',           # Pale yellow background
+            'fg': '#000000',            # Black text
+            'select_bg': '#eeeea0',     # Slightly darker yellow selection
+            'status_bg': '#e8e8d8',     # Status bar background
+            'listbox_bg': '#ffffea',    # Listbox background
+            'listbox_fg': '#000000',    # Listbox text
+            'listbox_select': '#eeeea0', # Listbox selection
+            # Syntax highlighting colors
+            'keyword': '#0000ff',       # Blue for keywords
+            'type': '#008080',          # Teal for types
+            'string': '#008000',        # Green for strings
+            'comment': '#808080',       # Gray for comments
+            'number': '#800080',        # Purple for numbers
+            'function': '#800000',      # Maroon for functions
+            'suffix': '#006060',        # Dark teal for suffixes
+            'output_bg': '#f0f0e0',     # Output pane background
         }
+        
+        # Mouse chord tracking
+        self.left_pressed = False
+        self.left_press_pos = None
+        self.selection_start = None
         
         # Configure style
         self.style = ttk.Style()
         self.style.configure('TFrame', background=self.colors['bg'])
         self.style.configure('TLabel', background=self.colors['status_bg'], foreground=self.colors['fg'])
         
-        # Common Dust suffixes organized by category
-        self.suffix_categories = {
-            'Primitives': {
-                'i ': 'int',
-                'bl ': 'bool', 
-                'f ': 'float',
-                'c ': 'char',
-                's ': 'string (char*)',
-                'v ': 'void',
-            },
-            'Pointers': {
-                'ip ': 'int pointer',
-                'cp ': 'char pointer',
-                'vp ': 'void pointer',
-                'fp ': 'function pointer',
-                'p ': 'owned pointer (suffix)',
-                'b ': 'borrowed pointer (suffix)',
-                'r ': 'reference pointer (suffix)',
-            },
-            'Arrays': {
-                'ia ': 'int array',
-                'ca ': 'char array',
-                'u8a ': 'uint8_t array',
-            },
-            'Fixed-width': {
-                'u8 ': 'uint8_t',
-                'u16 ': 'uint16_t',
-                'u32 ': 'uint32_t',
-                'u64 ': 'uint64_t',
-                'st ': 'size_t',
-                'ux ': 'uintptr_t',
-            }
+        # Dust keywords
+        self.keywords = {
+            'if', 'else', 'while', 'do', 'for', 'return', 'break', 'continue',
+            'func', 'let', 'struct', 'sizeof', 'switch', 'case', 'default',
+            'typedef', 'cast', 'null', 'enum', 'static', 'extern', 'union'
         }
         
-        # Flatten suffixes for easy access
-        self.suffixes = {k: v for category in self.suffix_categories.values() for k, v in category.items()}
+        # Common Dust suffixes organized by category
+        self.suffix_categories = {
+            'Primitives': [
+                ('i', 'int'),
+                ('bl', 'bool'), 
+                ('f', 'float'),
+                ('c', 'char'),
+                ('s', 'string (char*)'),
+                ('v', 'void'),
+            ],
+            'Pointers': [
+                ('ip', 'int pointer'),
+                ('cp', 'char pointer'),
+                ('vp', 'void pointer'),
+                ('fp', 'function pointer'),
+                ('sp', 'string pointer'),
+                ('b', 'borrowed pointer (const)'),
+                ('r', 'reference pointer (const)'),
+            ],
+            'Arrays': [
+                ('ia', 'int array'),
+                ('ca', 'char array'),
+                ('fa', 'float array'),
+                ('u8a', 'uint8_t array'),
+                ('u16a', 'uint16_t array'),
+                ('u32a', 'uint32_t array'),
+            ],
+            'Fixed-width': [
+                ('u8', 'uint8_t'),
+                ('u16', 'uint16_t'),
+                ('u32', 'uint32_t'),
+                ('u64', 'uint64_t'),
+                ('i8', 'int8_t'),
+                ('i16', 'int16_t'),
+                ('i32', 'int32_t'),
+                ('i64', 'int64_t'),
+            ],
+            'System': [
+                ('st', 'size_t'),
+                ('ux', 'uintptr_t'),
+                ('ix', 'intptr_t'),
+                ('off', 'off_t'),
+            ]
+        }
         
         self.suffix_window = None
+        self.current_file = None
         self.setup_ui()
         
     def setup_ui(self):
         # Configure root background
         self.root.configure(bg=self.colors['bg'])
         
-        # Menu frame
-        menu_frame = ttk.Frame(self.root)
-        menu_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Menu bar
+        menubar = tk.Menu(self.root, bg=self.colors['bg'])
+        self.root.config(menu=menubar)
         
-        ttk.Label(menu_frame, text="Type identifier_ then Shift+Space for suffix completion").pack(side=tk.LEFT)
+        # File menu
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="File", menu=file_menu)
+        file_menu.add_command(label="New", command=self.new_file, accelerator="Ctrl+N")
+        file_menu.add_command(label="Open...", command=self.open_file, accelerator="Ctrl+O")
+        file_menu.add_command(label="Save", command=self.save_file, accelerator="Ctrl+S")
+        file_menu.add_command(label="Save As...", command=self.save_as_file)
+        file_menu.add_separator()
+        file_menu.add_command(label="Exit", command=self.root.quit)
         
-        # Text editor
+        # Build menu
+        build_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Build", menu=build_menu)
+        build_menu.add_command(label="Compile to C (dustc)", command=self.compile_dust, accelerator="F5")
+        build_menu.add_command(label="Compile to executable (gcc)", command=self.compile_to_exe, accelerator="F6")
+        build_menu.add_command(label="Run", command=self.run_program, accelerator="F7")
+        build_menu.add_separator()
+        build_menu.add_command(label="Full Build & Run", command=self.full_build_run, accelerator="F8")
+        
+        # Info frame
+        info_frame = ttk.Frame(self.root)
+        info_frame.pack(fill=tk.X, padx=5, pady=2)
+        
+        info_label = ttk.Label(info_frame, text="Mouse: L+M=cut, L+R=paste, R=find next | Keys: Shift+Space=suffix, F5=dustc, F6=gcc, F7=run, F8=all")
+        info_label.pack(side=tk.LEFT)
+        
+        # Main paned window for editor and output
+        main_paned = tk.PanedWindow(self.root, orient=tk.VERTICAL, bg=self.colors['bg'])
+        main_paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Editor pane
+        editor_frame = tk.Frame(main_paned, bg=self.colors['bg'])
+        
+        # Line numbers
+        self.line_numbers = tk.Text(
+            editor_frame,
+            width=4,
+            padx=3,
+            takefocus=0,
+            font=('Iosevka', 10),
+            bg=self.colors['status_bg'],
+            fg=self.colors['fg'],
+            state='disabled'
+        )
+        self.line_numbers.pack(side=tk.LEFT, fill=tk.Y)
+        
+        # Main text editor
         self.text = scrolledtext.ScrolledText(
-            self.root, 
-            wrap=tk.WORD,
+            editor_frame, 
+            wrap=tk.NONE,
             width=80,
-            height=30,
-            font=('DejaVu Sans Mono', 10),  # Monospace font similar to Acme
+            height=20,
+            font=('Iosevka', 10),
             undo=True,
             bg=self.colors['bg'],
             fg=self.colors['fg'],
-            insertbackground=self.colors['fg'],  # Cursor color
+            insertbackground=self.colors['fg'],
             selectbackground=self.colors['select_bg']
         )
-        self.text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        main_paned.add(editor_frame)
+        
+        # Output pane
+        output_frame = tk.Frame(main_paned, bg=self.colors['bg'])
+        
+        output_label = tk.Label(output_frame, text="Output:", bg=self.colors['bg'], fg=self.colors['fg'], anchor='w')
+        output_label.pack(fill=tk.X)
+        
+        self.output_text = scrolledtext.ScrolledText(
+            output_frame,
+            wrap=tk.WORD,
+            width=80,
+            height=10,
+            font=('Iosevka', 9),
+            bg=self.colors['output_bg'],
+            fg=self.colors['fg'],
+            state='disabled'
+        )
+        self.output_text.pack(fill=tk.BOTH, expand=True)
+        
+        main_paned.add(output_frame)
+        
+        # Set initial sash position (70% for editor, 30% for output)
+        self.root.update()
+        main_paned.sash_place(0, 0, 400)
         
         # Bind keys
         self.text.bind('<Shift-space>', self.show_completions)
+        self.text.bind('<KeyRelease>', self.on_text_change)
+        
+        # Mouse chord bindings
+        self.text.bind('<Button-1>', self.on_left_press)
+        self.text.bind('<B1-Motion>', self.on_left_drag)
+        self.text.bind('<ButtonRelease-1>', self.on_left_release)
+        self.text.bind('<Button-2>', self.on_middle_click)  # Middle button
+        self.text.bind('<Button-3>', self.on_right_click)   # Right button
+        
+        # Keyboard shortcuts
+        self.root.bind('<Control-n>', lambda e: self.new_file())
+        self.root.bind('<Control-o>', lambda e: self.open_file())
+        self.root.bind('<Control-s>', lambda e: self.save_file())
+        self.root.bind('<F5>', lambda e: self.compile_dust())
+        self.root.bind('<F6>', lambda e: self.compile_to_exe())
+        self.root.bind('<F7>', lambda e: self.run_program())
+        self.root.bind('<F8>', lambda e: self.full_build_run())
         self.root.bind('<Escape>', self.hide_completions)
-        self.root.bind('<Return>', self.select_completion)
-        self.text.bind('<KeyRelease>', self._on_key_release)
         
         # Status bar
         self.status = ttk.Label(self.root, text="Ready", relief=tk.SUNKEN)
         self.status.pack(fill=tk.X, side=tk.BOTTOM)
         
-        # Configure tags for syntax highlighting
-        self._configure_text_tags()
+        # Configure syntax highlighting tags
+        self.configure_tags()
         
-    def _configure_text_tags(self):
+        # Initial update
+        self.update_line_numbers()
+        
+    def configure_tags(self):
         """Configure text tags for syntax highlighting"""
-        # Comment highlighting
-        self.text.tag_configure("comment", foreground="#505050")
-        # String highlighting
-        self.text.tag_configure("string", foreground="#007f00")
+        self.text.tag_configure("keyword", foreground=self.colors['keyword'], font=('Iosevka', 10, 'bold'))
+        self.text.tag_configure("type", foreground=self.colors['type'])
+        self.text.tag_configure("string", foreground=self.colors['string'])
+        self.text.tag_configure("comment", foreground=self.colors['comment'], font=('Iosevka', 10, 'italic'))
+        self.text.tag_configure("number", foreground=self.colors['number'])
+        self.text.tag_configure("function", foreground=self.colors['function'], font=('Iosevka', 10, 'bold'))
+        self.text.tag_configure("suffix", foreground=self.colors['suffix'])
+        self.text.tag_configure("search_highlight", background='#ffff00')
         
-    def _on_key_release(self, event):
-        """Handle syntax highlighting on key release"""
-        self._highlight_syntax()
+    # Mouse chord implementation
+    def on_left_press(self, event):
+        """Handle left button press"""
+        self.left_pressed = True
+        self.left_press_pos = self.text.index(f"@{event.x},{event.y}")
+        self.selection_start = self.left_press_pos
+        return "break"
+    
+    def on_left_drag(self, event):
+        """Handle left button drag for selection"""
+        if self.left_pressed:
+            current_pos = self.text.index(f"@{event.x},{event.y}")
+            self.text.tag_remove('sel', '1.0', tk.END)
+            self.text.tag_add('sel', self.selection_start, current_pos)
+        return "break"
+    
+    def on_left_release(self, event):
+        """Handle left button release"""
+        self.left_pressed = False
+        return "break"
+    
+    def on_middle_click(self, event):
+        """Handle middle button - cut if left is pressed, otherwise paste from clipboard"""
+        if self.left_pressed:
+            # Cut operation (chord: left + middle)
+            try:
+                selected_text = self.text.get('sel.first', 'sel.last')
+                self.root.clipboard_clear()
+                self.root.clipboard_append(selected_text)
+                self.text.delete('sel.first', 'sel.last')
+                self.output_log("Cut text to clipboard")
+            except tk.TclError:
+                pass  # No selection
+        else:
+            # Regular paste from system clipboard
+            try:
+                text = self.root.clipboard_get()
+                self.text.insert(tk.INSERT, text)
+                self.output_log("Pasted from clipboard")
+            except tk.TclError:
+                pass
+        return "break"
+    
+    def on_right_click(self, event):
+        """Handle right button - paste if left pressed, otherwise find next occurrence"""
+        if self.left_pressed:
+            # Paste operation (chord: left + right)
+            try:
+                text = self.root.clipboard_get()
+                self.text.insert(tk.INSERT, text)
+                self.output_log("Pasted text")
+            except tk.TclError:
+                pass
+        else:
+            # Find next occurrence of word under cursor
+            pos = self.text.index(f"@{event.x},{event.y}")
+            word = self.get_word_at_position(pos)
+            if word:
+                self.find_next(word, pos)
+        return "break"
+    
+    def get_word_at_position(self, pos):
+        """Get word at given position"""
+        # Find word boundaries
+        start = pos
+        while True:
+            prev_char = self.text.get(f"{start} -1c", start)
+            if not prev_char or not (prev_char.isalnum() or prev_char == '_'):
+                break
+            start = f"{start} -1c"
+            
+        end = pos
+        while True:
+            next_char = self.text.get(end, f"{end} +1c")
+            if not next_char or not (next_char.isalnum() or next_char == '_'):
+                break
+            end = f"{end} +1c"
+            
+        word = self.text.get(start, end)
+        return word if word else None
+    
+    def find_next(self, word, start_pos):
+        """Find next occurrence of word"""
+        # Clear previous highlights
+        self.text.tag_remove('search_highlight', '1.0', tk.END)
         
-    def _highlight_syntax(self):
-        """Basic syntax highlighting for comments and strings"""
-        # Remove previous tags
-        self.text.tag_remove("comment", "1.0", tk.END)
-        self.text.tag_remove("string", "1.0", tk.END)
+        # Search from current position
+        pos = self.text.search(word, f"{start_pos} +1c", tk.END)
+        if not pos:
+            # Wrap around to beginning
+            pos = self.text.search(word, '1.0', start_pos)
         
-        # Get all text
-        text_content = self.text.get("1.0", tk.END)
+        if pos:
+            end_pos = f"{pos} +{len(word)}c"
+            self.text.tag_add('search_highlight', pos, end_pos)
+            self.text.see(pos)
+            self.text.mark_set(tk.INSERT, pos)
+            self.output_log(f"Found '{word}' at {pos}")
+        else:
+            self.output_log(f"'{word}' not found")
+    
+    def output_log(self, message):
+        """Add message to output pane"""
+        self.output_text.config(state='normal')
+        self.output_text.insert(tk.END, f"{message}\n")
+        self.output_text.see(tk.END)
+        self.output_text.config(state='disabled')
+        self.status.config(text=message)
+    
+    def output_clear(self):
+        """Clear output pane"""
+        self.output_text.config(state='normal')
+        self.output_text.delete('1.0', tk.END)
+        self.output_text.config(state='disabled')
+    
+    def on_text_change(self, event=None):
+        """Handle text changes"""
+        self.update_line_numbers()
+        self.highlight_syntax()
+        
+    def update_line_numbers(self):
+        """Update line numbers display"""
+        self.line_numbers.config(state='normal')
+        self.line_numbers.delete('1.0', tk.END)
+        
+        # Count lines
+        line_count = self.text.get('1.0', tk.END).count('\n')
+        line_numbers_string = "\n".join(str(i) for i in range(1, line_count))
+        self.line_numbers.insert('1.0', line_numbers_string)
+        self.line_numbers.config(state='disabled')
+        
+    def highlight_syntax(self):
+        """Apply syntax highlighting to the text"""
+        # Remove all tags
+        for tag in ["keyword", "type", "string", "comment", "number", "function", "suffix"]:
+            self.text.tag_remove(tag, "1.0", tk.END)
+        
+        content = self.text.get("1.0", tk.END)
         
         # Highlight comments (// until end of line)
-        for match in re.finditer(r"//.*", text_content):
+        for match in re.finditer(r'//.*$', content, re.MULTILINE):
             start = f"1.0+{match.start()}c"
             end = f"1.0+{match.end()}c"
             self.text.tag_add("comment", start, end)
-            
-        # Highlight strings (between double quotes)
-        for match in re.finditer(r"\".*?\"", text_content):
+        
+        # Highlight strings
+        for match in re.finditer(r'"[^"\\]*(\\.[^"\\]*)*"', content):
             start = f"1.0+{match.start()}c"
             end = f"1.0+{match.end()}c"
             self.text.tag_add("string", start, end)
-    
-    def get_current_word(self):
-        """Get the word at cursor position"""
-        try:
-            insert_pos = self.text.index(tk.INSERT)
-            line_num, col_num = map(int, insert_pos.split('.'))
             
-            # Get the current line text
-            line_start = f"{line_num}.0"
-            line_end = f"{line_num}.end"
-            line_text = self.text.get(line_start, line_end)
-            
-            # Find word at cursor position
-            if col_num > len(line_text):
-                col_num = len(line_text)
-                
-            # Find start of word
-            start_col = col_num
-            while start_col > 0 and (line_text[start_col-1].isalnum() or line_text[start_col-1] == '_'):
-                start_col -= 1
-                
-            # Get the word
-            word = line_text[start_col:col_num]
-            word_start = f"{line_num}.{start_col}"
-            word_end = f"{line_num}.{col_num}"
-            
-            return word, word_start, word_end
-            
-        except Exception as e:
-            print(f"Error getting word: {e}")
-            return "", insert_pos, insert_pos
+        # Highlight character literals
+        for match in re.finditer(r"'[^'\\]*(\\.[^'\\]*)*'", content):
+            start = f"1.0+{match.start()}c"
+            end = f"1.0+{match.end()}c"
+            self.text.tag_add("string", start, end)
         
+        # Highlight numbers (including hex)
+        for match in re.finditer(r'\b(0x[0-9a-fA-F]+|\d+\.?\d*)\b', content):
+            start = f"1.0+{match.start()}c"
+            end = f"1.0+{match.end()}c"
+            self.text.tag_add("number", start, end)
+        
+        # Highlight keywords
+        for keyword in self.keywords:
+            pattern = r'\b' + keyword + r'\b'
+            for match in re.finditer(pattern, content):
+                start = f"1.0+{match.start()}c"
+                end = f"1.0+{match.end()}c"
+                self.text.tag_add("keyword", start, end)
+        
+        # Highlight function definitions (func name_suffix)
+        for match in re.finditer(r'\bfunc\s+(\w+)', content):
+            func_start = f"1.0+{match.start(1)}c"
+            func_end = f"1.0+{match.end(1)}c"
+            self.text.tag_add("function", func_start, func_end)
+        
+        # Highlight Dust suffixes (identifier_suffix pattern)
+        for match in re.finditer(r'\b(\w+)_([a-zA-Z0-9]+)\b', content):
+            suffix_start = f"1.0+{match.start(2)}c"
+            suffix_end = f"1.0+{match.end(2)}c"
+            self.text.tag_add("suffix", suffix_start, suffix_end)
+            
+        # Highlight common types
+        types = ['void', 'int', 'float', 'char', 'bool', 'size_t', 
+                 'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t',
+                 'int8_t', 'int16_t', 'int32_t', 'int64_t']
+        for type_name in types:
+            pattern = r'\b' + type_name + r'\b'
+            for match in re.finditer(pattern, content):
+                start = f"1.0+{match.start()}c"
+                end = f"1.0+{match.end()}c"
+                self.text.tag_add("type", start, end)
+    
+    def get_word_at_cursor(self):
+        """Get the word at cursor position"""
+        insert = self.text.index(tk.INSERT)
+        
+        # Find word boundaries
+        start = insert
+        while True:
+            prev_char = self.text.get(f"{start} -1c", start)
+            if not prev_char or not (prev_char.isalnum() or prev_char == '_'):
+                break
+            start = f"{start} -1c"
+            
+        end = insert
+        while True:
+            next_char = self.text.get(end, f"{end} +1c")
+            if not next_char or not (next_char.isalnum() or next_char == '_'):
+                break
+            end = f"{end} +1c"
+            
+        word = self.text.get(start, end)
+        return word, start, end
+    
     def show_completions(self, event):
         """Show suffix completion popup"""
-        # Clean up any existing window first
         self.hide_completions()
         
-        word, start_pos, end_pos = self.get_current_word()
+        word, start_pos, end_pos = self.get_word_at_cursor()
         
         if not word or not word.endswith('_'):
-            self.status.config(text="Type identifier_ first")
+            self.output_log("Type identifier_ first (with underscore)")
             return "break"
-            
-        base_word = word[:-1]  # Remove trailing underscore
         
-        # Build suffix list
+        base_word = word[:-1]  # Remove trailing underscore
+        self.completion_base = word
+        self.completion_start = start_pos
+        self.completion_end = end_pos
+        
+        # Create completion window
+        self.suffix_window = tk.Toplevel(self.root)
+        self.suffix_window.wm_overrideredirect(True)
+        self.suffix_window.configure(bg=self.colors['bg'])
+        
+        # Position near cursor
+        bbox = self.text.bbox(tk.INSERT)
+        if bbox:
+            x = self.text.winfo_rootx() + bbox[0]
+            y = self.text.winfo_rooty() + bbox[1] + bbox[3]
+        else:
+            x = self.root.winfo_x() + 100
+            y = self.root.winfo_y() + 100
+        
+        # Check if it's a user-defined type (starts with capital)
         if base_word and base_word[0].isupper():
             # User-defined type suffixes
-            suffixes = [
-                (f'{word}{base_word}', f'{base_word} instance'),
-                (f'{word}{base_word}p', f'{base_word}* (owned)'),
-                (f'{word}{base_word}b', f'const {base_word}* (borrowed)'),
-                (f'{word}{base_word}r', f'const {base_word}* (reference)'),
-                (f'{word}{base_word}a', f'{base_word} array'),
-            ]
-            category_name = "User-defined Types"
-            categorized_suffixes = {category_name: dict(suffixes)}
+            self.create_simple_completion_list([
+                (f'{base_word}', f'{base_word} instance'),
+                (f'{base_word}p', f'{base_word}* (owned pointer)'),
+                (f'{base_word}b', f'const {base_word}* (borrowed)'),
+                (f'{base_word}r', f'const {base_word}* (reference)'),
+                (f'{base_word}a', f'{base_word} array'),
+            ])
         else:
-            # Regular suffixes
-            categorized_suffixes = self.suffix_categories
-            
-        self.show_suffix_menu(categorized_suffixes, start_pos, end_pos)
+            # Standard suffixes with categories
+            self.create_categorized_completion_list()
         
-    def hide_completions(self, event=None):
-        """Hide the completion window and unbind navigation keys"""
-        try:
-            # Unbind navigation keys
-            self.text.unbind('<Up>')
-            self.text.unbind('<Down>')
-            self.text.unbind('<Return>')
+        self.suffix_window.geometry(f"+{x}+{y}")
+        return "break"
+    
+    def create_simple_completion_list(self, completions):
+        """Create a simple completion list for user-defined types"""
+        listbox = tk.Listbox(
+            self.suffix_window,
+            height=min(len(completions), 10),
+            width=40,
+            font=('Iosevka', 9),
+            bg=self.colors['listbox_bg'],
+            fg=self.colors['listbox_fg'],
+            selectbackground=self.colors['listbox_select']
+        )
+        listbox.pack(padx=2, pady=2)
+        
+        self.completion_items = []
+        for suffix, desc in completions:
+            display = f"{suffix:<15} - {desc}"
+            listbox.insert(tk.END, display)
+            self.completion_items.append(suffix)
+        
+        listbox.selection_set(0)
+        listbox.bind('<Double-Button-1>', self.insert_completion)
+        listbox.bind('<Return>', self.insert_completion)
+        listbox.bind('<Up>', lambda e: self.navigate_list(listbox, -1))
+        listbox.bind('<Down>', lambda e: self.navigate_list(listbox, 1))
+        listbox.focus_set()
+        
+        self.current_listbox = listbox
+    
+    def create_categorized_completion_list(self):
+        """Create categorized completion list"""
+        notebook = ttk.Notebook(self.suffix_window)
+        notebook.pack(padx=2, pady=2)
+        
+        self.category_listboxes = {}
+        self.category_items = {}
+        
+        for category, suffixes in self.suffix_categories.items():
+            frame = ttk.Frame(notebook)
+            notebook.add(frame, text=category)
             
-            if self.suffix_window:
-                self.suffix_window.destroy()
-        except:
-            pass
-        finally:
+            listbox = tk.Listbox(
+                frame,
+                height=min(len(suffixes), 10),
+                width=40,
+                font=('Iosevka', 9),
+                bg=self.colors['listbox_bg'],
+                fg=self.colors['listbox_fg'],
+                selectbackground=self.colors['listbox_select']
+            )
+            listbox.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+            
+            items = []
+            for suffix, desc in suffixes:
+                display = f"{suffix:<8} - {desc}"
+                listbox.insert(tk.END, display)
+                items.append(suffix)
+            
+            self.category_listboxes[category] = listbox
+            self.category_items[category] = items
+            
+            listbox.selection_set(0)
+            listbox.bind('<Double-Button-1>', lambda e, cat=category: self.insert_categorized_completion(cat))
+            listbox.bind('<Return>', lambda e, cat=category: self.insert_categorized_completion(cat))
+            
+        # Focus first tab
+        if self.category_listboxes:
+            first_cat = list(self.category_listboxes.keys())[0]
+            self.category_listboxes[first_cat].focus_set()
+    
+    def navigate_list(self, listbox, direction):
+        """Navigate in listbox"""
+        current = listbox.curselection()
+        if current:
+            idx = current[0]
+            new_idx = max(0, min(listbox.size() - 1, idx + direction))
+            listbox.selection_clear(0, tk.END)
+            listbox.selection_set(new_idx)
+            listbox.see(new_idx)
+        return "break"
+    
+    def insert_completion(self, event=None):
+        """Insert simple completion"""
+        if not hasattr(self, 'current_listbox'):
+            return
+            
+        selection = self.current_listbox.curselection()
+        if selection:
+            idx = selection[0]
+            suffix = self.completion_items[idx]
+            
+            # Replace the word with base_suffix
+            self.text.delete(self.completion_start, self.completion_end)
+            self.text.insert(self.completion_start, self.completion_base + suffix)
+            
+            self.output_log(f"Inserted: {self.completion_base}{suffix}")
+        
+        self.hide_completions()
+        return "break"
+    
+    def insert_categorized_completion(self, category):
+        """Insert categorized completion"""
+        listbox = self.category_listboxes[category]
+        selection = listbox.curselection()
+        
+        if selection:
+            idx = selection[0]
+            suffix = self.category_items[category][idx]
+            
+            # Replace the word
+            self.text.delete(self.completion_start, self.completion_end)
+            self.text.insert(self.completion_start, self.completion_base + suffix)
+            
+            self.output_log(f"Inserted: {self.completion_base}{suffix}")
+        
+        self.hide_completions()
+        return "break"
+    
+    def hide_completions(self, event=None):
+        """Hide completion window"""
+        if self.suffix_window:
+            self.suffix_window.destroy()
             self.suffix_window = None
         return "break"
-
-    def show_suffix_menu(self, categorized_suffixes, start_pos, end_pos):
-        """Display categorized suffix selection menu"""
+    
+    def new_file(self):
+        """Create new file"""
+        self.text.delete('1.0', tk.END)
+        self.current_file = None
+        self.root.title("Dust Editor - New File")
+        self.output_log("New file created")
+    
+    def open_file(self):
+        """Open a Dust file"""
+        filename = filedialog.askopenfilename(
+            defaultextension=".dust",
+            filetypes=[("Dust files", "*.dust"), ("C files", "*.c"), ("All files", "*.*")]
+        )
+        if filename:
+            try:
+                with open(filename, 'r') as f:
+                    content = f.read()
+                self.text.delete('1.0', tk.END)
+                self.text.insert('1.0', content)
+                self.current_file = filename
+                self.root.title(f"Dust Editor - {os.path.basename(filename)}")
+                self.output_log(f"Opened: {filename}")
+                self.on_text_change()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to open file: {e}")
+    
+    def save_file(self):
+        """Save current file"""
+        if self.current_file:
+            self.save_to_file(self.current_file)
+        else:
+            self.save_as_file()
+    
+    def save_as_file(self):
+        """Save with new name"""
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".dust",
+            filetypes=[("Dust files", "*.dust"), ("C files", "*.c"), ("All files", "*.*")]
+        )
+        if filename:
+            self.save_to_file(filename)
+            self.current_file = filename
+            self.root.title(f"Dust Editor - {os.path.basename(filename)}")
+    
+    def save_to_file(self, filename):
+        """Save content to file"""
         try:
-            self.suffix_window = tk.Toplevel(self.root)
-            self.suffix_window.wm_overrideredirect(True)
-            self.suffix_window.wm_attributes("-topmost", True)
-            self.suffix_window.configure(bg=self.colors['bg'])
+            content = self.text.get('1.0', tk.END)
+            with open(filename, 'w') as f:
+                f.write(content)
+            self.output_log(f"Saved: {filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save file: {e}")
+    
+    def compile_dust(self):
+        """Compile Dust to C using dustc"""
+        if not self.current_file:
+            self.output_log("Please save the file first")
+            return
+        
+        if not self.current_file.endswith('.dust'):
+            self.output_log("Not a .dust file")
+            return
+        
+        self.save_file()
+        self.output_clear()
+        self.output_log("Compiling with dustc...")
+        
+        try:
+            result = subprocess.run(
+                ['./dustc', self.current_file],
+                capture_output=True,
+                text=True,
+                cwd=os.path.dirname(self.current_file) or '.'
+            )
             
-            # Store data for later use
-            self.current_start = start_pos
-            self.current_end = end_pos
-            
-            # Position near text cursor
-            bbox = self.text.bbox(tk.INSERT)
-            if bbox:
-                x = self.text.winfo_rootx() + bbox[0]
-                y = self.text.winfo_rooty() + bbox[1] + bbox[3]
+            if result.stdout:
+                self.output_log(result.stdout)
+            if result.stderr:
+                self.output_log(result.stderr)
+                
+            if result.returncode == 0:
+                c_file = self.current_file.replace('.dust', '.c')
+                self.output_log(f"✓ Compiled to {os.path.basename(c_file)}")
             else:
-                x = self.root.winfo_x() + 100
-                y = self.root.winfo_y() + 100
+                self.output_log("✗ Compilation failed")
                 
-            # Create notebook with categories
-            notebook = ttk.Notebook(self.suffix_window)
-            notebook.pack(padx=2, pady=2)
-            
-            # Create a frame for each category
-            self.category_frames = {}
-            self.category_listboxes = {}
-            self.all_suffixes = []  # Flat list of all suffixes for navigation
-            
-            for category_name, suffixes in categorized_suffixes.items():
-                frame = ttk.Frame(notebook)
-                self.category_frames[category_name] = frame
-                notebook.add(frame, text=category_name)
-                
-                # Create listbox for this category
-                listbox = tk.Listbox(
-                    frame,
-                    height=min(len(suffixes), 10),
-                    width=50,
-                    font=('DejaVu Sans Mono', 9),
-                    selectmode=tk.SINGLE,
-                    activestyle='dotbox',
-                    bg=self.colors['listbox_bg'],
-                    fg=self.colors['listbox_fg'],
-                    selectbackground=self.colors['listbox_select']
-                )
-                
-                # Add scrollbar if needed
-                if len(suffixes) > 10:
-                    scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=listbox.yview)
-                    listbox.configure(yscrollcommand=scrollbar.set)
-                    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-                
-                listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-                self.category_listboxes[category_name] = listbox
-                
-                # Add items to listbox
-                for suffix, description in suffixes.items():
-                    display = f"{suffix:<12} - {description}"
-                    listbox.insert(tk.END, display)
-                    self.all_suffixes.append((suffix, description, category_name))
-                
-                # Select first item
-                if suffixes:
-                    listbox.selection_set(0)
-                    listbox.activate(0)
-                
-                # Bind events
-                listbox.bind('<Double-Button-1>', self.select_completion)
-                listbox.bind('<Button-1>', self.on_listbox_click)
-            
-            # Position window
-            self.suffix_window.geometry(f"+{x}+{y}")
-            
-            # Bind navigation keys to the main text widget
-            self.text.bind('<Up>', self.navigate_up)
-            self.text.bind('<Down>', self.navigate_down)
-            self.text.bind('<Return>', self.select_completion)
-            self.text.bind('<Tab>', self.switch_category)
-            
+        except FileNotFoundError:
+            self.output_log("dustc not found. Make sure it's in the current directory or PATH")
         except Exception as e:
-            print(f"Error showing menu: {e}")
-            self.hide_completions()
-
-    def switch_category(self, event):
-        """Switch between categories using Tab key"""
-        if not self.suffix_window:
+            self.output_log(f"Error: {e}")
+    
+    def compile_to_exe(self):
+        """Compile C to executable using gcc"""
+        if not self.current_file:
+            self.output_log("No file loaded")
             return
-            
-        notebook = self.suffix_window.winfo_children()[0]
-        current_tab = notebook.index(notebook.select())
-        next_tab = (current_tab + 1) % len(notebook.tabs())
-        notebook.select(next_tab)
         
-        # Update selection in the new tab
-        category_name = notebook.tab(next_tab, "text")
-        listbox = self.category_listboxes[category_name]
-        listbox.selection_clear(0, tk.END)
-        listbox.selection_set(0)
-        listbox.activate(0)
-        
-        return "break"
-
-    def on_listbox_click(self, event):
-        """Handle single click on listbox"""
-        widget = event.widget
-        widget.selection_clear(0, tk.END)
-        widget.selection_set(widget.nearest(event.y))
-
-    def navigate_up(self, event):
-        """Navigate up in completion list"""
-        if not self.suffix_window:
-            return
-            
-        notebook = self.suffix_window.winfo_children()[0]
-        current_tab = notebook.index(notebook.select())
-        category_name = notebook.tab(current_tab, "text")
-        listbox = self.category_listboxes[category_name]
-        
-        current = listbox.curselection()
-        if not current:
-            listbox.selection_set(0)
+        # Determine C file
+        if self.current_file.endswith('.dust'):
+            c_file = self.current_file.replace('.dust', '.c')
+        elif self.current_file.endswith('.c'):
+            c_file = self.current_file
         else:
-            idx = current[0]
-            if idx > 0:
-                listbox.selection_clear(idx)
-                listbox.selection_set(idx - 1)
-                listbox.activate(idx - 1)
-                listbox.see(idx - 1)
-        return "break"
-
-    def navigate_down(self, event):
-        """Navigate down in completion list"""
-        if not self.suffix_window:
+            self.output_log("Not a .dust or .c file")
             return
-            
-        notebook = self.suffix_window.winfo_children()[0]
-        current_tab = notebook.index(notebook.select())
-        category_name = notebook.tab(current_tab, "text")
-        listbox = self.category_listboxes[category_name]
         
-        current = listbox.curselection()
-        if not current:
-            listbox.selection_set(0)
-        else:
-            idx = current[0]
-            if idx < listbox.size() - 1:
-                listbox.selection_clear(idx)
-                listbox.selection_set(idx + 1)
-                listbox.activate(idx + 1)
-                listbox.see(idx + 1)
-        return "break"
-
-    def select_completion(self, event=None):
-        """Insert selected completion"""
-        if not self.suffix_window:
+        if not os.path.exists(c_file):
+            self.output_log(f"C file not found: {c_file}")
+            self.output_log("Run dustc first (F5)")
             return
-            
+        
+        exe_file = c_file.replace('.c', '')
+        self.output_log(f"Compiling {os.path.basename(c_file)} with gcc...")
+        
         try:
-            notebook = self.suffix_window.winfo_children()[0]
-            current_tab = notebook.index(notebook.select())
-            category_name = notebook.tab(current_tab, "text")
-            listbox = self.category_listboxes[category_name]
+            result = subprocess.run(
+                ['gcc', '-o', exe_file, c_file, '-Wall', '-Wextra'],
+                capture_output=True,
+                text=True,
+                cwd=os.path.dirname(c_file) or '.'
+            )
             
-            selection = listbox.curselection()
-            if selection:
-                idx = selection[0]
-                suffix = list(list(self.suffix_categories[category_name].keys())[idx])
+            if result.stdout:
+                self.output_log(result.stdout)
+            if result.stderr:
+                self.output_log(result.stderr)
                 
-                # Replace word with completed version
-                self.text.delete(self.current_start, self.current_end)
-                self.text.insert(self.current_start, suffix)
+            if result.returncode == 0:
+                self.output_log(f"✓ Created executable: {os.path.basename(exe_file)}")
+            else:
+                self.output_log("✗ GCC compilation failed")
                 
-                # Move cursor to end of inserted text
-                new_pos = f"{self.current_start} +{len(suffix)}c"
-                self.text.mark_set(tk.INSERT, new_pos)
-                
-                self.status.config(text=f"Inserted: {suffix}")
-                
+        except FileNotFoundError:
+            self.output_log("gcc not found. Please install gcc")
         except Exception as e:
-            print(f"Error selecting: {e}")
-        finally:
-            self.hide_completions()
-        return "break"
+            self.output_log(f"Error: {e}")
+    
+    def run_program(self):
+        """Run the compiled executable"""
+        if not self.current_file:
+            self.output_log("No file loaded")
+            return
         
+        # Determine executable file
+        if self.current_file.endswith('.dust'):
+            exe_file = self.current_file.replace('.dust', '')
+        elif self.current_file.endswith('.c'):
+            exe_file = self.current_file.replace('.c', '')
+        else:
+            exe_file = self.current_file
+        
+        if not os.path.exists(exe_file):
+            self.output_log(f"Executable not found: {exe_file}")
+            self.output_log("Compile with gcc first (F6)")
+            return
+        
+        self.output_log(f"Running {os.path.basename(exe_file)}...")
+        self.output_log("-" * 40)
+        
+        try:
+            result = subprocess.run(
+                [f'./{os.path.basename(exe_file)}'],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                cwd=os.path.dirname(exe_file) or '.'
+            )
             
+            if result.stdout:
+                self.output_log(result.stdout)
+            if result.stderr:
+                self.output_log(f"[stderr] {result.stderr}")
+                
+            self.output_log("-" * 40)
+            self.output_log(f"Program exited with code: {result.returncode}")
+            
+        except subprocess.TimeoutExpired:
+            self.output_log("Program timed out after 5 seconds")
+        except Exception as e:
+            self.output_log(f"Error running program: {e}")
+    
+    def full_build_run(self):
+        """Full build and run pipeline"""
+        self.output_clear()
+        self.output_log("=== Full Build & Run ===")
+        
+        # Step 1: dustc
+        self.compile_dust()
+        
+        # Step 2: gcc (if dustc succeeded)
+        if self.current_file and self.current_file.endswith('.dust'):
+            c_file = self.current_file.replace('.dust', '.c')
+            if os.path.exists(c_file):
+                self.compile_to_exe()
+                
+                # Step 3: run (if gcc succeeded)
+                exe_file = c_file.replace('.c', '')
+                if os.path.exists(exe_file):
+                    self.output_log("")
+                    self.run_program()
+
 if __name__ == "__main__":
     root = tk.Tk()
     editor = DustEditor(root)
     
-    # Sample Dust code
-    sample_code = """// Dust Editor - Type 'name_' then Shift+Space
-func process_data(buf_: &Buffer, count_: i32) -> bool {
-    // Process the data buffer
-    let result_ = false;
-    let message_ = "Processing complete";
+    # Set initial size
+    root.geometry("1000x700")
     
-    if count_ > 0 {
-        for i in 0..count_ {
-            // Process each element
-            let element_ = buf_[i];
-            result_ = process_element(element_);
-        }
-    }
-    
-    return result_;
-}
-
-struct Player_ {
-    name_: String,
-    score_: i32,
-    active_: bool,
-}
-
-let player1_: Player_;
-let players_: [Player_; 10];
-"""
-    
-    editor.text.insert("1.0", sample_code)
-    editor._highlight_syntax()  # Apply syntax highlighting to sample code
+    # Focus on text editor
+    editor.text.focus()
     
     root.mainloop()
