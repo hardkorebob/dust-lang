@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -std=c99 -Wall -Wextra -g
+CFLAGS = -O2 -std=c99 -Wall -Wextra
 TARGET = dustc
 
 SRCS = dust.c
