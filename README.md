@@ -77,200 +77,127 @@ The Dust compiler leverages a **component-based system** to look up the correct 
 ---
 
 ```c
-// test_complete.dust - Comprehensive Dust language test
+// test_self_host.dust - Corrected version
 #include <stdio.h>
-#include <stdint.h>
-#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
-// Test struct definition
-struct Player {
-    x_i
-    y_i
-    health_u32
-    name_cp
-    inventory_ia[10]
-    active_bl
+struct Arena {
+    data_cp
+    size_st
+    used_st
 }
 
-// Test enum
-enum GameState {
-    MENU = 0,
-    PLAYING = 1,
-    PAUSED,
-    GAME_OVER
+
+let g_arena_Arena
+
+func arena_init_v(size_st) {
+    // FIX: Access members of the global struct directly.
+    g_arena_Arena.data_cp = malloc(size_st)
+    g_arena_Arena.size_st = size_st
+    g_arena_Arena.used_st = 0
 }
 
-// Test typedef
-typedef dummy_u32 Score
+func arena_alloc_vp(size_st) {
 
-// Test function returning int
-func add_i(a_i, b_i) {
-    return a_i + b_i
-}
-
-// Test function with array parameter
-func sum_array_i(arr_ia, size_st) {
-    let total_i = 0
-    for (let i_st = 0 ; i_st < size_st ; i_st++) {
-        total_i += arr_ia[i_st]
-    }
-    return total_i
-}
-
-// Test function with struct pointer
-func update_player_v(p_Playerp) {
-    p_Playerp->x++
-    p_Playerp->y++
-    p_Playerp->health -= 10
-}
-
-// Test all operators
-func test_operators_v() {
-    let a_i = 10
-    let b_i = 3
+    size_st = (size_st + 7) & ~7
     
-    // Arithmetic
-    let sum_i = a_i + b_i
-    let diff_i = a_i - b_i
-    let prod_i = a_i * b_i
-    let quot_i = a_i / b_i
-    let rem_i = a_i % b_i
-    
-    // Bitwise
-    let andd_i = a_i & b_i
-    let orr_i = a_i | b_i
-    let xor_i = a_i ^ b_i
-    let lshift_i = a_i << 2
-    let rshift_i = a_i >> 1
-    
-    // Compound assignments
-    a_i += 5
-    a_i -= 2
-    a_i *= 2
-    a_i /= 3
-    a_i &= 0xFF
-    a_i |= 0x10
-    a_i ^= 0x0F
-    a_i <<= 1
-    a_i >>= 1
-    
-    // Increment/Decrement
-    let pre_i = ++a_i
-    let post_i = b_i++
-    --a_i
-    b_i--
-    
-    // Comparison
-    let eq_bl = (a_i == b_i)
-    let neq_bl = (a_i != b_i)
-    let lt_bl = (a_i < b_i)
-    let gt_bl = (a_i > b_i)
-    let lte_bl = (a_i <= b_i)
-    let gte_bl = (a_i >= b_i)
-    
-    // Logical
-    let and_bl = (a_i > 5) && (b_i < 10)
-    let or_bl = (a_i > 5) || (b_i < 10)
-    let not_bl = !(a_i == b_i)
-    
-    // Ternary
-    let max_i = (a_i > b_i) ? a_i : b_i
-    
-    printf("Operators test complete\n")
-}
-
-// Test control flow
-func test_control_flow_v() {
-    let state_GameState = PLAYING_GameState
-    
-    // Switch on enum
-    switch (state_GameState) {
-        case MENU_GameState:
-            printf("In menu\n")
-            break
-        case PLAYING_GameState:
-            printf("Playing game\n")
-            break
-        case PAUSED_GameState:
-            printf("Game paused\n")
-            break
-        case GAME_OVER_GameState:
-            printf("Game over\n")
-            break
-        default:
-            printf("Unknown state\n")
+    if (g_arena_Arena.used_st + size_st > g_arena_Arena.size_st) {
+        fprintf(stderr, "Arena out of memory\n")
+        exit(1)
     }
     
-    // While loop
-    let count_i = 0
-    while (count_i < 5) {
-        count_i++
-    }
-    
-    // Do-while
-    do {
-        count_i--
-    } while (count_i > 0)
-    
-    // For loop
-    for (let i_i = 0 ; i_i < 10 ; i_i++) {
-        if (i_i == 5) {
-            continue
+    let ptr_vp = g_arena_Arena.data_cp + g_arena_Arena.used_st
+    g_arena_Arena.used_st = g_arena_Arena.used_st + size_st
+    memset(ptr_vp, 0, size_st)
+    return ptr_vp
+}
+
+func str_cmp_i(a_s, b_s) {
+    let i_st = 0
+    while (a_s[i_st] != '\0' && b_s[i_st] != '\0') {
+        if (a_s[i_st] != b_s[i_st]) {
+            return a_s[i_st] - b_s[i_st]
         }
-        if (i_i == 8) {
-            break
+        i_st = i_st + 1
+    }
+
+    return a_s[i_st] - b_s[i_st]
+}
+
+
+func emit_identifier_v(node_vp) {
+    fprintf(stdout, "%s", cast_s(node_vp))
+}
+
+func emit_number_v(node_vp) {
+    fprintf(stdout, "%s", cast_s(node_vp))
+}
+
+
+let emit_table_fpa[] = {
+    emit_identifier_v 
+    emit_number_v 
+    null
+    null
+}
+
+struct Lexer {
+    source_s
+    pos_i
+    len_i
+    line_i
+}
+
+
+func compile_i(source_s) {
+    let lex_Lexerp = arena_alloc_vp(sizeof(Lexer))
+    lex_Lexerp->source_s = source_s
+    lex_Lexerp->pos_i = 0
+    lex_Lexerp->len_i = strlen(source_s)
+    lex_Lexerp->line_i = 1
+    
+    let token_count_i = 0
+    
+    while (lex_Lexerp->pos_i < lex_Lexerp->len_i) {
+        let c_c = lex_Lexerp->source_s[lex_Lexerp->pos_i]
+        
+        if (isalpha(c_c)) {
+            while (isalnum(lex_Lexerp->source_s[lex_Lexerp->pos_i])) {
+                lex_Lexerp->pos_i = lex_Lexerp->pos_i + 1
+            }
+            token_count_i = token_count_i + 1
+        } else if (isdigit(c_c)) {
+            while (isdigit(lex_Lexerp->source_s[lex_Lexerp->pos_i])) {
+                lex_Lexerp->pos_i = lex_Lexerp->pos_i + 1
+            }
+            token_count_i = token_count_i + 1
+        } else {
+            lex_Lexerp->pos_i = lex_Lexerp->pos_i + 1
         }
     }
-}
-
-// Test arrays and pointers
-func test_arrays_v() {
-    let numbers_ia[5] = {1, 2, 3, 4, 5}
-    let buffer_u8a[256]
-    let message_ca = "Hello, Dust!"
-    
-    // Array indexing
-    numbers_ia[0] = 10
-    buffer_u8a[0] = 0xFF
-    
-    // Pointer arithmetic
-    let ptr_ip = &numbers_ia[0]
-    let val_i = *ptr_ip
-    ptr_ip++
-    
-    // String as char pointer
-    let name_s = "Dust Language"
-    let first_c = name_s[0]
+    return token_count_i
 }
 
 func main_i() {
-    printf("=== Dust Compiler Test Suite ===\n\n")
+    arena_init_v(1024 * 1024)
     
-    // Test basic operations
-    let result_i = add_i(5, 3)
-    printf("add(5, 3) = %d\n", result_i)
+    printf("Testing Dust compiler...\n");
+
+    let test_s = "func test_i() { return 42 }"
+    let tokens_i = compile_i(test_s)
     
-    // Test struct
-    let player_Player
-    player_Player.x = 100
-    player_Player.y = 200
-    player_Player.health = 100
-    player_Player.name = "Hero"
-    player_Player.active = 1
+    printf("Tokenized %d tokens\n", tokens_i)
     
-    printf("Player at (%d, %d) with %d health\n",player_Player.x, player_Player.y, player_Player.health)
+    if (emit_table_fpa[0] != null) {
+        printf("Dispatch table initialized\n")
+    }
     
-    update_player_v(&player_Player)
-    printf("After update: (%d, %d) with %d health\n",player_Player.x, player_Player.y, player_Player.health)
-    
-    // Test array operations
-    let nums_ia[3] = {10, 20, 30}
-    let sum_i = sum_array_i(nums_ia, 3)
-    printf("Array sum: %d\n", sum_i)
-    
-    // Run test suites
-    test_operators_v()
-    test_control_flow()
+    if (str_cmp_i("dust", "dust") == 0) {
+        printf("String comparison works\n")
+    }
+    return 0
 }
 ```
 

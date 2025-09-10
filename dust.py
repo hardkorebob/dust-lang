@@ -116,10 +116,7 @@ class DustEditor:
         
         # Info frame
         info_frame = ttk.Frame(self.root)
-        info_frame.pack(fill=tk.X, padx=5, pady=2)
-        
-        info_label = ttk.Label(info_frame, text="Mouse: L+M=cut, L+R=paste, R=find next | Keys: Shift+Space=suffix, F5=dustc, F6=gcc, F7=run, F8=all")
-        info_label.pack(side=tk.LEFT)
+        info_frame.pack(fill=tk.X, padx=5, pady=2) 
         
         # Main paned window for editor and output
         main_paned = tk.PanedWindow(self.root, orient=tk.VERTICAL, bg=self.colors['bg'])

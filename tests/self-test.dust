@@ -1,0 +1,125 @@
+// test_self_host.dust - Corrected version
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+struct Arena {
+    data_cp
+    size_st
+    used_st
+}
+
+// FIX: Declare the struct itself, not a pointer to it.
+let g_arena_Arena
+
+// Test arena functions
+func arena_init_v(size_st) {
+    // FIX: Access members of the global struct directly.
+    g_arena_Arena.data_cp = malloc(size_st)
+    g_arena_Arena.size_st = size_st
+    g_arena_Arena.used_st = 0
+}
+
+func arena_alloc_vp(size_st) {
+    // FIX: Modify the existing parameter, do not redeclare it.
+    size_st = (size_st + 7) & ~7
+    
+    if (g_arena_Arena.used_st + size_st > g_arena_Arena.size_st) {
+        fprintf(stderr, "Arena out of memory\n")
+        exit(1)
+    }
+    
+    let ptr_vp = g_arena_Arena.data_cp + g_arena_Arena.used_st
+    g_arena_Arena.used_st = g_arena_Arena.used_st + size_st
+    memset(ptr_vp, 0, size_st)
+    return ptr_vp
+}
+
+func str_cmp_i(a_s, b_s) {
+    let i_st = 0
+    while (a_s[i_st] != '\0' && b_s[i_st] != '\0') {
+        if (a_s[i_st] != b_s[i_st]) {
+            return a_s[i_st] - b_s[i_st]
+        }
+        i_st = i_st + 1
+    }
+    // FIX: Corrected typo from b_a to b_s.
+    return a_s[i_st] - b_s[i_st]
+}
+
+// Emission functions for dispatch table
+func emit_identifier_v(node_vp) {
+    fprintf(stdout, "%s", cast_s(node_vp))
+}
+
+func emit_number_v(node_vp) {
+    fprintf(stdout, "%s", cast_s(node_vp))
+}
+
+// Function pointer array (dispatch table)
+// FIX: Corrected initializer syntax (no extra braces).
+let emit_table_fpa[] = {
+    emit_identifier_v 
+    emit_number_v 
+    null
+    null
+}
+
+struct Lexer {
+    source_s
+    pos_i
+    len_i
+    line_i
+}
+
+// Main compiler-like structure
+func compile_i(source_s) {
+    let lex_Lexerp = arena_alloc_vp(sizeof(Lexer))
+    lex_Lexerp->source_s = source_s
+    lex_Lexerp->pos_i = 0
+    lex_Lexerp->len_i = strlen(source_s)
+    lex_Lexerp->line_i = 1
+    
+    let token_count_i = 0
+    
+    while (lex_Lexerp->pos_i < lex_Lexerp->len_i) {
+        let c_c = lex_Lexerp->source_s[lex_Lexerp->pos_i]
+        
+        if (isalpha(c_c)) {
+            while (isalnum(lex_Lexerp->source_s[lex_Lexerp->pos_i])) {
+                lex_Lexerp->pos_i = lex_Lexerp->pos_i + 1
+            }
+            token_count_i = token_count_i + 1
+        } else if (isdigit(c_c)) {
+            while (isdigit(lex_Lexerp->source_s[lex_Lexerp->pos_i])) {
+                lex_Lexerp->pos_i = lex_Lexerp->pos_i + 1
+            }
+            token_count_i = token_count_i + 1
+        } else {
+            lex_Lexerp->pos_i = lex_Lexerp->pos_i + 1
+        }
+    }
+    return token_count_i
+}
+
+func main_i() {
+    arena_init_v(1024 * 1024)
+    
+    printf("Testing Dust compiler...\n");
+
+    let test_s = "func test_i() { return 42 }"
+    let tokens_i = compile_i(test_s)
+    
+    printf("Tokenized %d tokens\n", tokens_i)
+    
+    // FIX: Use correct variable name.
+    if (emit_table_fpa[0] != null) {
+        printf("Dispatch table initialized\n")
+    }
+    
+    if (str_cmp_i("dust", "dust") == 0) {
+        printf("String comparison works\n")
+    }
+    return 0
+}

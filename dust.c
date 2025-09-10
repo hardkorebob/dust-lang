@@ -417,10 +417,14 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
     const char *suffix_str = separator + 1;
     size_t suffix_len = strlen(suffix_str);
     if (suffix_len == 0) return false;
-    
+    if (strcmp(suffix_str, "fpa") == 0) {
+      result_info->type = TYPE_ARRAY;
+      result_info->array_base_type = TYPE_FUNC_POINTER;
+      return true;
+    }
     if (suffix_len > 1 && suffix_str[suffix_len - 1] == 'a') {
         char base_suffix[128];
-        strncpy(base_suffix, suffix_str, suffix_len - 1);
+        snprintf(base_suffix, sizeof(base_suffix), "%.*s", (int)suffix_len - 1, suffix_str);
         base_suffix[suffix_len - 1] = '\0';      
         for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
             if (strcmp(base_suffix, m->suffix) == 0) {
@@ -477,6 +481,11 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
 
 const char *get_c_type(const SuffixInfo *info) {
     static char type_buffer[256];
+    if (info->type == TYPE_ARRAY && info->array_base_type == TYPE_FUNC_POINTER) {
+        // This case is now handled entirely by emit_var_decl.
+        // Returning a placeholder prevents this function from generating incorrect output.
+        return "void*"; 
+    }
     if (info->type == TYPE_USER) {
         if (info->user_type_name) {
             snprintf(type_buffer, sizeof(type_buffer), "%s%s%s",
@@ -581,7 +590,7 @@ static const char *KEYWORDS[] = {
 };
 
 static const MultiCharOp multi_char_ops[] = {
-    
+    {'~', '\0', '\0', "~"}, 
     {'<', '<', '=', "<<="},
     {'>', '>', '=', ">>="}, 
     {'=', '=', '\0', "=="},
@@ -809,40 +818,28 @@ Token *lexer_next(Lexer *lex) {
     return make_token(TOKEN_ARROW, "->", lex->line);
   }
 
- // Operators and punctuation
-char op_text[4] = {c, '\0', '\0', '\0'};
-lex->pos++;
-
-// Check for multi-character operators
-if (lex->pos < lex->len) {
-    char next = lex->source[lex->pos];
-    
-    // Try three-character first
-    if (lex->pos + 1 < lex->len) {
-        char third = lex->source[lex->pos + 1];
-        for (const MultiCharOp *op = multi_char_ops; op->token; op++) {
-            if (c == op->first && next == op->second && 
-                op->third != '\0' && third == op->third) {
-                strcpy(op_text, op->token);
-                lex->pos += 2;  
-                goto make_op_token;
-            }
-        }
-    }
-    
-    // Try two-character
+    // Operators and punctuation
     for (const MultiCharOp *op = multi_char_ops; op->token; op++) {
-        if (c == op->first && next == op->second && op->third == '\0') {
-            strcpy(op_text, op->token);
-            lex->pos++;
-            goto make_op_token;
+        if (strncmp(&lex->source[lex->pos], op->token, strlen(op->token)) == 0) {
+            lex->pos += strlen(op->token);
+            return make_token(TOKEN_OPERATOR, op->token, lex->line);
         }
     }
-}
-
-make_op_token:
-TokenType type = strchr("{}[]();,.:", c) ? TOKEN_PUNCTUATION : TOKEN_OPERATOR;
-return make_token(type, op_text, lex->line);
+    if (strchr("+-*/%&|^<>!=~?", c)) {
+        char op_text[2] = {c, '\0'};
+        lex->pos++;
+        return make_token(TOKEN_OPERATOR, op_text, lex->line);
+    }
+    if (strchr("{}[]();,.:", c)) {
+        char punct_text[2] = {c, '\0'};
+        lex->pos++;
+        return make_token(TOKEN_PUNCTUATION, punct_text, lex->line);
+    } else {
+        fprintf(stderr, "Warning: Unknown character '%c' on line %d\n", c, lex->line);
+        char unknown_text[2] = {c, '\0'};
+        lex->pos++;
+        return make_token(TOKEN_PUNCTUATION, unknown_text, lex->line);
+    }
 }
 
 // ============================================================================
@@ -1246,7 +1243,8 @@ static ASTNode *parse_unary(Parser *p) {
                                    strcmp(p->current->text, "&") ==  0 ||
                                    strcmp(p->current->text, "*") ==  0 ||
                                    strcmp(p->current->text, "++") == 0 ||   // prefix
-                                   strcmp(p->current->text, "--") == 0)) {  
+                                   strcmp(p->current->text, "--") == 0 ||
+                                   strcmp(p->current->text, "~") == 0)) {  
     Token *op_tok = advance(p);
     ASTNode *node = create_node(AST_UNARY_OP, op_tok->text);
     add_child(node, parse_unary(p));
@@ -1334,41 +1332,47 @@ static ASTNode *parse_initializer_list(Parser *p) {
 }
 
 static ASTNode *parse_var_decl(Parser *p) {
-  Token *name = advance(p);
-  if (name->type != TOKEN_IDENTIFIER) {
-    parser_error(p, "Expected variable name."); 
-    return NULL;
-  }
-  ASTNode *node = create_node(AST_VAR_DECL, name->base_name ? name->base_name : name->text);
-  if (name->base_name) {
-    node->suffix_info = name->suffix_info;
-  }
-      if (node->suffix_info.type == TYPE_ARRAY) {
-        // Array declaration with possible size
+    Token *name = advance(p);
+    if (name->type != TOKEN_IDENTIFIER) {
+        parser_error(p, "Expected variable name."); 
+        return NULL;
+    }
+    
+    ASTNode *node = create_node(AST_VAR_DECL, name->base_name ? name->base_name : name->text);
+    if (name->base_name) {
+        node->suffix_info = name->suffix_info;
+    }
+    
+    // Handle array-specific syntax first (the brackets)
+    if (node->suffix_info.type == TYPE_ARRAY) {
         if (match_and_consume(p, TOKEN_PUNCTUATION, "[")) {
             if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "]") == 0) {
-                // Empty brackets - add NULL child to indicate unsized array
-                add_child(node, NULL);
-                advance(p); // Consume ']'
+                add_child(node, NULL); // Unsized array
+                advance(p);
             } else {
-                add_child(node, parse_expression(p));
+                add_child(node, parse_expression(p)); // Sized array
                 expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after array size.");
             }
         }
-    
-        // Optional initializer
-        if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
-            if (node->suffix_info.array_base_type == TYPE_CHAR && check(p, TOKEN_STRING)) {
-                Token *str_tok = advance(p);
-                ASTNode *str_node = create_node(AST_STRING, str_tok->text);
-                add_child(node, str_node);
-            } else {
-                add_child(node, parse_initializer_list(p));
-            }
+    }
+
+    // Handle initializers for ALL variable types (arrays and regular)
+    if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
+        // Special case for char arrays initialized with a string literal
+        if (node->suffix_info.type == TYPE_ARRAY && 
+            node->suffix_info.array_base_type == TYPE_CHAR && 
+            check(p, TOKEN_STRING)) {
+            
+            Token *str_tok = advance(p);
+            ASTNode *str_node = create_node(AST_STRING, str_tok->text);
+            add_child(node, str_node);
         }
-    } else {
-        // Regular variable initialization
-        if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
+        // Case for arrays initialized with an initializer list
+        else if (node->suffix_info.type == TYPE_ARRAY) {
+            add_child(node, parse_initializer_list(p));
+        }
+        // Case for regular variables
+        else {
             add_child(node, parse_expression(p));
         }
     }
@@ -2051,44 +2055,48 @@ static void emit_function(ASTNode *node) {
 }
 
 static void emit_var_decl(ASTNode *node) {
-    const char *c_type = get_c_type(&node->suffix_info);
-    fprintf(output_file, "%s %s", c_type, node->value);
-
-    if (node->suffix_info.type == TYPE_ARRAY) {
-        fprintf(output_file, "[");
-    
-        // Only emit the child as a size if it's NOT an initializer
-        if (node->child_count > 0 && node->children[0] != NULL &&
-            node->children[0]->type != AST_INITIALIZER_LIST && 
-            node->children[0]->type != AST_STRING) {
-            emit_node(node->children[0]); // Array size
-        }
-        fprintf(output_file, "]");
-
-        // Find initializer (could be in different child position)
-        ASTNode *initializer = NULL;
-        for (int i = 0; i < node->child_count; i++) {
-            if (node->children[i] && 
-                (node->children[i]->type == AST_STRING || 
-                 node->children[i]->type == AST_INITIALIZER_LIST)) {
-                initializer = node->children[i];
-                break;
-            }
-        }
+    // Handle the special syntax for function pointer arrays
+    if (node->suffix_info.type == TYPE_ARRAY && 
+        node->suffix_info.array_base_type == TYPE_FUNC_POINTER) {
         
-        if (initializer) {
-            fprintf(output_file, " = ");
-            if (initializer->type == AST_STRING) {
-                fprintf(output_file, "\"%s\"", initializer->value);
-            } else {
-                emit_node(initializer);
+        fprintf(output_file, "void (*%s[])(void*)", node->value);
+
+    } else { 
+        // Handle all other variable types (int, struct, regular arrays, etc.)
+        const char *c_type = get_c_type(&node->suffix_info);
+        fprintf(output_file, "%s %s", c_type, node->value); // This correctly prints the type AND name
+        
+        if (node->suffix_info.type == TYPE_ARRAY) {
+            fprintf(output_file, "[");
+            // Emit array size if it exists
+            if (node->child_count > 0 && node->children[0] != NULL &&
+                node->children[0]->type != AST_INITIALIZER_LIST) {
+                emit_node(node->children[0]);
             }
+            fprintf(output_file, "]");
         }
-    } else {
-        // Regular variable initializer
-        if (node->child_count > 0) {
-            fprintf(output_file, " = ");
-            emit_node(node->children[0]);
+    }
+    
+    // Handle initializers for ALL variable types at the end
+    ASTNode *initializer = NULL;
+    for (int i = 0; i < node->child_count; i++) {
+        if (node->children[i] && (node->children[i]->type == AST_INITIALIZER_LIST || 
+                                  node->children[i]->type == AST_STRING)) {
+            initializer = node->children[i];
+            break;
+        } else if (node->children[i] && node->suffix_info.type != TYPE_ARRAY) {
+            // This handles simple initializers like 'let x_i = 5'
+            initializer = node->children[i];
+            break;
+        }
+    }
+
+    if (initializer) {
+        fprintf(output_file, " = ");
+        if (initializer->type == AST_STRING) {
+             fprintf(output_file, "\"%s\"", initializer->value);
+        } else {
+            emit_node(initializer);
         }
     }
 }
@@ -2139,7 +2147,7 @@ FuncDecl *collect_functions(ASTNode *node, FuncDecl *list) {
 
 /* Individual emit functions */
 static void emit_program(ASTNode *node) {
-    // Emit directives first
+    // Stage 1: Emit directives and type definitions (structs, enums, etc.)
     for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_DIRECTIVE) {
             emit_node(node->children[i]);
@@ -2150,25 +2158,28 @@ static void emit_program(ASTNode *node) {
         if (node->children[i]->type == AST_STRUCT_DEF ||
             node->children[i]->type == AST_UNION_DEF ||
             node->children[i]->type == AST_ENUM_DEF ||
-            node->children[i]->type == AST_TYPEDEF ||
-            node->children[i]->type == AST_PASSTHROUGH) {
+            node->children[i]->type == AST_TYPEDEF) {
             emit_node(node->children[i]);
             fprintf(output_file, "\n");
         }
     }
+
+    // Stage 2: Emit forward declarations for ALL functions.
+    FuncDecl *funcs = collect_functions(node, NULL);
+    if (funcs) {
+        emit_forward_declarations(funcs, output_file);
+    }
     
+    // Stage 3: Emit the full definitions for all global variables.
+    // Because functions are now forward-declared, initializers can use them.
     for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_VAR_DECL) {
             emit_node(node->children[i]);
             fprintf(output_file, ";\n");
         }
     }
-    
-    FuncDecl *funcs = collect_functions(node, NULL);
-    if (funcs) {
-        emit_forward_declarations(funcs, output_file);
-    }
-    
+
+    // Stage 4: Emit the full definitions for all functions.
     for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_FUNCTION) {
             emit_node(node->children[i]);
@@ -2176,7 +2187,6 @@ static void emit_program(ASTNode *node) {
         }
     }
 }
-
 static void emit_directive(ASTNode *node) {
     fprintf(output_file, "%s\n", node->value);
 }
@@ -2601,8 +2611,10 @@ static char *read_file(const char *path) {
     fclose(f);
     return NULL;
   }
-
-  fread(buffer, 1, size, f);
+  size_t bytes_read = fread(buffer, 1, size, f);
+  if (bytes_read != (size_t)size) {
+    fprintf(stderr, "Warning: Could not read the entire file '%s'\n", path);
+  }
   buffer[size] = '\0';
   fclose(f);
   return buffer;
