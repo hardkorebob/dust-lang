@@ -1,21 +1,18 @@
+/* dust.c - Dust Transpiler 
+* Dust is ancient. Build with what lasts. Build with Dust. */
+
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-// ====================
-// ARENA ALLOCATOR
-// ====================
 typedef struct Arena {
     char *data;
     size_t size;
     size_t used;
 } Arena;
 
-// =============
-// TYPE TABLE - 
-// =============
 typedef enum {
     TYPE_VOID,
     TYPE_INT,
@@ -26,8 +23,7 @@ typedef enum {
     TYPE_ARRAY,
     TYPE_USER,
     TYPE_FUNC_POINTER,
-    TYPE_SIZE_T,
-    
+    TYPE_SIZE_T,  
     TYPE_UINT8,
     TYPE_UINT16,
     TYPE_UINT32,
@@ -35,29 +31,10 @@ typedef enum {
     TYPE_INT8,
     TYPE_INT16,
     TYPE_INT32,
-    TYPE_INT64,
-    
+    TYPE_INT64,  
     TYPE_UINTPTR,
     TYPE_INTPTR,
-    TYPE_SIZE,
-    TYPE_SSIZE,
     TYPE_OFF,
-    
-    TYPE_PHYS_ADDR,
-    TYPE_VIRT_ADDR,
-    TYPE_PTE,
-    TYPE_PDE,
-    TYPE_PFN,
-    TYPE_PORT,
-    TYPE_MMIO,
-    TYPE_VOLATILE,
-    TYPE_IRQ,
-    TYPE_VECTOR,
-    TYPE_ISR_PTR,
-    
-    TYPE_ATOMIC_U32,
-    TYPE_ATOMIC_U64,
-    TYPE_ATOMIC_PTR,
 } DataType;
 
 typedef enum {
@@ -113,8 +90,7 @@ static const TypeMapping type_map[] = {
     {TYPE_FLOAT,      "float"},
     {TYPE_CHAR,       "char"},
     {TYPE_STRING,     "char*"},
-    {TYPE_SIZE_T,     "size_t"},
-    
+    {TYPE_SIZE_T,     "size_t"}, 
     {TYPE_UINT8,      "uint8_t"},
     {TYPE_UINT16,     "uint16_t"},
     {TYPE_UINT32,     "uint32_t"},
@@ -122,11 +98,9 @@ static const TypeMapping type_map[] = {
     {TYPE_INT8,       "int8_t"},
     {TYPE_INT16,      "int16_t"},
     {TYPE_INT32,      "int32_t"},
-    {TYPE_INT64,      "int64_t"},
-    
+    {TYPE_INT64,      "int64_t"},   
     {TYPE_UINTPTR,    "uintptr_t"},
     {TYPE_INTPTR,     "intptr_t"},
-    {TYPE_SIZE,       "size_t"},
     {TYPE_OFF,        "off_t"},
 
     {TYPE_VOID,       NULL}
@@ -159,13 +133,13 @@ static const SuffixMapping suffix_table[] = {
 
     {"ux",   TYPE_UINTPTR, ROLE_NONE,   false, false},  
     {"ix",   TYPE_INTPTR,  ROLE_NONE,   false, false},  
-    {"st",   TYPE_SIZE,    ROLE_NONE,   false, false},    
+    {"st",   TYPE_SIZE_T,  ROLE_NONE,   false, false},    
     {"off",  TYPE_OFF,     ROLE_NONE,   false, false},  
  
-    {"vp",   TYPE_VOID,    ROLE_OWNED,  true,  false},  
+    {"vp",   TYPE_VOID,    ROLE_OWNED,    true,  false},  
     {"cvp",  TYPE_VOID,    ROLE_BORROWED, true, true},  
     {"rp",   TYPE_VOID,    ROLE_RESTRICT, true, false}, 
-    {NULL, TYPE_VOID, ROLE_NONE, false, false} 
+    {NULL,   TYPE_VOID,    ROLE_NONE,     false, false} 
 };
 
 static void print_suffix_help(void) {
@@ -255,8 +229,7 @@ static void *arena_alloc_from(Arena *arena, size_t size) {
         fprintf(stderr, "Arena out of memory (used: %zu, requested: %zu, total: %zu)\n", 
                 arena->used, size, arena->size);
         exit(1);
-    }
-    
+    }   
     void *ptr = arena->data + arena->used;
     arena->used += size;
     memset(ptr, 0, size);
@@ -282,7 +255,7 @@ static void arena_free(Arena *arena) {
     }
 }
 
-// Global Arena
+/* Global Arena */
 static Arena g_arena = {0};
 void arena_init(size_t size) {
     g_arena.data = malloc(size);
@@ -364,26 +337,18 @@ void type_table_destroy(TypeTable *table) {
 }
 
 bool type_table_add(TypeTable *table, const char *type_name) {
-  // Check for duplicates
   for (size_t i = 0; i < table->struct_count; i++) {
     if (strcmp(table->struct_names[i], type_name) == 0) {
       return true;
     }
   }
-  
-  // Grow array if needed
   if (table->struct_count >= table->struct_capacity) {
     size_t new_capacity = table->struct_capacity * 2;
     char **new_names = arena_alloc_from(&table->type_arena, sizeof(char *) * new_capacity);
-    
-    // Copy existing pointers
     memcpy(new_names, table->struct_names, sizeof(char *) * table->struct_count);
-    
     table->struct_names = new_names;
     table->struct_capacity = new_capacity;
   }
-  
-  // Clone string to type table's arena
   table->struct_names[table->struct_count++] = clone_string_to_arena(&table->type_arena, type_name);
   return true;
 }
@@ -402,30 +367,20 @@ const char *type_table_lookup(const TypeTable *table, const char *type_name) {
 }
 
 bool type_table_add_typedef(TypeTable *table, const char *name, const SuffixInfo *type_info) {
-  // Check for duplicates
   for (size_t i = 0; i < table->typedef_count; i++) {
     if (strcmp(table->typedefs[i].name, name) == 0) {
       return false;
     }
   }
-
-  // Grow array if needed
   if (table->typedef_count >= table->typedef_capacity) {
     size_t new_capacity = table->typedef_capacity * 2;
     TypedefInfo *new_typedefs = arena_alloc_from(&table->type_arena, sizeof(TypedefInfo) * new_capacity);
-    
-    // Copy existing typedef info
     memcpy(new_typedefs, table->typedefs, sizeof(TypedefInfo) * table->typedef_count);
-    
     table->typedefs = new_typedefs;
     table->typedef_capacity = new_capacity;
   }
-  
-  // Clone string to type table's arena
   table->typedefs[table->typedef_count].name = clone_string_to_arena(&table->type_arena, name);
   table->typedefs[table->typedef_count].type_info = *type_info;
-  
-  // Clone user type names if present
   if (type_info->user_type_name) {
     table->typedefs[table->typedef_count].type_info.user_type_name = 
         clone_string_to_arena(&table->type_arena, type_info->user_type_name);
@@ -434,7 +389,6 @@ bool type_table_add_typedef(TypeTable *table, const char *name, const SuffixInfo
     table->typedefs[table->typedef_count].type_info.array_user_type_name = 
         clone_string_to_arena(&table->type_arena, type_info->array_user_type_name);
   }
-  
   table->typedef_count++;
   return true;
 }
@@ -694,7 +648,7 @@ Token *lexer_next(Lexer *lex) {
   int start = lex->pos;
   char c = lex->source[lex->pos];
 
-  
+  // Includes and Defines
   if (c == '#') {
     lex->pos++;
     start = lex->pos;
@@ -935,7 +889,6 @@ typedef enum {
   AST_ENUM_VALUE,
   AST_POSTFIX_OP,
   AST_UNION_DEF,
-
 } ASTType;
 
 typedef struct ASTNode {
@@ -965,7 +918,7 @@ typedef struct {
     const char *op;
     int precedence;
     bool left_assoc;
-    bool is_binary;  // true for binary, false for unary
+    bool is_binary;  // false for unary
 } OpInfo;
 
 static const OpInfo operator_table[] = {  
@@ -1000,6 +953,7 @@ static const OpInfo operator_table[] = {
     {">>=", 0,  false, true},   
     {NULL,  0,  false, false}  
 };
+
 // =======
 // PARSER
 // =======
@@ -1017,7 +971,7 @@ static ASTNode *parse_unary(Parser *p);
 static ASTNode *parse_postfix(Parser *p);
 static ASTNode *parse_union_definition(Parser *p);
 
-// AST helper functions
+
 static ASTNode *create_node(ASTType type, const char *value) {
   ASTNode *node = arena_alloc(sizeof(ASTNode));
   node->type = type;
@@ -1076,12 +1030,10 @@ static void expect(Parser *p, TokenType type, const char *text, const char *erro
 }
 
 static ASTNode *parse_primary(Parser *p) {
-  // Initializer lists
   if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "{") == 0) {
     return parse_initializer_list(p);
   }
   
-  // Handle parentheses
   if (match_and_consume(p, TOKEN_PUNCTUATION, "(")) {
     ASTNode *expr = parse_expression(p);
     expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after expression.");
@@ -1251,8 +1203,7 @@ static ASTNode *parse_member_access(Parser *p) {
       
       left = node;
     } else if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "[") == 0) {
-      // Handle array indexing after member access
-         advance(p); // Consume '['
+         advance(p);
       ASTNode *subscript_node = create_node(AST_SUBSCRIPT, NULL);
       add_child(subscript_node, left);
       add_child(subscript_node, parse_expression(p));
@@ -1267,26 +1218,18 @@ static ASTNode *parse_member_access(Parser *p) {
 
 static ASTNode *parse_typedef(Parser *p) {
   expect(p, TOKEN_KEYWORD, "typedef", "Expected 'typedef' keyword.");
-
-  // Parse the type specification
   Token *type_tok = advance(p);
   if (type_tok->type != TOKEN_IDENTIFIER) {
     parser_error(p, "Expected type name after 'typedef'.");
     
     return NULL;
   }
-
-  // Parse the new type name
   Token *name_tok = advance(p);
   if (name_tok->type != TOKEN_IDENTIFIER) {
     parser_error(p, "Expected type alias name.");
     return NULL;
   }
-
-  // Create typedef node
   ASTNode *node = create_node(AST_TYPEDEF, name_tok->text);
-
-  // Store the original type information
   ASTNode *type_node = create_node(AST_IDENTIFIER, type_tok->base_name ? type_tok->base_name : type_tok->text);
   if (type_tok->base_name) {
     type_node->suffix_info = type_tok->suffix_info;
@@ -1298,10 +1241,10 @@ static ASTNode *parse_typedef(Parser *p) {
 }
 
 static ASTNode *parse_unary(Parser *p) {
-  if (check(p, TOKEN_OPERATOR) && (strcmp(p->current->text, "-") == 0 ||
-                                   strcmp(p->current->text, "!") == 0 ||
-                                   strcmp(p->current->text, "&") == 0 ||
-                                   strcmp(p->current->text, "*") == 0 ||
+  if (check(p, TOKEN_OPERATOR) && (strcmp(p->current->text, "-") ==  0 ||
+                                   strcmp(p->current->text, "!") ==  0 ||
+                                   strcmp(p->current->text, "&") ==  0 ||
+                                   strcmp(p->current->text, "*") ==  0 ||
                                    strcmp(p->current->text, "++") == 0 ||   // prefix
                                    strcmp(p->current->text, "--") == 0)) {  
     Token *op_tok = advance(p);
@@ -1313,15 +1256,13 @@ static ASTNode *parse_unary(Parser *p) {
 }
 
 static ASTNode *parse_postfix(Parser *p) {
-    ASTNode *expr = parse_call(p);
-    
+    ASTNode *expr = parse_call(p);   
     if (check(p, TOKEN_OPERATOR) && 
         (strcmp(p->current->text, "++") == 0 || 
          strcmp(p->current->text, "--") == 0)) {
         Token *op = advance(p);
         ASTNode *node = create_node(AST_POSTFIX_OP, op->text);
-        add_child(node, expr);
-        
+        add_child(node, expr);      
         return node;
     }
     return expr;
@@ -1329,9 +1270,7 @@ static ASTNode *parse_postfix(Parser *p) {
 
 static ASTNode *parse_binary_expr(Parser *p, int min_precedence) {
     ASTNode *left = parse_unary(p);
-    
     while (true) {
-        // Find operator in table
         const OpInfo *op_info = NULL;
         if (check(p, TOKEN_OPERATOR)) {
             for (const OpInfo *op = operator_table; op->op; op++) {
@@ -1341,27 +1280,21 @@ static ASTNode *parse_binary_expr(Parser *p, int min_precedence) {
                     break;
                 }
             }
-        }
-        
+        } 
         if (!op_info) break;
-        
         Token *op_tok = advance(p);
-        
-        // Calculate next minimum precedence
         int next_min_prec = op_info->left_assoc ? 
                            (op_info->precedence + 1) : op_info->precedence;
         
         ASTNode *right = (op_info->precedence == 0) ? 
-                        parse_ternary(p) :  // Assignment recurses to ternary
+                        parse_ternary(p) :  // Recursive
                         parse_binary_expr(p, next_min_prec);
         
         ASTNode *node = create_node(AST_BINARY_OP, op_tok->text);
         add_child(node, left);
-        add_child(node, right);
-        
+        add_child(node, right);    
         left = node;
-    }
-    
+    }   
     return left;
 }
 
@@ -1391,14 +1324,11 @@ static ASTNode *parse_initializer_list(Parser *p) {
   if (!check(p, TOKEN_PUNCTUATION) || strcmp(p->current->text, "}") != 0) {
     do {
       add_child(list, parse_expression(p));
-      // In Dust, commas are optional in initializer lists
-      // Check if there's a comma, but don't require it
       if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ",") == 0) {
         advance(p);
       }
     } while (!check(p, TOKEN_PUNCTUATION) || strcmp(p->current->text, "}") != 0);
   }
-
   expect(p, TOKEN_PUNCTUATION, "}", "Expected '}' to end initializer list.");
   return list;
 }
@@ -1406,16 +1336,13 @@ static ASTNode *parse_initializer_list(Parser *p) {
 static ASTNode *parse_var_decl(Parser *p) {
   Token *name = advance(p);
   if (name->type != TOKEN_IDENTIFIER) {
-    parser_error(p, "Expected variable name.");
-    
+    parser_error(p, "Expected variable name."); 
     return NULL;
   }
-
   ASTNode *node = create_node(AST_VAR_DECL, name->base_name ? name->base_name : name->text);
   if (name->base_name) {
     node->suffix_info = name->suffix_info;
   }
-  
       if (node->suffix_info.type == TYPE_ARRAY) {
         // Array declaration with possible size
         if (match_and_consume(p, TOKEN_PUNCTUATION, "[")) {
@@ -1424,7 +1351,6 @@ static ASTNode *parse_var_decl(Parser *p) {
                 add_child(node, NULL);
                 advance(p); // Consume ']'
             } else {
-                // Parse size expression
                 add_child(node, parse_expression(p));
                 expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after array size.");
             }
@@ -1995,7 +1921,6 @@ static void emit_postfix_op(ASTNode *node);
 static void emit_node(ASTNode *node);
 static void emit_statement(ASTNode *node);
 
-// Dispatch table - indexed by ASTType
 static const EmitFunc emit_dispatch[] = {
     [AST_PROGRAM]           = emit_program,
     [AST_FUNCTION]          = emit_function,
@@ -2038,7 +1963,6 @@ static const EmitFunc emit_dispatch[] = {
     [AST_UNION_DEF]         = emit_union_def,
 };
 
-// Main dispatch function
 static void emit_node(ASTNode *node) {
     if (!node) return;
     
@@ -2179,23 +2103,21 @@ static void emit_typedef(ASTNode *node) {
     fprintf(output_file, "typedef %s %s;\n", original_c_type, node->value);
 }
 
-// Fix the unused parameter warnings by using the (void) idiom:
+
 static void emit_break(ASTNode *node) {
     (void)node;  // Suppress unused parameter warning
     fprintf(output_file, "break");
 }
 
 static void emit_continue(ASTNode *node) {
-    (void)node;  // Suppress unused parameter warning
+    (void)node;  
     fprintf(output_file, "continue");
 }
 
 static void emit_null(ASTNode *node) {
-    (void)node;  // Suppress unused parameter warning
+    (void)node;  
     fprintf(output_file, "NULL");
 }
-
-// Add these helper functions at the end (before codegen function):
 
 FuncDecl *collect_functions(ASTNode *node, FuncDecl *list) {
     if (!node) return list;
@@ -2215,7 +2137,7 @@ FuncDecl *collect_functions(ASTNode *node, FuncDecl *list) {
     return list;
 }
 
-// Individual emit functions
+/* Individual emit functions */
 static void emit_program(ASTNode *node) {
     // Emit directives first
     for (int i = 0; i < node->child_count; i++) {
@@ -2224,8 +2146,6 @@ static void emit_program(ASTNode *node) {
         }
     }
     fprintf(output_file, "\n");
-    
-    // Emit type definitions
     for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_STRUCT_DEF ||
             node->children[i]->type == AST_UNION_DEF ||
@@ -2237,7 +2157,6 @@ static void emit_program(ASTNode *node) {
         }
     }
     
-    // Emit global variables
     for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_VAR_DECL) {
             emit_node(node->children[i]);
@@ -2245,13 +2164,11 @@ static void emit_program(ASTNode *node) {
         }
     }
     
-    // Emit forward declarations
     FuncDecl *funcs = collect_functions(node, NULL);
     if (funcs) {
         emit_forward_declarations(funcs, output_file);
     }
     
-    // Emit function definitions
     for (int i = 0; i < node->child_count; i++) {
         if (node->children[i]->type == AST_FUNCTION) {
             emit_node(node->children[i]);
@@ -2746,4 +2663,4 @@ int main(int argc, char **argv) {
   arena_free_all();
   return 0;
 }
-
+/* Thanks for playing! :-) <3 #allerrorsmatter $hardkorebob (2025/9/9)*/
