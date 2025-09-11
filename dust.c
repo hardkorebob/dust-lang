@@ -418,74 +418,98 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
 
     const char *parse_ptr = suffix_str;
 
-    // 1. Check for and strip linkage prefixes (s, e) from the beginning
-    if (parse_ptr[0] == 'z' && suffix_len > 1) {
+    // 1. Check for and strip linkage prefixes (z, e) from the beginning
+
+    if (parse_ptr[0] == 'z' && ((size_t)(parse_ptr - suffix_str) + 1 < suffix_len)) {
         result_info->is_static = true;
         parse_ptr++;
-    } else if (parse_ptr[0] == 'e' && suffix_len > 1) {
+    } else if (parse_ptr[0] == 'e' && ((size_t)(parse_ptr - suffix_str) + 1 < suffix_len)) {
         result_info->is_extern = true;
         parse_ptr++;
     }
 
-    // 2. Parse modifiers from the end of the remaining string
-    char base_suffix[128];
-    strncpy(base_suffix, parse_ptr, sizeof(base_suffix) - 1);
-    base_suffix[sizeof(base_suffix) - 1] = '\0';
-    size_t current_len = strlen(base_suffix);
+    // 2. Find the longest matching base type first 
+    size_t best_match_len = 0;
 
+    // Temporarily store the best match info
+    SuffixInfo temp_info = {0};
+    bool is_user_type = false;
+    const char* user_type_name_match = NULL;
+
+    // Check primitives
+    for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
+        size_t len = strlen(m->suffix);
+        if (len > best_match_len && strncmp(parse_ptr, m->suffix, len) == 0) {
+            best_match_len = len;
+            temp_info.type = m->type;
+            is_user_type = false;
+        }
+    }
+    // Check user-defined types and typedefs
+    const char* current_base = parse_ptr;
+    for (size_t i = 0; i < type_table->struct_count; i++) {
+        size_t len = strlen(type_table->struct_names[i]);
+        if (len > best_match_len && strncmp(current_base, type_table->struct_names[i], len) == 0) {
+            best_match_len = len;
+            is_user_type = true;
+            user_type_name_match = type_table->struct_names[i];
+        }
+    }
+     for (size_t i = 0; i < type_table->typedef_count; i++) {
+        size_t len = strlen(type_table->typedefs[i].name);
+        if (len > best_match_len && strncmp(current_base, type_table->typedefs[i].name, len) == 0) {
+            best_match_len = len;
+            temp_info = type_table->typedefs[i].type_info;
+            is_user_type = (temp_info.type == TYPE_USER);
+            user_type_name_match = temp_info.user_type_name;
+        }
+    }
+
+    if (best_match_len == 0) return false;
+
+    // 3. The rest of the string is the modifiers
+    const char* modifiers = parse_ptr + best_match_len;
+    size_t modifiers_len = strlen(modifiers);
+
+    // Set the base type info
+    if (is_user_type) {
+        result_info->type = TYPE_USER;
+        result_info->user_type_name = user_type_name_match;
+    } else {
+        result_info->type = temp_info.type;
+    }
+
+
+    // 4. Parse the modifiers ('p', 'b', 'r', 'a')
     bool is_array = false;
-    if (current_len > 0 && base_suffix[current_len - 1] == 'a') {
+    if (modifiers_len > 0 && modifiers[modifiers_len - 1] == 'a') {
         is_array = true;
-        current_len--;
-        base_suffix[current_len] = '\0';
+        modifiers_len--; // Don't process 'a' in the pointer loop
     }
 
-    while (current_len > 0) {
-        char last_char = base_suffix[current_len - 1];
-        if (last_char == 'p' || last_char == 'b' || last_char == 'r') {
+    for (size_t i = 0; i < modifiers_len; i++) {
+        char mod = modifiers[i];
+        if (mod == 'p') {
             result_info->pointer_level++;
-            if (last_char == 'p') { result_info->role = ROLE_OWNED; result_info->is_const = false; }
-            if (last_char == 'b') { result_info->role = ROLE_BORROWED; result_info->is_const = true; }
-            if (last_char == 'r') { result_info->role = ROLE_REFERENCE; result_info->is_const = true; }
-            current_len--;
-            base_suffix[current_len] = '\0';
-        } else {
-            break;
+            result_info->role = ROLE_OWNED;
+            result_info->is_const = false;
+        } else if (mod == 'b') {
+            result_info->pointer_level++;
+            result_info->role = ROLE_BORROWED;
+            result_info->is_const = true;
+        } else if (mod == 'r') {
+            result_info->pointer_level++;
+            result_info->role = ROLE_REFERENCE;
+            result_info->is_const = true;
         }
     }
 
-    if (strlen(base_suffix) == 0) return false;
-
-    // 3. The remainder is the base type. Look it up.
-    bool base_found = false;
-    if (!base_found) { // Check primitives
-        for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
-            if (strcmp(base_suffix, m->suffix) == 0) {
-                result_info->type = m->type;
-                if (result_info->type == TYPE_STRING) result_info->pointer_level++;
-                base_found = true;
-                break;
-            }
-        }
-    }
-    if (!base_found) { // Check user-defined types and typedefs
-        const char* user_type = type_table_lookup(type_table, base_suffix);
-        if (user_type) {
-            result_info->type = TYPE_USER;
-            result_info->user_type_name = user_type;
-            base_found = true;
-        } else {
-            const TypedefInfo* typedef_info = type_table_lookup_typedef(type_table, base_suffix);
-            if (typedef_info) {
-                *result_info = typedef_info->type_info; // Copy entire info block
-                base_found = true;
-            }
-        }
+    // Handle special case for 's' suffix
+    if(result_info->type == TYPE_STRING){
+        result_info->pointer_level++;
     }
 
-    if (!base_found) return false;
-
-    // 4. Finalize array properties
+    // Finalize array properties
     if (is_array) {
         DataType original_base_type = result_info->type;
         const char* original_user_name = result_info->user_type_name;
@@ -493,7 +517,7 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
         result_info->array_base_type = original_base_type;
         result_info->array_user_type_name = original_user_name;
     }
-
+    
     return true;
 }
 
@@ -2665,6 +2689,11 @@ int main(int argc, char **argv) {
   TypeTable *type_table = type_table_create();
   pre_scan_for_types(source, type_table);
   Parser *parser = parser_create(source, type_table);
+  printf("--- DEBUG: Types found by pre-scanner ---\n");
+  for (size_t i = 0; i < type_table->struct_count; i++) {
+      printf("  [%zu]: %s\n", i, type_table->struct_names[i]);
+  }
+  printf("--- END DEBUG ---\n\n");
   ASTNode *ast = parser_parse(parser);
   if (parser->had_error) {
     fprintf(stderr, "Compilation failed.\n");

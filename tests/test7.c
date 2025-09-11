@@ -21,16 +21,16 @@ void test_fallthrough(int start_day) {
 printf("\n--- Testing Switch Fallthrough (starting from day %d) ---\n", start_day);
 switch (start_day) {
 case 1:
-printf("It's Monday. ");
+printf("It's Monday.\n");
 case 2:
-printf("It's a weekday. ");
+printf("It's a weekday.\n");
 case 3:
-printf("Still a weekday. ");
+printf("Still a weekday.\n");
 break;
 case 4:
-printf("Thursday. ");
+printf("Thursday.\n");
 case 5:
-printf("End of the work week! ");
+printf("End of the work week!\n");
 case 6:
 case 7:
 printf("It's the weekend!\n");

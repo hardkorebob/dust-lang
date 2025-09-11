@@ -8,11 +8,6 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-struct Arena {
-	data_s
-	size_t
-	used_t
-}
 enum DataType {
     TYPEVOID
     TYPEINT
@@ -35,6 +30,7 @@ enum DataType {
     TYPEUINTPTR
     TYPEINTPTR
     TYPEOFF
+
     TYPEBOOL
 }
 
@@ -44,6 +40,12 @@ enum SemanticRole {
   	ROLEREFERENCE
   	ROLERESTRICT
   	ROLENONE
+}
+
+struct Arena {
+	data_s
+	size_t
+	used_t
 }
 
 struct SuffixInfo {
@@ -91,7 +93,7 @@ let typeMap_zTypeMappingba[] = {
     {TYPEINT,        "int"}
     {TYPEFLOAT,      "float"}
     {TYPECHAR,       "char"}
-    {TYPESTRING,     "char"}
+    {TYPESTRING,     "char*"}
     {TYPESIZET,     "size_t"}, 
     {TYPEUINT8,      "uint8_t"}
     {TYPEUINT16,     "uint16_t"}

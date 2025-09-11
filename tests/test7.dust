@@ -20,16 +20,16 @@ func test_fallthrough_v(start_day_i) {
     printf("\n--- Testing Switch Fallthrough (starting from day %d) ---\n", start_day_i)
     switch (start_day_i) {
         case 1:
-            printf("It's Monday. ")
+            printf("It's Monday.\n")
         case 2:
-            printf("It's a weekday. ")
+            printf("It's a weekday.\n")
         case 3:
-            printf("Still a weekday. ")
+            printf("Still a weekday.\n")
             break
         case 4:
-            printf("Thursday. ")
+            printf("Thursday.\n")
         case 5:
-            printf("End of the work week! ")
+            printf("End of the work week!\n")
         case 6:
         case 7:
             printf("It's the weekend!\n")
@@ -120,7 +120,7 @@ func test_memory_features_v() {
     let point_ptr_Pointp = &my_point_Point
 
     // Use the pointer to access the member
-    printf("Access via pointer: %d\n", point_ptr_Point->x)
+    printf("Access via pointer: %d\n", point_ptr_Pointp->x)
     
     // Demonstrate passing a pointer to the print function
     print_point_v(point_ptr_Pointp)
