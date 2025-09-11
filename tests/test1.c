@@ -3,8 +3,8 @@
 
 typedef struct Lexer Lexer;
 struct Lexer {
-    char* source;
-    int pos;
+char* source;
+int pos;
 };
 // Forward declarations
 int main();

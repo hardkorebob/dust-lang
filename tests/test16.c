@@ -4,9 +4,9 @@
 
 typedef struct OpInfo OpInfo;
 struct OpInfo {
-    char* op;
-    int precedence;
-    bool left_assoc;
+char* op;
+int precedence;
+bool left_assoc;
 };
 // Forward declarations
 void parse_binary_expr_ASTNodep(void p_Parserp, int min_precedence);

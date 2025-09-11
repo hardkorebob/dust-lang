@@ -30,10 +30,10 @@ func add_i(a_i, b_i) {
 }
 
 // Test function with array parameter
-func sum_array_i(arr_ia, size_st) {
+func sum_array_i(arr_ia, size_t) {
     let total_i = 0
-    for (let i_st = 0 ; i_st < size_st ; i_st++) {
-        total_i += arr_ia[i_st]
+    for (let i_t = 0 ; i_st < size_t ; i_t++) {
+        total_i += arr_ia[i_t]
     }
     return total_i
 }
@@ -148,7 +148,7 @@ func test_control_flow_v() {
 func test_arrays_v() {
     let numbers_ia[5] = {1, 2, 3, 4, 5}
     let buffer_u8a[256]
-    let message_ca = "Hello, Dust!"
+    let message_s = "Hello, Dust!"
     
     // Array indexing
     numbers_ia[0] = 10
@@ -191,5 +191,5 @@ func main_i() {
     
     // Run test suites
     test_operators_v()
-    test_control_flow()
+    test_control_flow_v()
 }

@@ -4,7 +4,7 @@
 
 typedef struct Greeter Greeter;
 struct Greeter {
-    char* message;
+char* message;
 };
 // Forward declarations
 int main();
@@ -14,8 +14,7 @@ Greeter* greeter_create(char* message);
 
 Greeter* greeter_create(char* message) {
 Greeter* new_greeter = (Greeter*)malloc(sizeof(Greeter));
-void message_len_st = strlen(message);
-new_greeter->message = (char*)malloc((message_len_st + 1));
+size_t message_len = strlen(message);
 strcpy(new_greeter->message, message);
 return new_greeter;
 }

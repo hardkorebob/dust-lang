@@ -10,11 +10,11 @@ union Variant {
 
 func main_i() {
     let v_Variant
-    v_Variant.i_value = 42
-    printf("Int: %d\n", v_Variant.i_value)
+    v_Variant.i_value_i = 42
+    printf("Int: %d\n", v_Variant.i_value_i)
     
-    v_Variant.f_value = 3.14
-    printf("Float: %f\n", v_Variant.f_value)
+    v_Variant.f_value_f = 3.14
+    printf("Float: %f\n", v_Variant.f_value_f)
     
     return 0
 }

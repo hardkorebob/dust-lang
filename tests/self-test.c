@@ -5,16 +5,17 @@
 
 typedef struct Arena Arena;
 struct Arena {
-    char* data;
-    void size_st;
-    void used_st;
+char* data;
+size_t size;
+size_t used;
+int** thing;
 };
 typedef struct Lexer Lexer;
 struct Lexer {
-    char* source;
-    int pos;
-    int len;
-    int line;
+char* source;
+int pos;
+int len;
+int line;
 };
 // Forward declarations
 int main();
@@ -22,36 +23,35 @@ int compile(char* source);
 void emit_number(void* node);
 void emit_identifier(void* node);
 int str_cmp(char* a, char* b);
-void* arena_alloc(void size_st);
-void arena_init(void size_st);
+void* arena_alloc(size_t size);
+void arena_init(size_t size);
 
 Arena g_arena;
 void (*emit_table[])(void*) = { emit_identifier, emit_number, NULL, NULL };
-void arena_init(void size_st) {
-g_arena.data = malloc(size_st);
-g_arena.size_st = size_st;
-g_arena.used_st = 0;
+void arena_init(size_t size) {
+g_arena.data = malloc(size);
+g_arena.size = size;
+g_arena.used = 0;
 }
-void* arena_alloc(void size_st) {
-size_st = ((size_st + 7) & ~7);
-if (((g_arena.used_st + size_st) > g_arena.size_st)) {
+void* arena_alloc(size_t size) {
+size = ((size + 7) & ~7);
+if (((g_arena.used + size) > g_arena.size)) {
 fprintf(stderr, "Arena out of memory\n");
 exit(1);
 }
-void* ptr = (g_arena.data + g_arena.used_st);
-g_arena.used_st = (g_arena.used_st + size_st);
-memset(ptr, 0, size_st);
+void* ptr = (g_arena.data + g_arena.used);
+g_arena.used = (g_arena.used + size);
 return ptr;
 }
 int str_cmp(char* a, char* b) {
-void i_st = 0;
-while (((a[i_st] != '\0') && (b[i_st] != '\0'))) {
-if ((a[i_st] != b[i_st])) {
-return (a[i_st] - b[i_st]);
+size_t i = 0;
+while (((a[i] != '\0') && (b[i] != '\0'))) {
+if ((a[i] != b[i])) {
+return (a[i] - b[i]);
 }
-i_st = (i_st + 1);
+i = (i + 1);
 }
-return (a[i_st] - b[i_st]);
+return (a[i] - b[i]);
 }
 void emit_identifier(void* node) {
 fprintf(stdout, "%s", (char*)node);

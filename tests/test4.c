@@ -3,8 +3,8 @@
 
 typedef struct AnalysisResult AnalysisResult;
 struct AnalysisResult {
-    int sum;
-    float average;
+int sum;
+float average;
 };
 // Forward declarations
 int main();

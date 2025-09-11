@@ -49,14 +49,13 @@ typedef enum {
 typedef struct {
   DataType type;
   SemanticRole role;
-  bool is_pointer;
   bool is_const;
   const char *user_type_name;
-  bool is_pointer_to_pointer;
   DataType array_base_type;
   const char *array_user_type_name;
   bool is_static;
   bool is_extern;
+  int pointer_level;
 } SuffixInfo;
 
 typedef struct {
@@ -106,53 +105,36 @@ static const TypeMapping type_map[] = {
     {TYPE_INTPTR,     "intptr_t"},
     {TYPE_OFF,        "off_t"},
     {TYPE_BOOL,       "bool"},
-
     {TYPE_VOID,       NULL}
 };
 
 static const SuffixMapping suffix_table[] = {
-    {"i",   TYPE_INT,    ROLE_NONE,   false, false},
-    {"f",   TYPE_FLOAT,  ROLE_NONE,   false, false},
-    {"c",   TYPE_CHAR,   ROLE_NONE,   false, false},
-    {"s",   TYPE_STRING, ROLE_NONE,   true,  false},
-    {"v",   TYPE_VOID,   ROLE_NONE,   false, false},
-    {"bl",  TYPE_BOOL,   ROLE_NONE,   false, false},
+//  suffix, DataType,    SemanticRole, is_ptr, is_const
+// ====================================================
 
-    {"si",   TYPE_INT,    ROLE_NONE,   false, false},
-    {"sf",   TYPE_FLOAT,  ROLE_NONE,   false, false},
-    {"sc",   TYPE_CHAR,   ROLE_NONE,   false, false},
-    {"sv",   TYPE_VOID,   ROLE_NONE,   false, false},
-    {"ev",   TYPE_VOID,   ROLE_NONE,   false, false},
+    {"i",   TYPE_INT,     ROLE_NONE,   false, false},
+    {"f",   TYPE_FLOAT,   ROLE_NONE,   false, false},
+    {"c",   TYPE_CHAR,    ROLE_NONE,   false, false},
+    {"s",   TYPE_STRING,  ROLE_NONE,   false, false}, 
+    {"v",   TYPE_VOID,    ROLE_NONE,   false, false},
+    {"bl",  TYPE_BOOL,    ROLE_NONE,   false, false},
+    {"t",   TYPE_SIZE_T,  ROLE_NONE,   false, false},
+    {"fp",  TYPE_FUNC_POINTER, ROLE_NONE, false, false}, 
 
-    {"ip",  TYPE_INT,    ROLE_OWNED,     true,  false},
-    {"ib",  TYPE_INT,    ROLE_BORROWED,  true,  true},
-    {"ir",  TYPE_INT,    ROLE_REFERENCE, true,  true},
-    {"cp",  TYPE_CHAR,   ROLE_OWNED,     true,  false},
-    {"cb",  TYPE_CHAR,   ROLE_BORROWED,  true,  true},
-    {"cr",  TYPE_CHAR,   ROLE_REFERENCE, true,  true},
-    {"fp",  TYPE_FUNC_POINTER, ROLE_OWNED, true, false},
-    {"b",   TYPE_POINTER, ROLE_BORROWED, true,  true},
-    {"pp",  TYPE_POINTER, ROLE_OWNED, true,  false},
-    {"pa",  TYPE_ARRAY,   ROLE_OWNED, true,  false}, 
+    {"u8",  TYPE_UINT8,   ROLE_NONE,   false, false},
+    {"u16", TYPE_UINT16,  ROLE_NONE,   false, false},
+    {"u32", TYPE_UINT32,  ROLE_NONE,   false, false},
+    {"u64", TYPE_UINT64,  ROLE_NONE,   false, false},
+    {"i8",  TYPE_INT8,    ROLE_NONE,   false, false},
+    {"i16", TYPE_INT16,   ROLE_NONE,   false, false},
+    {"i32", TYPE_INT32,   ROLE_NONE,   false, false},
+    {"i64", TYPE_INT64,   ROLE_NONE,   false, false},
 
-    {"u8",   TYPE_UINT8,   ROLE_NONE,   false, false},  
-    {"u16",  TYPE_UINT16,  ROLE_NONE,   false, false},   
-    {"u32",  TYPE_UINT32,  ROLE_NONE,   false, false},  
-    {"u64",  TYPE_UINT64,  ROLE_NONE,   false, false},  
-    {"i8",   TYPE_INT8,    ROLE_NONE,   false, false},  
-    {"i16",  TYPE_INT16,   ROLE_NONE,   false, false},  
-    {"i32",  TYPE_INT32,   ROLE_NONE,   false, false},  
-    {"i64",  TYPE_INT64,   ROLE_NONE,   false, false},  
+    {"ux",  TYPE_UINTPTR, ROLE_NONE,   false, false},
+    {"ix",  TYPE_INTPTR,  ROLE_NONE,   false, false},
+    {"off", TYPE_OFF,     ROLE_NONE,   false, false},
 
-    {"ux",   TYPE_UINTPTR, ROLE_NONE,   false, false},  
-    {"ix",   TYPE_INTPTR,  ROLE_NONE,   false, false},  
-    {"st",   TYPE_SIZE_T,  ROLE_NONE,   false, false},    
-    {"off",  TYPE_OFF,     ROLE_NONE,   false, false},  
- 
-    {"vp",   TYPE_VOID,    ROLE_OWNED,    true,  false},  
-    {"cvp",  TYPE_VOID,    ROLE_BORROWED, true, true},  
-    {"rp",   TYPE_VOID,    ROLE_RESTRICT, true, false}, 
-    {NULL,   TYPE_VOID,    ROLE_NONE,     false, false} 
+    {NULL,  TYPE_VOID,    ROLE_NONE,   false, false}
 };
 
 static void print_suffix_help(void) {
@@ -166,7 +148,7 @@ static void print_suffix_help(void) {
     printf("  c     - char\n");
     printf("  s     - string (char*)\n");
     printf("  v     - void\n");
-    printf("  st    - size_t\n");
+    printf("  t    - size_t\n");
     
     printf("\nFIXED-WIDTH INTEGERS:\n");
     printf("  u8    - uint8_t\n");
@@ -181,11 +163,11 @@ static void print_suffix_help(void) {
     printf("\nARCHITECTURE TYPES:\n");
     printf("  ux    - uintptr_t (native word)\n");
     printf("  ix    - intptr_t\n");
-    printf("  st    - size_t\n");
     printf("  off   - off_t\n");
     
     printf("\nPOINTER SUFFIXES:\n");
     printf("  _p    - owned pointer (suffix: ip, cp, etc.)\n");
+    printf("  _pp   - pointer to pointer (Compositional: understands ppp pppp etc");
     printf("  _b    - borrowed pointer (const)\n");
     printf("  _r    - reference pointer (const)\n");
     printf("  vp    - void pointer\n");
@@ -218,6 +200,8 @@ static void print_suffix_help(void) {
     printf("  null                  - NULL constant\n");
     printf("  @c(...)              - inline C code escape hatch\n");
 }
+
+static Arena g_arena = {0};
 
 void *arena_alloc(size_t size);
 void arena_init(size_t size);
@@ -269,7 +253,7 @@ static void arena_free(Arena *arena) {
 }
 
 /* Global Arena */
-static Arena g_arena = {0};
+
 void arena_init(size_t size) {
     g_arena.data = malloc(size);
     if (!g_arena.data) {
@@ -423,10 +407,8 @@ const char *find_suffix_separator(const char *name) {
   return strrchr(name, '_');
 }
 
-// In dust.c, replace the entire suffix_parse function with this:
-
 bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, SuffixInfo *result_info) {
-    *result_info = (SuffixInfo){0}; // Zero-initialize for a clean slate
+    *result_info = (SuffixInfo){0};
     const char *separator = find_suffix_separator(full_variable_name);
     if (!separator) return false;
 
@@ -434,171 +416,149 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
     size_t suffix_len = strlen(suffix_str);
     if (suffix_len == 0) return false;
 
-    // --- NEW ROBUST LOGIC ---
+    // --- NEW COMPOSITIONAL LOGIC ---
+    char base_suffix[128] = {0};
+    const char *modifiers = NULL;
 
-    // 1. Check for the most specific pattern: ARRAYS (ends in 'a')
-    if (suffix_len > 1 && suffix_str[suffix_len - 1] == 'a') {
-        char base_suffix[128];
-        size_t base_len = suffix_len - 1;
-        snprintf(base_suffix, sizeof(base_suffix), "%.*s", (int)base_len, suffix_str);
+    // 1. Find the longest matching base type first (e.g., "i", "u8", "Player")
+    size_t best_match_len = 0;
 
-        // Now, parse the base type of the array (e.g., "s", "i", "si", "MyStruct")
-        const char* base_to_parse = base_suffix;
-
-        // Check for linkage prefixes on the array's base type
-        if (base_to_parse[0] == 's' && base_len > 1) {
-            result_info->is_static = true;
-            base_to_parse++;
-        } else if (base_to_parse[0] == 'e' && base_len > 1) {
-            result_info->is_extern = true;
-            base_to_parse++;
-        }
-
-        // Look up the final base type in the tables
-        for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
-            if (strcmp(base_to_parse, m->suffix) == 0) {
-                result_info->type = TYPE_ARRAY;
-                result_info->array_base_type = m->type;
-                result_info->role = m->role;
-                return true;
-            }
-        }
-        const char *user_type = type_table_lookup(type_table, base_to_parse);
-        if (user_type) {
-            result_info->type = TYPE_ARRAY;
-            result_info->array_base_type = TYPE_USER;
-            result_info->array_user_type_name = user_type;
-            return true;
-        }
-    }
-
-    // 2. If not an array, handle all other types (primitives, pointers, user types)
-    const char* type_to_parse = suffix_str;
-    if (type_to_parse[0] == 's' && suffix_len > 1) {
-        result_info->is_static = true;
-        type_to_parse++;
-    } else if (type_to_parse[0] == 'e' && suffix_len > 1) {
-        result_info->is_extern = true;
-        type_to_parse++;
-    }
-
+    // Check for primitive types
     for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
-        if (strcmp(type_to_parse, m->suffix) == 0) {
-            result_info->type = m->type;
-            result_info->role = m->role;
-            result_info->is_pointer = m->is_pointer;
-            result_info->is_const = m->is_const;
-            return true;
+        size_t len = strlen(m->suffix);
+        if (len > best_match_len && strncmp(suffix_str, m->suffix, len) == 0) {
+            best_match_len = len;
         }
     }
 
-    // Handle user-defined types (e.g., _Player, _Playerp)
+    // Check for user-defined types
     for (size_t i = 0; i < type_table->struct_count; i++) {
-        const char *user_type_name = type_table->struct_names[i];
-        size_t user_type_len = strlen(user_type_name);
-
-        if (strncmp(suffix_str, user_type_name, user_type_len) == 0) {
-            const char *modifier = suffix_str + user_type_len;
-            if (strcmp(modifier, "p") == 0 || strcmp(modifier, "b") == 0 || strcmp(modifier, "r") == 0 || strlen(modifier) == 0) {
-                result_info->type = TYPE_USER;
-                result_info->user_type_name = user_type_name;
-                if (strlen(modifier) > 0) {
-                    result_info->is_pointer = true;
-                    if (modifier[0] == 'p') { result_info->role = ROLE_OWNED; }
-                    if (modifier[0] == 'b') { result_info->is_const = true; result_info->role = ROLE_BORROWED; }
-                    if (modifier[0] == 'r') { result_info->is_const = true; result_info->role = ROLE_REFERENCE; }
-                }
-                return true;
-            }
+        size_t len = strlen(type_table->struct_names[i]);
+        if (len > best_match_len && strncmp(suffix_str, type_table->struct_names[i], len) == 0) {
+            best_match_len = len;
         }
     }
     
-    const TypedefInfo *typedef_info = type_table_lookup_typedef(type_table, suffix_str);
-    if (typedef_info) {
-        *result_info = typedef_info->type_info;
-        return true;
+    // Check for typedefs
+    for (size_t i = 0; i < type_table->typedef_count; i++) {
+        size_t len = strlen(type_table->typedefs[i].name);
+        if (len > best_match_len && strncmp(suffix_str, type_table->typedefs[i].name, len) == 0) {
+            best_match_len = len;
+        }
     }
 
-    return false;
+    if (best_match_len == 0) return false; // No known base type found
+
+    // 2. Split the suffix into the base and the modifiers
+    strncpy(base_suffix, suffix_str, best_match_len);
+    modifiers = suffix_str + best_match_len;
+
+    // 3. Parse the base suffix to get its core info
+    DataType base_data_type = TYPE_VOID;
+    const char* base_user_type_name = NULL;
+
+    bool base_found = false;
+    for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
+        if (strcmp(base_suffix, m->suffix) == 0) {
+            base_data_type = m->type;
+            base_found = true;
+            break;
+        }
+    }
+    if (!base_found) {
+         const char* user_type = type_table_lookup(type_table, base_suffix);
+         if (user_type) {
+            base_data_type = TYPE_USER;
+            base_user_type_name = user_type;
+            base_found = true;
+         }
+    }
+    if (!base_found) {
+        const TypedefInfo* typedef_info = type_table_lookup_typedef(type_table, base_suffix);
+        if (typedef_info) {
+            // For typedefs, copy the whole info as the base
+            *result_info = typedef_info->type_info;
+            base_data_type = result_info->type;
+            base_user_type_name = result_info->user_type_name;
+            base_found = true;
+        }
+    }
+
+    // 4. Parse the modifiers ('p', 'b', 'r', 'a')
+    size_t modifiers_len = strlen(modifiers);
+    const char* ptr_modifiers = modifiers;
+
+    // Check if the final modifier is 'a' for array
+    if (modifiers_len > 0 && modifiers[modifiers_len - 1] == 'a') {
+        result_info->type = TYPE_ARRAY;
+        result_info->array_base_type = base_data_type;
+        result_info->array_user_type_name = base_user_type_name;
+        modifiers_len--; // Don't process 'a' in the pointer loop
+    } else {
+        result_info->type = base_data_type;
+        result_info->user_type_name = base_user_type_name;
+    }
+
+    // Process pointer modifiers
+    for (size_t i = 0; i < modifiers_len; i++) {
+        char mod = ptr_modifiers[i];
+        if (mod == 'p') {
+            result_info->pointer_level++;
+            result_info->role = ROLE_OWNED;
+        } else if (mod == 'b') {
+            result_info->pointer_level++;
+            result_info->role = ROLE_BORROWED;
+            result_info->is_const = true;
+        } else if (mod == 'r') {
+            result_info->pointer_level++;
+            result_info->role = ROLE_REFERENCE;
+            result_info->is_const = true;
+        }
+    }
+    return true;
 }
 
 const char *get_c_type(const SuffixInfo *info) {
     static char type_buffer[256];
-    // Handle pointer to pointer
-  if (info->is_pointer_to_pointer) {
-    const char *base_type = "void";
-    if (info->type == TYPE_USER && info->user_type_name) {
-      base_type = info->user_type_name;
-    } else {
-      for (const TypeMapping *m = type_map; m->c_type; m++) {
-        if (m->type == info->type) {
-          base_type = m->c_type;
-          break;
-        }
-      }
-    }
-    snprintf(type_buffer, sizeof(type_buffer), "%s**", base_type);
-    return type_buffer;
-  }
-  
-  // Handle pointer arrays
-  if (info->type == TYPE_ARRAY && info->is_pointer) {
-    const char *base_type = "void";
-    if (info->array_base_type == TYPE_USER && info->array_user_type_name) {
-      base_type = info->array_user_type_name;
-    } else {
-      for (const TypeMapping *m = type_map; m->c_type; m++) {
-        if (m->type == info->array_base_type) {
-          base_type = m->c_type;
-          break;
-        }
-      }
-    }
-    snprintf(type_buffer, sizeof(type_buffer), "%s*", base_type);
-    return type_buffer;
-  }
+    const char *base_type_str = "void"; // Default C type
 
-    if (info->type == TYPE_ARRAY && info->array_base_type == TYPE_FUNC_POINTER) {
-        // This case is now handled entirely by emit_var_decl.
-        // Returning a placeholder prevents this function from generating incorrect output.
-        return "void*"; 
+    // 1. Determine the correct base type, whether it's an array element or a regular type.
+    DataType base_data_type = info->type;
+    const char* base_user_name = info->user_type_name;
+
+    if (info->type == TYPE_ARRAY) {
+        base_data_type = info->array_base_type;
+        base_user_name = info->array_user_type_name;
     }
-    if (info->type == TYPE_USER) {
-        if (info->user_type_name) {
-            snprintf(type_buffer, sizeof(type_buffer), "%s%s%s",
-                     info->is_const ? "const " : "",
-                     info->user_type_name,
-                     info->is_pointer ? "*" : "");
-            return type_buffer;
-        }
-    } 
-    DataType lookup_type = (info->type == TYPE_ARRAY) ? 
-                           info->array_base_type : info->type;
-    if (info->type == TYPE_ARRAY && info->array_base_type == TYPE_USER) {
-        strcpy(type_buffer, info->array_user_type_name ? 
-               info->array_user_type_name : "void");
-        return type_buffer;
-    }
-    const char *base_type = "void";
-    for (const TypeMapping *m = type_map; m->c_type; m++) {
-        if (m->type == lookup_type) {
-            base_type = m->c_type;
-            break;
-        }
-    } 
-    if (info->type == TYPE_ARRAY || info->type == TYPE_STRING) {
-        strcpy(type_buffer, base_type);
-    } else if (info->type == TYPE_FUNC_POINTER) {
-        strcpy(type_buffer, "void*");  
+
+    // 2. Look up the C string for the determined base type.
+    if (base_data_type == TYPE_USER && base_user_name) {
+        base_type_str = base_user_name;
     } else {
-        snprintf(type_buffer, sizeof(type_buffer), "%s%s%s",
-                 info->is_const ? "const " : "",
-                 base_type,
-                 info->is_pointer ? "*" : "");
-    }   
+        // Look for the type in the primitive type map [cite: 19]
+        for (const TypeMapping *m = type_map; m->c_type; m++) {
+            if (m->type == base_data_type) {
+                base_type_str = m->c_type;
+                break;
+            }
+        }
+    }
+
+    // 3. Build the final C type string, adding "const" and pointer asterisks.
+    int offset = snprintf(type_buffer, sizeof(type_buffer), "%s%s",
+                          info->is_const ? "const " : "",
+                          base_type_str);
+
+    // Append a '*' for each level of pointer indirection based on the new 'pointer_level' field.
+    for (int i = 0; i < info->pointer_level; i++) {
+        if (offset < (int)sizeof(type_buffer) - 2) {
+            type_buffer[offset++] = '*';
+        }
+    }
+    type_buffer[offset] = '\0'; // Ensure the string is null-terminated.
+
     return type_buffer;
 }
-
 // ======
 // LEXER 
 // ======
@@ -2032,7 +1992,7 @@ static const EmitFunc emit_dispatch[] = {
     [AST_CHARACTER]         = emit_character,
     [AST_SIZEOF]            = emit_sizeof,
     [AST_STRUCT_DEF]        = emit_struct_def,
-    [AST_MEMBER_DECL]       = NULL,  // Not used in current implementation
+    [AST_MEMBER_DECL]       = NULL,  // Handled else where lol
     [AST_DIRECTIVE]         = emit_directive,
     [AST_MEMBER_ACCESS]     = emit_member_access,
     [AST_TERNARY_OP]        = emit_ternary_op,
@@ -2138,51 +2098,19 @@ static void emit_function(ASTNode *node) {
 }
 
 static void emit_var_decl(ASTNode *node) {
-  if (node->suffix_info.type == TYPE_ARRAY && node->suffix_info.is_pointer) {
-    const char *base_type = "void";
-    if (node->suffix_info.array_base_type == TYPE_USER && 
-        node->suffix_info.array_user_type_name) {
-      base_type = node->suffix_info.array_user_type_name;
-    } else {
-      for (const TypeMapping *m = type_map; m->c_type; m++) {
-        if (m->type == node->suffix_info.array_base_type) {
-          base_type = m->c_type;
-          break;
-        }
-      }
-    }
-    fprintf(output_file, "%s* %s", base_type, node->value);
-    
-    // Handle array size
-    if (node->child_count > 0 && node->children[0] != NULL) {
-      fprintf(output_file, "[");
-      emit_node(node->children[0]);
-      fprintf(output_file, "]");
-    } else {
-      fprintf(output_file, "[]");
-    }
-    
-    // Handle initializer
-    if (node->child_count > 1) {
-      fprintf(output_file, " = ");
-      emit_node(node->children[1]);
-    }
-    return;
-  }
-    // Handle the special syntax for function pointer arrays
-    if (node->suffix_info.type == TYPE_ARRAY && 
+    // Special case for function pointer arrays, as they have unique C syntax.
+    if (node->suffix_info.type == TYPE_ARRAY &&
         node->suffix_info.array_base_type == TYPE_FUNC_POINTER) {
-        
         fprintf(output_file, "void (*%s[])(void*)", node->value);
-
-    } else { 
-        // Handle all other variable types (int, struct, regular arrays, etc.)
+    } else {
+        // Unified logic for ALL other types (int, Player, int*, Player**, int*[], etc.)
         const char *c_type = get_c_type(&node->suffix_info);
-        fprintf(output_file, "%s %s", c_type, node->value); // This correctly prints the type AND name
-        
+        fprintf(output_file, "%s %s", c_type, node->value);
+
+        // If it's a simple array (not an array of pointers handled by get_c_type), add brackets.
         if (node->suffix_info.type == TYPE_ARRAY) {
             fprintf(output_file, "[");
-            // Emit array size if it exists
+            // Emit size if it's provided and isn't the initializer itself.
             if (node->child_count > 0 && node->children[0] != NULL &&
                 node->children[0]->type != AST_INITIALIZER_LIST) {
                 emit_node(node->children[0]);
@@ -2190,16 +2118,15 @@ static void emit_var_decl(ASTNode *node) {
             fprintf(output_file, "]");
         }
     }
-    
-    // Handle initializers for ALL variable types at the end
+
+    // Unified initializer logic for ALL variable types.
     ASTNode *initializer = NULL;
     for (int i = 0; i < node->child_count; i++) {
-        if (node->children[i] && (node->children[i]->type == AST_INITIALIZER_LIST || 
+        if (node->children[i] && (node->children[i]->type == AST_INITIALIZER_LIST ||
                                   node->children[i]->type == AST_STRING)) {
             initializer = node->children[i];
             break;
         } else if (node->children[i] && node->suffix_info.type != TYPE_ARRAY) {
-            // This handles simple initializers like 'let x_i = 5'
             initializer = node->children[i];
             break;
         }
@@ -2477,7 +2404,7 @@ static void emit_struct_def(ASTNode *node) {
     for (int i = 0; i < node->child_count; i++) {
         ASTNode *member = node->children[i];
         if (member->type == AST_VAR_DECL) {
-            fprintf(output_file, "    %s %s", 
+            fprintf(output_file, "%s %s", 
                     get_c_type(&member->suffix_info), member->value);
             
             if (member->child_count > 0) {
@@ -2507,7 +2434,7 @@ static void emit_union_def(ASTNode *node) {
     for (int i = 0; i < node->child_count; i++) {
         ASTNode *member = node->children[i];
         if (member->type == AST_VAR_DECL) {
-            fprintf(output_file, "    %s %s", 
+            fprintf(output_file, "%s %s", 
                     get_c_type(&member->suffix_info), member->value);
             
             if (member->child_count > 0) {

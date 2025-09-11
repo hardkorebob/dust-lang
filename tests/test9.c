@@ -10,17 +10,17 @@
 
 typedef struct Token Token;
 struct Token {
-    int type;
-    char* text;
-    int line;
-    Token* next;
+int type;
+char* text;
+int line;
+Token* next;
 };
 typedef struct Lexer Lexer;
 struct Lexer {
-    char* source;
-    int pos;
-    int len;
-    int line;
+char* source;
+int pos;
+int len;
+int line;
 };
 // Forward declarations
 int main();

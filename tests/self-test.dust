@@ -6,49 +6,43 @@
 
 struct Arena {
     data_cp
-    size_st
-    used_st
+    size_t
+    used_t
+    thing_ipp
 }
 
-// FIX: Declare the struct itself, not a pointer to it.
 let g_arena_Arena
 
-// Test arena functions
-func arena_init_v(size_st) {
-    // FIX: Access members of the global struct directly.
-    g_arena_Arena.data_cp = malloc(size_st)
-    g_arena_Arena.size_st = size_st
-    g_arena_Arena.used_st = 0
+func arena_init_v(size_t) {
+    g_arena_Arena.data_cp = malloc(size_t)
+    g_arena_Arena.size_t = size_t
+    g_arena_Arena.used_t = 0
 }
 
-func arena_alloc_vp(size_st) {
-    // FIX: Modify the existing parameter, do not redeclare it.
-    size_st = (size_st + 7) & ~7
+func arena_alloc_vp(size_t) {
+    size_t = (size_t + 7) & ~7
     
-    if (g_arena_Arena.used_st + size_st > g_arena_Arena.size_st) {
+    if (g_arena_Arena.used_t + size_t > g_arena_Arena.size_t) {
         fprintf(stderr, "Arena out of memory\n")
         exit(1)
     }
     
-    let ptr_vp = g_arena_Arena.data_cp + g_arena_Arena.used_st
-    g_arena_Arena.used_st = g_arena_Arena.used_st + size_st
-    memset(ptr_vp, 0, size_st)
+    let ptr_vp = g_arena_Arena.data_cp + g_arena_Arena.used_t
+    g_arena_Arena.used_t = g_arena_Arena.used_t + size_t
     return ptr_vp
 }
 
 func str_cmp_i(a_s, b_s) {
-    let i_st = 0
-    while (a_s[i_st] != '\0' && b_s[i_st] != '\0') {
-        if (a_s[i_st] != b_s[i_st]) {
-            return a_s[i_st] - b_s[i_st]
+    let i_t = 0
+    while (a_s[i_t] != '\0' && b_s[i_t] != '\0') {
+        if (a_s[i_t] != b_s[i_t]) {
+            return a_s[i_t] - b_s[i_t]
         }
-        i_st = i_st + 1
+        i_t = i_t + 1
     }
-    // FIX: Corrected typo from b_a to b_s.
-    return a_s[i_st] - b_s[i_st]
+    return a_s[i_t] - b_s[i_t]
 }
 
-// Emission functions for dispatch table
 func emit_identifier_v(node_vp) {
     fprintf(stdout, "%s", cast_s(node_vp))
 }
@@ -57,8 +51,6 @@ func emit_number_v(node_vp) {
     fprintf(stdout, "%s", cast_s(node_vp))
 }
 
-// Function pointer array (dispatch table)
-// FIX: Corrected initializer syntax (no extra braces).
 let emit_table_fpa[] = {
     emit_identifier_v 
     emit_number_v 
@@ -73,7 +65,6 @@ struct Lexer {
     line_i
 }
 
-// Main compiler-like structure
 func compile_i(source_s) {
     let lex_Lexerp = arena_alloc_vp(sizeof(Lexer))
     lex_Lexerp->source_s = source_s

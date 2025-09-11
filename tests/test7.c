@@ -3,8 +3,8 @@
 
 typedef struct Point Point;
 struct Point {
-    int x;
-    int y;
+int x;
+int y;
 };
 // Forward declarations
 int main();

@@ -7,9 +7,9 @@
 
 typedef struct Game Game;
 struct Game {
-    int secret_number;
-    int last_guess;
-    int attempts;
+int secret_number;
+int last_guess;
+int attempts;
 };
 // Forward declarations
 int main();

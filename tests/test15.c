@@ -5,9 +5,9 @@ typedef uint32_t Score_t;
 
 typedef union Packet Packet;
 union Packet {
-    uint32_t id;
-    int value;
-    char code[4];
+uint32_t id;
+int value;
+char code[4];
 };
 // Forward declarations
 int main();

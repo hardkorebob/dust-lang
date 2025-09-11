@@ -2,10 +2,10 @@
 
 typedef union Variant Variant;
 union Variant {
-    int i_value;
-    float f_value;
-    char* s_value;
-    void* ptr;
+int i_value;
+float f_value;
+char* s_value;
+void* ptr;
 };
 // Forward declarations
 int main();

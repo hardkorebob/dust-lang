@@ -18,9 +18,9 @@ AST_WHILE = 5
 } ASTType;
 typedef struct Token Token;
 struct Token {
-    TokenType type;
-    char* text;
-    int line;
+TokenType type;
+char* text;
+int line;
 };
 // Forward declarations
 int main();

@@ -4,12 +4,12 @@
 
 typedef struct Player Player;
 struct Player {
-    int x;
-    int y;
-    uint32_t health;
-    char* name;
-    int inventory[10];
-    bool active;
+int x;
+int y;
+uint32_t health;
+char* name;
+int inventory[10];
+bool active;
 };
 typedef enum GameState {
 MENU = 0,
@@ -25,16 +25,16 @@ void test_arrays();
 void test_control_flow();
 void test_operators();
 void update_player(Player* p);
-int sum_array(int* arr, void size_st);
+int sum_array(int* arr, size_t size);
 int add(int a, int b);
 
 int add(int a, int b) {
 return (a + b);
 }
-int sum_array(int* arr, void size_st) {
+int sum_array(int* arr, size_t size) {
 int total = 0;
-for (void i_st = 0; (i_st < size_st); i_st++) {
-total += arr[i_st];
+for (size_t i = 0; (i < size); i++) {
+total += arr[i];
 }
 return total;
 }
@@ -119,7 +119,7 @@ break;
 void test_arrays() {
 int numbers[5] = { 1, 2, 3, 4, 5 };
 uint8_t buffer[256];
-char message["Hello, Dust!"] = "Hello, Dust!";
+char* message = "Hello, Dust!";
 numbers[0] = 10;
 buffer[0] = 0xFF;
 int* ptr = &numbers[0];

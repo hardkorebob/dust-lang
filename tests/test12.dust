@@ -24,8 +24,7 @@ func greeter_create_Greeterp(message_s) {
     let new_greeter_Greeterp = cast_Greeterp(malloc(sizeof(Greeter)))
     
     // Allocate memory for the message string and copy it.
-    let message_len_st = strlen(message_s)
-    new_greeter_Greeterp->message = cast_s(malloc(message_len_st + 1))
+    let message_len_t = strlen(message_s)
     strcpy(new_greeter_Greeterp->message, message_s)
 
     return new_greeter_Greeterp
