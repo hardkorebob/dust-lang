@@ -54,11 +54,11 @@ class DustEditor:
         menubar.add_cascade(label="Build", menu=build_menu)
         build_menu.add_command(label="Full Build & Run", command=self.full_build_run, accelerator="F5")
 
-        # --- Paned Layout (Editor/Output) ---
+        # --- Paned Layout ---
         main_paned = tk.PanedWindow(self.root, orient=tk.VERTICAL, bg=self.colors['bg'], sashwidth=8)
         main_paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # --- Editor Pane (with Line Numbers) ---
+        # --- Editor Pane  ---
         editor_frame = tk.Frame(main_paned, bg=self.colors['bg'])
         self.line_numbers = tk.Text(editor_frame, width=4, padx=3, takefocus=0, highlightbackground=self.colors['bg'],
                                     font=('Iosevka', 10), bg=self.colors['status_bg'], relief="flat",
@@ -66,7 +66,7 @@ class DustEditor:
         self.line_numbers.pack(side=tk.LEFT, fill=tk.Y)
         
         self.text = tk.Text(editor_frame, wrap=tk.NONE, undo=True,
-                            font=('Iosevka', 14), bg=self.colors['bg'], fg=self.colors['fg'],
+                            font=('Iosevka', 10), bg=self.colors['bg'], fg=self.colors['fg'],
                             insertbackground=self.colors['fg'], selectbackground=self.colors['select_bg'],
                             borderwidth=0, highlightthickness=0)
         self.text.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
