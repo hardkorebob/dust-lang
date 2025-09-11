@@ -11,11 +11,7 @@ class DustEditor:
         self.root.title("Dusted")
         self.current_file = None
         self._highlight_job = None
-
-        # -- START: Added Mouse Functionality --
         self.left_pressed = False
-        # -- END: Added Mouse Functionality --
-
         self.highlight_rules = {
             'keyword': r'\b(func|let)\b',
             'suffix':  r'_[a-zA-Z0-9]+'
@@ -25,7 +21,8 @@ class DustEditor:
             'fg': '#000000',
             'select_bg': '#eeeea0',
             'status_bg': '#e7e7d7',
-            'output_bg': '#ffffea',
+            'output_bg': '#cccccc',
+            'output_fg': '#00008b',
             'keyword_fg': '#00008b',  
             'suffix_fg': '#8b0000',   
             'search_highlight_bg': '#bfff00' 
@@ -61,12 +58,12 @@ class DustEditor:
         # --- Editor Pane  ---
         editor_frame = tk.Frame(main_paned, bg=self.colors['bg'])
         self.line_numbers = tk.Text(editor_frame, width=4, padx=3, takefocus=0, highlightbackground=self.colors['bg'],
-                                    font=('Iosevka', 10), bg=self.colors['status_bg'], relief="flat",
+                                    font=('Iosevka', 12), bg=self.colors['status_bg'], relief="flat",
                                     fg=self.colors['fg'], state='disabled', borderwidth=0)
         self.line_numbers.pack(side=tk.LEFT, fill=tk.Y)
         
         self.text = tk.Text(editor_frame, wrap=tk.NONE, undo=True,
-                            font=('Iosevka', 10), bg=self.colors['bg'], fg=self.colors['fg'],
+                            font=('Iosevka', 12), bg=self.colors['bg'], fg=self.colors['fg'],
                             insertbackground=self.colors['fg'], selectbackground=self.colors['select_bg'],
                             borderwidth=0, highlightthickness=0)
         self.text.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
@@ -76,7 +73,7 @@ class DustEditor:
         output_frame = tk.Frame(main_paned, bg=self.colors['bg'])
         self.output_text = scrolledtext.ScrolledText(output_frame, wrap=tk.WORD, height=8, takefocus=0,
                                                      font=('Iosevka', 10), bg=self.colors['output_bg'],
-                                                     fg=self.colors['fg'], state='disabled')
+                                                     fg=self.colors['output_fg'], state='disabled')
         self.output_text.pack(fill=tk.BOTH, expand=True)
         main_paned.add(output_frame)
         self.root.update()
