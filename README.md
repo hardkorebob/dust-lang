@@ -77,7 +77,7 @@ The Dust compiler leverages a **component-based system** to look up the correct 
 ---
 
 ```c
-// test_self_host.dust - Corrected version
+// test_self_host.dust
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -93,7 +93,6 @@ struct Arena {
 let g_arena_Arena
 
 func arena_init_v(size_st) {
-    // FIX: Access members of the global struct directly.
     g_arena_Arena.data_cp = malloc(size_st)
     g_arena_Arena.size_st = size_st
     g_arena_Arena.used_st = 0

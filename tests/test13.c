@@ -9,13 +9,13 @@ struct Player {
     uint32_t health;
     char* name;
     int inventory[10];
-    void active_bl;
+    bool active;
 };
 typedef enum GameState {
-    MENU = 0,
-    PLAYING = 1,
-    PAUSED = 2,
-    GAME_OVER = 3
+MENU = 0,
+PLAYING = 1,
+PAUSED = 2,
+GAME_OVER = 3
 } GameState;
 typedef uint32_t Score;
 
@@ -25,16 +25,16 @@ void test_arrays();
 void test_control_flow();
 void test_operators();
 void update_player(Player* p);
-int sum_array(int* arr, size_t size);
+int sum_array(int* arr, void size_st);
 int add(int a, int b);
 
 int add(int a, int b) {
 return (a + b);
 }
-int sum_array(int* arr, size_t size) {
+int sum_array(int* arr, void size_st) {
 int total = 0;
-for (size_t i = 0; (i < size); i++) {
-total += arr[i];
+for (void i_st = 0; (i_st < size_st); i_st++) {
+total += arr[i_st];
 }
 return total;
 }
@@ -69,15 +69,15 @@ int pre = ++a;
 int post = b++;
 --a;
 b--;
-void eq_bl = (a == b);
-void neq_bl = (a != b);
-void lt_bl = (a < b);
-void gt_bl = (a > b);
-void lte_bl = (a <= b);
-void gte_bl = (a >= b);
-void and_bl = ((a > 5) && (b < 10));
-void or_bl = ((a > 5) || (b < 10));
-void not_bl = !(a == b);
+bool eq = (a == b);
+bool neq = (a != b);
+bool lt = (a < b);
+bool gt = (a > b);
+bool lte = (a <= b);
+bool gte = (a >= b);
+bool and = ((a > 5) && (b < 10));
+bool or = ((a > 5) || (b < 10));
+bool not = !(a == b);
 int max = ((a > b) ? a : b);
 printf("Operators test complete\n");
 }
@@ -119,7 +119,7 @@ break;
 void test_arrays() {
 int numbers[5] = { 1, 2, 3, 4, 5 };
 uint8_t buffer[256];
-char message[] = "Hello, Dust!";
+char message["Hello, Dust!"] = "Hello, Dust!";
 numbers[0] = 10;
 buffer[0] = 0xFF;
 int* ptr = &numbers[0];

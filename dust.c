@@ -35,6 +35,7 @@ typedef enum {
     TYPE_UINTPTR,
     TYPE_INTPTR,
     TYPE_OFF,
+    TYPE_BOOL,
 } DataType;
 
 typedef enum {
@@ -54,6 +55,8 @@ typedef struct {
   bool is_pointer_to_pointer;
   DataType array_base_type;
   const char *array_user_type_name;
+  bool is_static;
+  bool is_extern;
 } SuffixInfo;
 
 typedef struct {
@@ -102,6 +105,7 @@ static const TypeMapping type_map[] = {
     {TYPE_UINTPTR,    "uintptr_t"},
     {TYPE_INTPTR,     "intptr_t"},
     {TYPE_OFF,        "off_t"},
+    {TYPE_BOOL,       "bool"},
 
     {TYPE_VOID,       NULL}
 };
@@ -112,7 +116,14 @@ static const SuffixMapping suffix_table[] = {
     {"c",   TYPE_CHAR,   ROLE_NONE,   false, false},
     {"s",   TYPE_STRING, ROLE_NONE,   true,  false},
     {"v",   TYPE_VOID,   ROLE_NONE,   false, false},
-    
+    {"bl",  TYPE_BOOL,   ROLE_NONE,   false, false},
+
+    {"si",   TYPE_INT,    ROLE_NONE,   false, false},
+    {"sf",   TYPE_FLOAT,  ROLE_NONE,   false, false},
+    {"sc",   TYPE_CHAR,   ROLE_NONE,   false, false},
+    {"sv",   TYPE_VOID,   ROLE_NONE,   false, false},
+    {"ev",   TYPE_VOID,   ROLE_NONE,   false, false},
+
     {"ip",  TYPE_INT,    ROLE_OWNED,     true,  false},
     {"ib",  TYPE_INT,    ROLE_BORROWED,  true,  true},
     {"ir",  TYPE_INT,    ROLE_REFERENCE, true,  true},
@@ -121,6 +132,8 @@ static const SuffixMapping suffix_table[] = {
     {"cr",  TYPE_CHAR,   ROLE_REFERENCE, true,  true},
     {"fp",  TYPE_FUNC_POINTER, ROLE_OWNED, true, false},
     {"b",   TYPE_POINTER, ROLE_BORROWED, true,  true},
+    {"pp",  TYPE_POINTER, ROLE_OWNED, true,  false},
+    {"pa",  TYPE_ARRAY,   ROLE_OWNED, true,  false}, 
 
     {"u8",   TYPE_UINT8,   ROLE_NONE,   false, false},  
     {"u16",  TYPE_UINT16,  ROLE_NONE,   false, false},   
@@ -410,77 +423,141 @@ const char *find_suffix_separator(const char *name) {
   return strrchr(name, '_');
 }
 
+// In dust.c, replace the entire suffix_parse function with this:
+
 bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, SuffixInfo *result_info) {
-    *result_info = (SuffixInfo){TYPE_VOID, ROLE_NONE, false, false, NULL, false, TYPE_VOID, NULL};    
+    *result_info = (SuffixInfo){0}; // Zero-initialize for a clean slate
     const char *separator = find_suffix_separator(full_variable_name);
-    if (!separator) return false;    
+    if (!separator) return false;
+
     const char *suffix_str = separator + 1;
     size_t suffix_len = strlen(suffix_str);
     if (suffix_len == 0) return false;
-    if (strcmp(suffix_str, "fpa") == 0) {
-      result_info->type = TYPE_ARRAY;
-      result_info->array_base_type = TYPE_FUNC_POINTER;
-      return true;
-    }
+
+    // --- NEW ROBUST LOGIC ---
+
+    // 1. Check for the most specific pattern: ARRAYS (ends in 'a')
     if (suffix_len > 1 && suffix_str[suffix_len - 1] == 'a') {
         char base_suffix[128];
-        snprintf(base_suffix, sizeof(base_suffix), "%.*s", (int)suffix_len - 1, suffix_str);
-        base_suffix[suffix_len - 1] = '\0';      
+        size_t base_len = suffix_len - 1;
+        snprintf(base_suffix, sizeof(base_suffix), "%.*s", (int)base_len, suffix_str);
+
+        // Now, parse the base type of the array (e.g., "s", "i", "si", "MyStruct")
+        const char* base_to_parse = base_suffix;
+
+        // Check for linkage prefixes on the array's base type
+        if (base_to_parse[0] == 's' && base_len > 1) {
+            result_info->is_static = true;
+            base_to_parse++;
+        } else if (base_to_parse[0] == 'e' && base_len > 1) {
+            result_info->is_extern = true;
+            base_to_parse++;
+        }
+
+        // Look up the final base type in the tables
         for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
-            if (strcmp(base_suffix, m->suffix) == 0) {
+            if (strcmp(base_to_parse, m->suffix) == 0) {
                 result_info->type = TYPE_ARRAY;
                 result_info->array_base_type = m->type;
+                result_info->role = m->role;
                 return true;
             }
-        }   
-        const char *user_type = type_table_lookup(type_table, base_suffix);
+        }
+        const char *user_type = type_table_lookup(type_table, base_to_parse);
         if (user_type) {
             result_info->type = TYPE_ARRAY;
             result_info->array_base_type = TYPE_USER;
             result_info->array_user_type_name = user_type;
             return true;
         }
-    }    
+    }
+
+    // 2. If not an array, handle all other types (primitives, pointers, user types)
+    const char* type_to_parse = suffix_str;
+    if (type_to_parse[0] == 's' && suffix_len > 1) {
+        result_info->is_static = true;
+        type_to_parse++;
+    } else if (type_to_parse[0] == 'e' && suffix_len > 1) {
+        result_info->is_extern = true;
+        type_to_parse++;
+    }
+
+    for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
+        if (strcmp(type_to_parse, m->suffix) == 0) {
+            result_info->type = m->type;
+            result_info->role = m->role;
+            result_info->is_pointer = m->is_pointer;
+            result_info->is_const = m->is_const;
+            return true;
+        }
+    }
+
+    // Handle user-defined types (e.g., _Player, _Playerp)
     for (size_t i = 0; i < type_table->struct_count; i++) {
         const char *user_type_name = type_table->struct_names[i];
         size_t user_type_len = strlen(user_type_name);
 
         if (strncmp(suffix_str, user_type_name, user_type_len) == 0) {
             const char *modifier = suffix_str + user_type_len;
-            if (strcmp(modifier, "p") == 0 || strcmp(modifier, "b") == 0 || strcmp(modifier, "r") == 0) {
+            if (strcmp(modifier, "p") == 0 || strcmp(modifier, "b") == 0 || strcmp(modifier, "r") == 0 || strlen(modifier) == 0) {
                 result_info->type = TYPE_USER;
                 result_info->user_type_name = user_type_name;
-                result_info->is_pointer = true;
-                if (modifier[0] == 'p') { result_info->role = ROLE_OWNED; }
-                if (modifier[0] == 'b') { result_info->is_const = true; result_info->role = ROLE_BORROWED; }
-                if (modifier[0] == 'r') { result_info->is_const = true; result_info->role = ROLE_REFERENCE; }
+                if (strlen(modifier) > 0) {
+                    result_info->is_pointer = true;
+                    if (modifier[0] == 'p') { result_info->role = ROLE_OWNED; }
+                    if (modifier[0] == 'b') { result_info->is_const = true; result_info->role = ROLE_BORROWED; }
+                    if (modifier[0] == 'r') { result_info->is_const = true; result_info->role = ROLE_REFERENCE; }
+                }
                 return true;
             }
         }
     }
-    for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
-        if (strcmp(suffix_str, m->suffix) == 0) {
-            result_info->type = m->type; result_info->role = m->role;
-            result_info->is_pointer = m->is_pointer; result_info->is_const = m->is_const;
-            return true;
-        }
-    }
-    const char *user_type = type_table_lookup(type_table, suffix_str);
-    if (user_type) {
-        result_info->type = TYPE_USER; result_info->user_type_name = user_type;
-        return true;
-    }
+    
     const TypedefInfo *typedef_info = type_table_lookup_typedef(type_table, suffix_str);
     if (typedef_info) {
         *result_info = typedef_info->type_info;
         return true;
     }
-    
+
     return false;
 }
 
 const char *get_c_type(const SuffixInfo *info) {
     static char type_buffer[256];
+    // Handle pointer to pointer
+  if (info->is_pointer_to_pointer) {
+    const char *base_type = "void";
+    if (info->type == TYPE_USER && info->user_type_name) {
+      base_type = info->user_type_name;
+    } else {
+      for (const TypeMapping *m = type_map; m->c_type; m++) {
+        if (m->type == info->type) {
+          base_type = m->c_type;
+          break;
+        }
+      }
+    }
+    snprintf(type_buffer, sizeof(type_buffer), "%s**", base_type);
+    return type_buffer;
+  }
+  
+  // Handle pointer arrays
+  if (info->type == TYPE_ARRAY && info->is_pointer) {
+    const char *base_type = "void";
+    if (info->array_base_type == TYPE_USER && info->array_user_type_name) {
+      base_type = info->array_user_type_name;
+    } else {
+      for (const TypeMapping *m = type_map; m->c_type; m++) {
+        if (m->type == info->array_base_type) {
+          base_type = m->c_type;
+          break;
+        }
+      }
+    }
+    snprintf(type_buffer, sizeof(type_buffer), "%s*", base_type);
+    return type_buffer;
+  }
+
     if (info->type == TYPE_ARRAY && info->array_base_type == TYPE_FUNC_POINTER) {
         // This case is now handled entirely by emit_var_decl.
         // Returning a placeholder prevents this function from generating incorrect output.
@@ -583,8 +660,6 @@ static const char *KEYWORDS[] = {
     "cast",
     "null",
     "enum",
-    "static",
-    "extern",
     "union",
      NULL
 };
@@ -736,7 +811,7 @@ Token *lexer_next(Lexer *lex) {
           tok->suffix_info = info;
         }
       } else {
-        tok->suffix_info = (SuffixInfo){TYPE_VOID, ROLE_NONE, false, false, NULL, false, TYPE_VOID, NULL};
+        tok->suffix_info = (SuffixInfo){0};
       }
     }
     return tok;
@@ -1611,7 +1686,12 @@ static ASTNode *parse_struct_definition(Parser *p) {
       parser_error(p, "Unterminated struct definition.");
       return NULL;
     }
-
+    if (check(p, TOKEN_KEYWORD) && strcmp(p->current->text, "struct") == 0) {
+        advance(p); // Consume 'struct'
+        ASTNode *nested_struct = parse_struct_definition(p);
+        add_child(struct_node, nested_struct);
+        continue;
+    }
     if (check(p, TOKEN_IDENTIFIER)) {
       Token *member_tok = advance(p);
 
@@ -2008,6 +2088,9 @@ static void emit_statement(ASTNode *node) {
 }
 
 static void emit_function(ASTNode *node) {
+    if (node->suffix_info.is_static) fprintf(output_file, "static ");
+    if (node->suffix_info.is_extern) fprintf(output_file, "extern ");
+
     const char *return_type = get_c_type(&node->suffix_info);
     fprintf(output_file, "%s %s(", return_type, node->value);
 
@@ -2055,6 +2138,37 @@ static void emit_function(ASTNode *node) {
 }
 
 static void emit_var_decl(ASTNode *node) {
+  if (node->suffix_info.type == TYPE_ARRAY && node->suffix_info.is_pointer) {
+    const char *base_type = "void";
+    if (node->suffix_info.array_base_type == TYPE_USER && 
+        node->suffix_info.array_user_type_name) {
+      base_type = node->suffix_info.array_user_type_name;
+    } else {
+      for (const TypeMapping *m = type_map; m->c_type; m++) {
+        if (m->type == node->suffix_info.array_base_type) {
+          base_type = m->c_type;
+          break;
+        }
+      }
+    }
+    fprintf(output_file, "%s* %s", base_type, node->value);
+    
+    // Handle array size
+    if (node->child_count > 0 && node->children[0] != NULL) {
+      fprintf(output_file, "[");
+      emit_node(node->children[0]);
+      fprintf(output_file, "]");
+    } else {
+      fprintf(output_file, "[]");
+    }
+    
+    // Handle initializer
+    if (node->child_count > 1) {
+      fprintf(output_file, " = ");
+      emit_node(node->children[1]);
+    }
+    return;
+  }
     // Handle the special syntax for function pointer arrays
     if (node->suffix_info.type == TYPE_ARRAY && 
         node->suffix_info.array_base_type == TYPE_FUNC_POINTER) {
@@ -2427,7 +2541,7 @@ static void emit_enum_def(ASTNode *node) {
 }
 
 static void emit_enum_value(ASTNode *node) {
-    fprintf(output_file, "    %s", node->value);
+    fprintf(output_file, "%s", node->value);
     if (node->child_count > 0) {
         fprintf(output_file, " = ");
         emit_node(node->children[0]);
@@ -2502,6 +2616,8 @@ void emit_forward_declarations(FuncDecl *decls, FILE *out) {
     fprintf(out, "// Forward declarations\n");
     
     for (FuncDecl *d = decls; d; d = d->next) {
+        if (d->return_type.is_static) fprintf(out, "static ");
+        if (d->return_type.is_extern) fprintf(out, "extern ");
         const char *return_type = get_c_type(&d->return_type);
         fprintf(out, "%s %s(", return_type, d->name);
         

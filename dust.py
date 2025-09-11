@@ -12,16 +12,17 @@ class DustEditor:
         
         # Acme editor color scheme
         self.colors = {
-            'bg': '#ffffea',           # Pale yellow background
+            'bg': '#e8e8d8',           # Pale yellow background
             'fg': '#000000',            # Black text
             'select_bg': '#eeeea0',     # Slightly darker yellow selection
-            'status_bg': '#e8e8d8',     # Status bar background
-            'listbox_bg': '#ffffea',    # Listbox background
+            'status_bg': '#e7e7d7',     # Status bar background
+            'listbox_bg': '#ffffe3',    # Listbox background
             'listbox_fg': '#000000',    # Listbox text
             'listbox_select': '#eeeea0', # Listbox selection
             'output_bg': '#ffffea'
         }
         
+
         # Mouse chord tracking
         self.left_pressed = False
         self.left_press_pos = None
@@ -31,13 +32,6 @@ class DustEditor:
         self.style = ttk.Style()
         self.style.configure('TFrame', background=self.colors['bg'])
         self.style.configure('TLabel', background=self.colors['status_bg'], foreground=self.colors['fg'])
-        
-        # Dust keywords
-        self.keywords = {
-            'if', 'else', 'while', 'do', 'for', 'return', 'break', 'continue',
-            'func', 'let', 'struct', 'sizeof', 'switch', 'case', 'default',
-            'typedef', 'cast', 'null', 'enum', 'static', 'extern', 'union'
-        }
         
         # Common Dust suffixes organized by category
         self.suffix_categories = {
@@ -98,9 +92,9 @@ class DustEditor:
         # File menu
         file_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="New", command=self.new_file, accelerator="Ctrl+N")
-        file_menu.add_command(label="Open...", command=self.open_file, accelerator="Ctrl+O")
-        file_menu.add_command(label="Save", command=self.save_file, accelerator="Ctrl+S")
+        file_menu.add_command(label="New", command=self.new_file, accelerator="Ctrl+n")
+        file_menu.add_command(label="Open...", command=self.open_file, accelerator="Ctrl+o")
+        file_menu.add_command(label="Save", command=self.save_file, accelerator="Ctrl+s")
         file_menu.add_command(label="Save As...", command=self.save_as_file)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.root.quit)
@@ -131,7 +125,7 @@ class DustEditor:
             width=4,
             padx=3,
             takefocus=0,
-            font=('Iosevka', 12),
+            font=('Iosevka', 10),
             bg=self.colors['status_bg'],
             fg=self.colors['fg'],
             state='disabled'
@@ -166,7 +160,7 @@ class DustEditor:
             wrap=tk.WORD,
             width=80,
             height=10,
-            font=('Iosevka', 9),
+            font=('Iosevka', 10),
             bg=self.colors['output_bg'],
             fg=self.colors['fg'],
             state='disabled'
@@ -757,3 +751,7 @@ if __name__ == "__main__":
     editor.text.focus()
     
     root.mainloop()
+
+
+
+
