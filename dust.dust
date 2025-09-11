@@ -22,8 +22,8 @@ enum DataType {
     TYPEPOINTER
     TYPEARRAY
     TYPEUSER
-    TYPEFUNC_POINTER
-    TYPESIZE_T
+    TYPEFPTR
+    TYPESIZET
     TYPEUINT8
     TYPEUINT16
     TYPEUINT32
@@ -73,3 +73,37 @@ struct TypeTable {
 	typedefCap_t
 }
 
+struct SuffixMapping {
+	suffix_cb
+	isPtr_bl
+	isConst_bl
+	type_DataType
+	role_SemanticRole
+}
+
+struct TypeMapping {
+	type_DataType
+	cType_cb
+}
+
+let typeMap_sTypeMappingba[] = {
+    {TYPEVOID,       "void"}
+    {TYPEINT,        "int"}
+    {TYPEFLOAT,      "float"}
+    {TYPECHAR,       "char"}
+    {TYPESTRING,     "char*"}
+    {TYPESIZET,     "size_t"}, 
+    {TYPEUINT8,      "uint8_t"}
+    {TYPEUINT16,     "uint16_t"}
+    {TYPEUINT32,     "uint32_t"}
+    {TYPEUINT64,     "uint64_t"}
+    {TYPEINT8,       "int8_t"}
+    {TYPEINT16,      "int16_t"}
+    {TYPEINT32,      "int32_t"}
+    {TYPEINT64,      "int64_t"},   
+    {TYPEUINTPTR,    "uintptr_t"}
+    {TYPEINTPTR,     "intptr_t"}
+    {TYPEOFF,        "off_t"}
+    {TYPEBOOL,       "bool"}
+    {TYPEVOID,       NULL}
+}

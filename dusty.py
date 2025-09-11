@@ -77,12 +77,12 @@ class DustEditor:
         # --- Editor Pane  ---
         editor_frame = tk.Frame(main_paned, bg=self.colors['bg'])
         self.line_numbers = tk.Text(editor_frame, width=4, padx=3, takefocus=0, highlightbackground=self.colors['bg'],
-                                    font=('Iosevka', 12), bg=self.colors['status_bg'], relief="flat",
+                                    font=('Iosevka', 12), bg=self.colors['status_bg'], relief="flat", cursor="cross",
                                     fg=self.colors['fg'], state='disabled', borderwidth=0, highlightthickness=0)
         self.line_numbers.pack(side=tk.LEFT, fill=tk.Y)
         
         # --- Types ---
-        self.suffix_widget = tk.Text(editor_frame, width=15, padx=5, takefocus=0,
+        self.suffix_widget = tk.Text(editor_frame, width=15, padx=5, takefocus=0, cursor="gumby",
                              font=('Iosevka', 12), bg=self.colors['output_bg'], highlightbackground=self.colors['bg'],
                              fg='#404040', state='disabled', borderwidth=0, highlightthickness=0)
         self.suffix_widget.pack(side=tk.RIGHT, fill=tk.Y)
@@ -90,7 +90,7 @@ class DustEditor:
         self.text = tk.Text(editor_frame, wrap=tk.NONE, undo=True,
                             font=('Iosevka', 12), bg=self.colors['bg'], fg=self.colors['fg'],
                             insertbackground=self.colors['fg'], selectbackground=self.colors['select_bg'],
-                            borderwidth=0, highlightthickness=0)
+                            borderwidth=0, highlightthickness=0, cursor="heart")
         self.text.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         main_paned.add(editor_frame)
 

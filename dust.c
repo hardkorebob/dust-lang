@@ -6,7 +6,7 @@
 
 typedef struct Arena Arena;
 struct Arena {
-char* data;
+char** data;
 size_t size;
 size_t used;
 };
@@ -19,8 +19,8 @@ TYPESTRING = 4,
 TYPEPOINTER = 5,
 TYPEARRAY = 6,
 TYPEUSER = 7,
-TYPEFUNC_POINTER = 8,
-TYPESIZE_T = 9,
+TYPEFPTR = 8,
+TYPESIZET = 9,
 TYPEUINT8 = 10,
 TYPEUINT16 = 11,
 TYPEUINT32 = 12,
@@ -55,16 +55,30 @@ const char* arrUsertypename;
 };
 typedef struct TypedefInfo TypedefInfo;
 struct TypedefInfo {
-char* name;
+char** name;
 SuffixInfo typeInfo;
 };
 typedef struct TypeTable TypeTable;
 struct TypeTable {
 TypedefInfo* typedefs;
 char** structNames;
-Arena typeArena;
+void typeArena_Arena;
 size_t structCount;
 size_t structCap;
 size_t typedefCount;
 size_t typedefCap;
 };
+typedef struct SuffixMapping SuffixMapping;
+struct SuffixMapping {
+const char* suffix;
+bool isPtr;
+bool isConst;
+DataType type;
+SemanticRole role;
+};
+typedef struct TypeMapping TypeMapping;
+struct TypeMapping {
+DataType type;
+const char* cType;
+};
+static const TypeMapping* typeMap[] = { { TYPEVOID, "void" }, { TYPEINT, "int" }, { TYPEFLOAT, "float" }, { TYPECHAR, "char" }, { TYPESTRING, "char*" }, { TYPESIZET, "size_t" }, { TYPEUINT8, "uint8_t" }, { TYPEUINT16, "uint16_t" }, { TYPEUINT32, "uint32_t" }, { TYPEUINT64, "uint64_t" }, { TYPEINT8, "int8_t" }, { TYPEINT16, "int16_t" }, { TYPEINT32, "int32_t" }, { TYPEINT64, "int64_t" }, { TYPEUINTPTR, "uintptr_t" }, { TYPEINTPTR, "intptr_t" }, { TYPEOFF, "off_t" }, { TYPEBOOL, "bool" }, { TYPEVOID, NULL } };
