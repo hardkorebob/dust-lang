@@ -1,0 +1,75 @@
+// dust.dust - Bootstrapped
+// Dust is ancient. Build with what doesn't decay.
+// Build with Dust. Built to last.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <stdbool.h>
+
+struct Arena {
+	data_s
+	size_t
+	used_t
+}
+enum DataType {
+    TYPEVOID
+    TYPEINT
+    TYPEFLOAT
+    TYPECHAR
+    TYPESTRING
+    TYPEPOINTER
+    TYPEARRAY
+    TYPEUSER
+    TYPEFUNC_POINTER
+    TYPESIZE_T
+    TYPEUINT8
+    TYPEUINT16
+    TYPEUINT32
+    TYPEUINT64
+    TYPEINT8
+    TYPEINT16
+    TYPEINT32
+    TYPEINT64
+    TYPEUINTPTR
+    TYPEINTPTR
+    TYPEOFF
+    TYPEBOOL
+}
+
+enum SemanticRole {
+	ROLEOWNED
+  	ROLEBORROWED
+  	ROLEREFERENCE
+  	ROLERESTRICT
+  	ROLENONE
+}
+
+struct SuffixInfo {
+	type_DataType
+	arrBasetype_DataType
+	role_SemanticRole
+	isConst_bl
+	isStatic_bl
+	isExtern_bl
+	ptrLevel_i
+	userTypename_cb
+	arrUsertypename_cb
+}
+
+struct TypedefInfo {
+	name_s
+	typeInfo_SuffixInfo
+}
+
+struct TypeTable {
+	typedefs_TypedefInfop
+	structNames_cpp
+	typeArena_Arena
+	structCount_t
+	structCap_t
+	typedefCount_t
+	typedefCap_t
+}
+

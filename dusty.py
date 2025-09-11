@@ -11,6 +11,7 @@ class DustEditor:
         self.root.title("Dusted")
         self.current_file = None
         self._highlight_job = None
+        self.selected_suffix = None
         self.left_pressed = False
         self.highlight_rules = {
             'keyword': r'\b(func|let)\b',
@@ -31,6 +32,24 @@ class DustEditor:
         self._setup_ui()
         self.text.focus()
 
+    def _on_suffix_select(self, event):
+        """When a suffix is clicked, store it as the selected suffix."""
+        # The widget must be temporarily enabled to handle the click and tagging
+        self.suffix_widget.config(state='normal')
+
+        # Get the word on the line that was clicked
+        clicked_index = self.suffix_widget.index(f"@{event.x},{event.y}")
+        line_content = self.suffix_widget.get(f"{clicked_index} linestart", f"{clicked_index} lineend").strip()
+
+        if line_content and not line_content.startswith('#'):
+            self.selected_suffix = line_content
+            self.log(f"Selected suffix: {self.selected_suffix}")
+
+            # Add visual feedback to the suffix list
+            self.suffix_widget.tag_remove('selected', '1.0', tk.END)
+            self.suffix_widget.tag_add('selected', f"{clicked_index} linestart", f"{clicked_index} lineend")
+        self.suffix_widget.config(state='disabled')
+
     def _setup_ui(self):
         """Configure the entire user interface."""
         self.root.configure(bg=self.colors['bg'])
@@ -49,7 +68,7 @@ class DustEditor:
 
         build_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Build", menu=build_menu)
-        build_menu.add_command(label="Full Build & Run", command=self.full_build_run, accelerator="F5")
+        build_menu.add_command(label="Full Build & Run", command=self.full_build_run, accelerator="F8")
 
         # --- Paned Layout ---
         main_paned = tk.PanedWindow(self.root, orient=tk.VERTICAL, bg=self.colors['bg'], sashwidth=8)
@@ -59,22 +78,30 @@ class DustEditor:
         editor_frame = tk.Frame(main_paned, bg=self.colors['bg'])
         self.line_numbers = tk.Text(editor_frame, width=4, padx=3, takefocus=0, highlightbackground=self.colors['bg'],
                                     font=('Iosevka', 12), bg=self.colors['status_bg'], relief="flat",
-                                    fg=self.colors['fg'], state='disabled', borderwidth=0)
+                                    fg=self.colors['fg'], state='disabled', borderwidth=0, highlightthickness=0)
         self.line_numbers.pack(side=tk.LEFT, fill=tk.Y)
         
+        # --- Types ---
+        self.suffix_widget = tk.Text(editor_frame, width=15, padx=5, takefocus=0,
+                             font=('Iosevka', 12), bg=self.colors['output_bg'], highlightbackground=self.colors['bg'],
+                             fg='#404040', state='disabled', borderwidth=0, highlightthickness=0)
+        self.suffix_widget.pack(side=tk.RIGHT, fill=tk.Y)
+
         self.text = tk.Text(editor_frame, wrap=tk.NONE, undo=True,
                             font=('Iosevka', 12), bg=self.colors['bg'], fg=self.colors['fg'],
                             insertbackground=self.colors['fg'], selectbackground=self.colors['select_bg'],
                             borderwidth=0, highlightthickness=0)
         self.text.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         main_paned.add(editor_frame)
+
+       
         
         # --- Output Pane ---
         output_frame = tk.Frame(main_paned, bg=self.colors['bg'])
-        self.output_text = scrolledtext.ScrolledText(output_frame, wrap=tk.WORD, height=8, takefocus=0,
+        self.output_text = scrolledtext.ScrolledText(output_frame, wrap=tk.WORD, height=8, takefocus=0, highlightthickness=0,
                                                      font=('Iosevka', 10), bg=self.colors['output_bg'],
                                                      fg=self.colors['output_fg'], state='disabled')
-        self.output_text.pack(fill=tk.BOTH, expand=True)
+        self.output_text.pack(fill=tk.BOTH, expand=True)   
         main_paned.add(output_frame)
         self.root.update()
         main_paned.sash_place(0, 0, int(self.root.winfo_height() * 0.75))
@@ -91,29 +118,31 @@ class DustEditor:
         """Configure the text tags for syntax highlighting."""
         self.text.tag_configure('keyword', foreground=self.colors['keyword_fg'])
         self.text.tag_configure('suffix', foreground=self.colors['suffix_fg'])
-        # -- START: Added Mouse Functionality --
         self.text.tag_configure('search_highlight', background=self.colors['search_highlight_bg'])
-        # -- END: Added Mouse Functionality --
+        self.suffix_widget.tag_configure('selected', background='#cccccc') 
 
     def _setup_bindings_and_scroll(self):
         """Set up keyboard bindings and scroll synchronization."""
+        self.text.bind('_', self._on_underscore_press)
+        self.suffix_widget.bind('<Button-1>', self._on_suffix_select)
         self.root.bind('<Control-n>', lambda e: self.new_file())
         self.root.bind('<Control-o>', lambda e: self.open_file())
         self.root.bind('<Control-s>', lambda e: self.save_file())
-        self.root.bind('<F5>', lambda e: self.full_build_run())
-
-        self.text.bind('<KeyRelease>', self.on_key_release)
-        
+        self.root.bind('<F8>', lambda e: self.full_build_run())
+        self.text.bind('<KeyRelease>', self.on_key_release)     
         self.text.config(yscrollcommand=self._scroll_text)
         self.line_numbers.config(yscrollcommand=self._scroll_lines)
-
-        # -- START: Added Mouse Functionality --
         self.text.bind('<Button-1>', self.on_left_press)
         self.text.bind('<ButtonRelease-1>', self.on_left_release)
         self.text.bind('<Button-2>', self.on_middle_click)
         self.text.bind('<Button-3>', self.on_right_click)
-        # -- END: Added Mouse Functionality --
 
+    def _on_underscore_press(self, event=None):
+        """On underscore, insert the currently selected suffix."""
+        if self.selected_suffix:
+            self.text.insert(tk.INSERT, f"_{self.selected_suffix}")
+            self.on_key_release()
+        return "break"
 
     def _scroll_text(self, *args):
         self.line_numbers.yview_moveto(args[0])
@@ -121,12 +150,35 @@ class DustEditor:
     def _scroll_lines(self, *args):
         self.text.yview_moveto(args[0])
 
+    def _update_suffix_list(self):
+        """Scans the document for types and updates the suffix sidebar."""
+        self.suffix_widget.config(state='normal')
+        self.suffix_widget.delete('1.0', tk.END)
+
+        primitives = ['i', 'f', 'c', 's', 'v', 't', 'bl', 'fp', 'u8', 'u16', 'u32', 'u64', 'i8', 'i16', 'i32', 'i64']
+
+        self.suffix_widget.insert(tk.END, "# Primitives\n")
+        for p in primitives:
+            self.suffix_widget.insert(tk.END, f"{p}\n")
+
+        content = self.text.get('1.0', tk.END)
+        # Use a set to get unique type names
+        user_types = set(re.findall(r'\b(?:struct|enum)\s+(\w+)', content))
+
+        if user_types:
+            self.suffix_widget.insert(tk.END, "\n# User Types\n")
+            for ut in sorted(list(user_types)):
+                self.suffix_widget.insert(tk.END, f"{ut}\n")
+
+        self.suffix_widget.config(state='disabled')
+
     def on_key_release(self, event=None):
         """Schedule a syntax highlight update."""
         if self._highlight_job:
             self.root.after_cancel(self._highlight_job)
         self._highlight_job = self.root.after(200, self._highlight_syntax)
         self._update_line_numbers()
+        self._update_suffix_list()
 
     def _highlight_syntax(self):
         """Apply syntax highlighting to the text widget."""
@@ -161,7 +213,6 @@ class DustEditor:
         self.output_text.delete('1.0', tk.END)
         self.output_text.config(state='disabled')
     
-    # -- START: Added Mouse Functionality --
     def on_left_press(self, event):
         self.left_pressed = True
 
@@ -223,7 +274,6 @@ class DustEditor:
             self.log(f"Found '{word}' at {pos}")
         else:
             self.log(f"'{word}' not found")
-    # -- END: Added Mouse Functionality --
 
     def run_process(self, command, cwd):
         try:
@@ -283,7 +333,7 @@ class DustEditor:
         c_file = os.path.join(file_dir, f"{base_name}.c")
         exe_file = os.path.join(file_dir, base_name)
         
-        if not self.run_process(['./dustc', self.current_file], file_dir):
+        if not self.run_process(['dustc', self.current_file], file_dir):
             self.log("✗ dustc compilation failed.")
             return
 
