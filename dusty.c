@@ -1,5 +1,7 @@
 /* dust.c - Dust Transpiler 
-* Dust is ancient. Build with what lasts. Build with Dust. */
+* Dust is ancient. Build with what lasts. Build with Dust. 
+* TYPE CHECKER VERSION 
+*/
 
 #include <ctype.h>
 #include <stdbool.h>
