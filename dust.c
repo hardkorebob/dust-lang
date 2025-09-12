@@ -2073,12 +2073,10 @@ static void type_error(TypeCheckContext *ctx, const char *format, ...) {
     va_end(args);
 }
 
-// Check if two types are compatible for assignment
 static bool types_are_compatible(SuffixInfo *dest, SuffixInfo *src) {
     if (dest->type != src->type) return false;
     if (dest->pointer_level != src->pointer_level) return false;
-    // Allow assigning a non-const to a const, but not vice-versa
-    if (!dest->is_const && src->is_const) return false;
+    // The const check is now gone.
 
     if (dest->type == TYPE_USER) {
         if (!dest->user_type_name || !src->user_type_name) return false;
@@ -2787,7 +2785,7 @@ static void emit_program(ASTNode *node) {
     // Stage 3: Emit the full definitions for all global variables.
     // Because functions are now forward-declared, initializers can use them.
     for (int i = 0; i < node->child_count; i++) {
-        if (node->children[i]->type == AST_VAR_DECL) {
+        if (node->children[i]->type == AST_VAR_DECL || node->children[i]->type == AST_CONST_DECL) {
             emit_node(node->children[i]);
             fprintf(output_file, ";\n");
         }

@@ -50,10 +50,10 @@ func main_i() {
     }
     
     // 3. Print the array contents using a do-while loop
-    print_array_v(numbers_ia, ARRAYSIZE)
+    print_array_v(numbers_ia, ARRAYSIZE_i)
     
     // 4. Find and print the maximum value in the array
-    let max_number_i = find_max_i(numbers_ia, ARRAYSIZE)
+    let max_number_i = find_max_i(numbers_ia, ARRAYSIZE_i)
     printf("Maximum value in the array is: %d\n", max_number_i)
 
     printf("--- Test Complete ---\n")

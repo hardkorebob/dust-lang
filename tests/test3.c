@@ -1,11 +1,11 @@
 #include <stdio.h>
-#define ARRAY_SIZE 10
 
 // Forward declarations
 int main();
 int find_max(int* arr, int size);
 void print_array(int* arr, int size);
 
+const int ARRAYSIZE = 10;
 void print_array(int* arr, int size) {
 printf("Array Contents:\n");
 int i = 0;
@@ -35,15 +35,15 @@ return max_val;
 }
 int main() {
 printf("--- Array Test Program ---\n");
-int numbers[ARRAY_SIZE];
+int numbers[ARRAYSIZE];
 printf("Initializing array...\n");
 int i = 0;
-while ((i < ARRAY_SIZE)) {
+while ((i < ARRAYSIZE)) {
 numbers[i] = ((i + 1) * 7);
 i = (i + 1);
 }
-print_array(numbers, ARRAY_SIZE);
-int max_number = find_max(numbers, ARRAY_SIZE);
+print_array(numbers, ARRAYSIZE);
+int max_number = find_max(numbers, ARRAYSIZE);
 printf("Maximum value in the array is: %d\n", max_number);
 printf("--- Test Complete ---\n");
 return 0;
