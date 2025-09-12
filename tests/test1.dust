@@ -3,22 +3,22 @@
 #include <stdlib.h>
 
 struct Lexer {
-    source_cp
+    source_s
     pos_i
 }
 
 func test_array_access_v() {
     // Create a simple lexer-like structure
     let lex_Lexerp = cast_Lexerp(malloc(sizeof(Lexer)))
-    lex_Lexerp->source = "test string"
-    lex_Lexerp->pos = 4
+    lex_Lexerp->source_s = "test string"
+    lex_Lexerp->pos_i = 4
     
     // Test the problematic line directly
-    let c_c = lex_Lexerp->source[lex_Lexerp->pos]
-    printf("Character at position %d: '%c'\n", lex_Lexerp->pos, c_c)
+    let c_c = lex_Lexerp->source_s[lex_Lexerp->pos_i]
+    printf("Character at position %d: '%c'\n", lex_Lexerp->pos_i, c_c)
     
     // Test with a constant index
-    let c2_c = lex_Lexerp->source[0]
+    let c2_c = lex_Lexerp->source_s[0]
     printf("First character: '%c'\n", c2_c)
     
     // Test with a simple array

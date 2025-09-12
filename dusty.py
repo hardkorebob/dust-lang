@@ -80,16 +80,16 @@ class DustEditor:
         style.map('Primitive.TRadiobutton', indicatorcolor=[('selected', '#ff6060')]) 
 
         # --- Radio Button Bar ---
-        radio_bar_frame = tk.Frame(self.root, bg=self.colors['bg'])
-        radio_bar_frame.pack(side=tk.TOP, fill=tk.X, pady=10, padx=40)
+        radio_bar_frame = tk.Frame(self.root, bg=self.colors['bg'], cursor="pencil")
+        radio_bar_frame.pack(side=tk.TOP, fill=tk.X, padx=40)
 
         # -- Prefix Modifiers 
         prefix_frame = tk.Frame(radio_bar_frame, relief="flat", bg=self.colors['bg'])
-        prefix_frame.pack(side=tk.LEFT, padx=(0, 10))
+        prefix_frame.pack(side=tk.LEFT, padx=5)
         prefixes = ['', 'z', 'k', 'e']
         for p in prefixes:
             rb = ttk.Radiobutton(prefix_frame, text=p, value=p, variable=self.prefix_var, style='Prefix.TRadiobutton')
-            rb.pack(side=tk.LEFT, padx=5, pady=2)
+            rb.pack(side=tk.LEFT, padx=5)
 
         # -- Primitives --
         primitive_frame = tk.Frame(radio_bar_frame, relief="flat", bg=self.colors['bg'])
@@ -127,7 +127,7 @@ class DustEditor:
         output_frame = tk.Frame(main_paned, bg=self.colors['bg'])
         self.output_text = scrolledtext.ScrolledText(output_frame, wrap=tk.WORD, height=8, takefocus=0, highlightthickness=0,
                                                      font=('Iosevka', 10), bg=self.colors['output_bg'],
-                                                     fg=self.colors['output_fg'], state='disabled')
+                                                     fg=self.colors['output_fg'], state='disabled', cursor="pirate")
         self.output_text.pack(fill=tk.BOTH, expand=True)   
         main_paned.add(output_frame)
 

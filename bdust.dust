@@ -109,3 +109,31 @@ let typeMap_zkTypeMappinga[] = {
     {TYPEBOOL,       "bool"}
     {TYPEVOID,       NULL}
 }
+
+let suffixTable_zkSuffixMappinga[] = {
+//  suffix, DataType,    SemanticRole, isPtr, isConst
+// ====================================================
+    {"i",   TYPEINT,     ROLENONE,   false, false}
+    {"f",   TYPEFLOAT,   ROLENONE,   false, false}
+    {"c",   TYPECHAR,    ROLENONE,   false, false}
+    {"s",   TYPESTRING,  ROLENONE,   false, false}
+    {"v",   TYPEVOID,    ROLENONE,   false, false}
+    {"bl",  TYPEBOOL,    ROLENONE,   false, false}
+    {"t",   TYPESIZET,   ROLENONE,   false, false}
+    {"fp",  TYPEFPTR,    ROLENONE,   false, false}
+    {"u8",  TYPEUINT8,   ROLENONE,   false, false}
+    {"u16", TYPEUINT16,  ROLENONE,   false, false}
+    {"u32", TYPEUINT32,  ROLENONE,   false, false}
+    {"u64", TYPEUINT64,  ROLENONE,   false, false}
+    {"i8",  TYPEINT8,    ROLENONE,   false, false}
+    {"i16", TYPEINT16,   ROLENONE,   false, false}
+    {"i32", TYPEINT32,   ROLENONE,   false, false}
+    {"i64", TYPEINT64,   ROLENONE,   false, false}
+    {"ux",  TYPEUINTPTR, ROLENONE,   false, false}
+    {"ix",  TYPEINTPTR,  ROLENONE,   false, false}
+    {"off", TYPEOFF,     ROLENONE,   false, false}
+    {NULL,  TYPEVOID,    ROLENONE,   false, false}
+}
+
+
+
