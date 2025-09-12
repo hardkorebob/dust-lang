@@ -137,70 +137,6 @@ static const SuffixMapping suffix_table[] = {
     {NULL,  TYPE_VOID,    ROLE_NONE,   false, false}
 };
 
-static void print_suffix_help(void) {
-    printf("Dust Language Suffix Reference\n");
-    printf("==============================\n\n");
-    
-    printf("PRIMITIVE TYPES:\n");
-    printf("  i     - int\n");
-    printf("  bl    - bool (as int)\n");
-    printf("  f     - float\n");
-    printf("  c     - char\n");
-    printf("  s     - string (char*)\n");
-    printf("  v     - void\n");
-    printf("  t    - size_t\n");
-    
-    printf("\nFIXED-WIDTH INTEGERS:\n");
-    printf("  u8    - uint8_t\n");
-    printf("  u16   - uint16_t\n");
-    printf("  u32   - uint32_t\n");
-    printf("  u64   - uint64_t\n");
-    printf("  i8    - int8_t\n");
-    printf("  i16   - int16_t\n");
-    printf("  i32   - int32_t\n");
-    printf("  i64   - int64_t\n");
-    
-    printf("\nARCHITECTURE TYPES:\n");
-    printf("  ux    - uintptr_t (native word)\n");
-    printf("  ix    - intptr_t\n");
-    printf("  off   - off_t\n");
-    
-    printf("\nPOINTER SUFFIXES:\n");
-    printf("  _p    - owned pointer (suffix: ip, cp, etc.)\n");
-    printf("  _pp   - pointer to pointer (Compositional: understands ppp pppp etc");
-    printf("  _b    - borrowed pointer (const)\n");
-    printf("  _r    - reference pointer (const)\n");
-    printf("  vp    - void pointer\n");
-    printf("  fp    - function pointer\n");
-    
-    printf("\nARRAY SUFFIX:\n");
-    printf("  _a    - array (suffix: ia, ca, u8a, etc.)\n");
-    printf("         Example: buffer_u8a for uint8_t array\n");
-    
-    printf("\nUSER-DEFINED TYPES:\n");
-    printf("  After 'struct Foo', you can use:\n");
-    printf("    _Foo  - Foo instance\n");
-    printf("    _Foop - Foo* (owned pointer)\n");
-    printf("    _Foob - const Foo* (borrowed)\n");
-    printf("    _Foor - const Foo* (reference)\n");
-    printf("    _Fooa - Foo array\n");
-    
-    printf("\nEXAMPLES:\n");
-    printf("  let count_i = 42");           
-    printf("  let name_s = \"Dust\"");     
-    printf("  let buffer_u8a[256]");       
-    printf("  let player_Playerp");      
-    printf("  let callback_fp");        
-    printf("  let gdt_base_pa = 0x1000");   
-    
-    printf("\nSPECIAL KEYWORDS:\n");
-    printf("  func name_<suffix>()  - function with return type\n");
-    printf("  let name_<suffix>     - variable declaration\n");
-    printf("  cast_<suffix>(expr)   - type cast\n");
-    printf("  null                  - NULL constant\n");
-    printf("  @c(...)              - inline C code escape hatch\n");
-}
-
 static Arena g_arena = {0};
 
 void *arena_alloc(size_t size);
@@ -626,6 +562,7 @@ static const char *KEYWORDS[] = {
     "null",
     "enum",
     "union",
+    "const",
      NULL
 };
 
@@ -926,6 +863,7 @@ typedef enum {
   AST_ENUM_VALUE,
   AST_POSTFIX_OP,
   AST_UNION_DEF,
+  AST_CONST_DECL,
 } ASTType;
 
 typedef struct ASTNode {
@@ -1556,15 +1494,18 @@ static ASTNode *parse_statement(Parser *p) {
   if (check(p, TOKEN_PASSTHROUGH)) {
     Token *pass = advance(p);
     ASTNode *node = create_node(AST_PASSTHROUGH, pass->text);
-    match_and_consume(p, TOKEN_PUNCTUATION, ";");
     return node;
   }
 
   if (check(p, TOKEN_KEYWORD)) {
+    if (strcmp(p->current->text, "const") == 0) {
+        advance(p);
+        ASTNode *decl = parse_var_decl(p);
+        return decl;
+    }
     if (strcmp(p->current->text, "let") == 0) {
       advance(p);
       ASTNode *decl = parse_var_decl(p);
-      match_and_consume(p, TOKEN_PUNCTUATION, ";");
       return decl;
     }
     if (strcmp(p->current->text, "if") == 0) {
@@ -1589,19 +1530,16 @@ static ASTNode *parse_statement(Parser *p) {
     }
     if (strcmp(p->current->text, "break") == 0) {
       advance(p);
-      match_and_consume(p, TOKEN_PUNCTUATION, ";");
       return create_node(AST_BREAK, "break");
     }
     if (strcmp(p->current->text, "continue") == 0) {
       advance(p);
-      match_and_consume(p, TOKEN_PUNCTUATION, ";");
       return create_node(AST_CONTINUE, "continue");
     }
     if (strcmp(p->current->text, "return") == 0) {
     advance(p);
     ASTNode *node = create_node(AST_RETURN, "return");
-    if (!(check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ";") == 0) &&
-        !(check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "}") == 0)) {
+    if (!(check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "}") == 0)) {
         add_child(node, parse_expression(p));
     }
     match_and_consume(p, TOKEN_PUNCTUATION, ";");
@@ -1883,7 +1821,11 @@ ASTNode *parser_parse(Parser *p) {
       Token *pass = advance(p);
       add_child(program, create_node(AST_PASSTHROUGH, pass->text));
     } else if (check(p, TOKEN_KEYWORD)) {
-      if (strcmp(p->current->text, "let") == 0) {
+      if (strcmp(p->current->text, "const") == 0) {
+            advance(p);
+            ASTNode *decl = parse_var_decl(p);
+            add_child(program, decl);
+      } else if (strcmp(p->current->text, "let") == 0) {
         advance(p);
         ASTNode *global = parse_var_decl(p);
         add_child(program, global);
@@ -2010,6 +1952,7 @@ static const EmitFunc emit_dispatch[] = {
     [AST_ENUM_VALUE]        = emit_enum_value,
     [AST_POSTFIX_OP]        = emit_postfix_op,
     [AST_UNION_DEF]         = emit_union_def,
+    [AST_CONST_DECL]        = emit_var_decl,
 };
 
 static void emit_node(ASTNode *node) {
@@ -2672,12 +2615,6 @@ static char *read_file(const char *path) {
 }
 
 int main(int argc, char **argv) {
-    if (argc == 2 && (strcmp(argv[1], "--help") == 0 || 
-                      strcmp(argv[1], "-h") == 0 ||
-                      strcmp(argv[1], "--suffixes") == 0)) {
-        print_suffix_help();
-        return 0;
-    }
     
     if (argc != 2) {
         fprintf(stderr, "Usage: dustc <file.dust>\n");
@@ -2695,11 +2632,6 @@ int main(int argc, char **argv) {
   TypeTable *type_table = type_table_create();
   pre_scan_for_types(source, type_table);
   Parser *parser = parser_create(source, type_table);
-  printf("--- DEBUG: Types found by pre-scanner ---\n");
-  for (size_t i = 0; i < type_table->struct_count; i++) {
-      printf("  [%zu]: %s\n", i, type_table->struct_names[i]);
-  }
-  printf("--- END DEBUG ---\n\n");
   ASTNode *ast = parser_parse(parser);
   if (parser->had_error) {
     fprintf(stderr, "Compilation failed.\n");

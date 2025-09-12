@@ -2,8 +2,6 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
-#define MIN_NUMBER 1
-#define MAX_NUMBER 10
 
 typedef struct Game Game;
 struct Game {
@@ -17,11 +15,13 @@ void checkGuess(const Game* game, int guess);
 int getPlayerGuess();
 void printWelcome();
 
+int MINNUMBER = 1;
+int MAXNUMBER = 10;
 void printWelcome() {
 printf("=============================\n");
 printf("= Welcome to Guess the Number =\n");
 printf("=============================\n");
-printf("I'm thinking of a number between %d and %d.\n", MIN_NUMBER, MAX_NUMBER);
+printf("I'm thinking of a number between %d and %d.\n", MINNUMBER, MAXNUMBER);
 }
 int getPlayerGuess() {
 int guess = 0;
@@ -42,7 +42,7 @@ int main() {
 srand(time(NULL));
 printWelcome();
 Game game;
-int secret = ((rand() % MAX_NUMBER) + MIN_NUMBER);
+int secret = ((rand() % MAXNUMBER) + MINNUMBER);
 game.secret_number = secret;
 int player_guess = getPlayerGuess();
 checkGuess(&game, player_guess);

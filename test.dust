@@ -7,19 +7,11 @@
 #include <stdlib.h>
 #include <time.h>
 
-// --- FFI: External C Function Declarations ---
-// Tests the 'extern func' feature for various return types.
-extern func printf_i()
-extern func malloc_vbp() // Returns a void* (borrowed pointer)
-extern func free_v()
-extern func time_t()     // Returns a size_t
-extern func srand_v()
-extern func rand_i()
 
 // --- Constants and Enums ---
 // Tests 'const' and 'enum' top-level declarations.
-const MAX_ENTITIES_i = 5
-const GOBLIN_HEALTH_i = 20
+#define MAX_ENTITIES 5
+#define GOBLIN_HEALTH  20
 
 enum EntityType {
     PLAYER

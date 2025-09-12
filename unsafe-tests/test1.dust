@@ -2,8 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-extern func malloc_v()
-extern func printf_v()
 struct Lexer {
     source_s
     pos_i

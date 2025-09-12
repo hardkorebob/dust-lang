@@ -5,7 +5,7 @@ int main();
 int find_max(int* arr, int size);
 void print_array(int* arr, int size);
 
-const int ARRAYSIZE = 10;
+int ARRAYSIZE = 10;
 void print_array(int* arr, int size) {
 printf("Array Contents:\n");
 int i = 0;
