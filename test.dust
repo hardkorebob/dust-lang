@@ -1,0 +1,138 @@
+// ===================================
+// == Dust Language Comprehensive Test ==
+// ===================================
+// This file tests all major features of the Dust compiler.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+// --- FFI: External C Function Declarations ---
+// Tests the 'extern func' feature for various return types.
+extern func printf_i()
+extern func malloc_vbp() // Returns a void* (borrowed pointer)
+extern func free_v()
+extern func time_t()     // Returns a size_t
+extern func srand_v()
+extern func rand_i()
+
+// --- Constants and Enums ---
+// Tests 'const' and 'enum' top-level declarations.
+const MAX_ENTITIES_i = 5
+const GOBLIN_HEALTH_i = 20
+
+enum EntityType {
+    PLAYER
+    GOBLIN
+    TREASURE
+}
+
+// --- Structs and Typedefs ---
+// Tests 'struct' declaration and using 'typedef' for a pointer alias.
+struct Entity {
+    id_i
+    health_i
+    type_EntityType
+}
+typedef EntityPtr_Entityp EntityPtr // Alias for Entity*
+
+// --- Function Definitions ---
+
+// Tests heap allocation and struct member initialization.
+func create_entity_Entityp(id_i, health_i, type_EntityType) {
+    printf("--> Allocating new entity on the heap...\n")
+    // Test typedef'd pointer and FFI call to malloc
+    let new_entity_EntityPtr = malloc_vbp(sizeof(Entity))
+    
+    // Test -> operator for pointer-to-struct member access
+    new_entity_EntityPtr->id_i = id_i
+    new_entity_EntityPtr->health_i = health_i
+    new_entity_EntityPtr->type_EntityType = type_EntityType
+    
+    return new_entity_EntityPtr
+}
+
+// Tests passing a struct pointer and using enums in control flow.
+func print_entity_v(entity_EntityPtr) {
+    if (entity_EntityPtr == null) {
+        printf("Entity (null)\n")
+        return
+    }
+
+    printf("Entity ID: %d, Health: %d, Type: ", entity_EntityPtr->id_i, entity_EntityPtr->health_i)
+    
+    // Test 'if/else if/else' with an enum
+    if (entity_EntityPtr->type_EntityType == PLAYER) {
+        printf("PLAYER\n")
+    } else if (entity_EntityPtr->type_EntityType == GOBLIN) {
+        printf("GOBLIN\n")
+    } else {
+        printf("TREASURE\n")
+    }
+}
+
+// Tests arrays, for loops, while loops, and do-while loops.
+func test_loops_and_arrays_v() {
+    printf("\n--- Testing Loops and Arrays ---\n")
+    let numbers_ia[MAX_ENTITIES_i]
+    
+    // Test 'for' loop for initialization
+    printf("Initializing with for loop...\n")
+    let i_i = 0
+    for (i_i = 0; i_i < MAX_ENTITIES_i; i_i = i_i + 1) {
+        numbers_ia[i_i] = (i_i + 1) * 11
+    }
+
+    // Test 'while' loop for printing
+    printf("Printing with while loop...\n")
+    i_i = 0
+    while (i_i < MAX_ENTITIES_i) {
+        printf("  numbers[%d] = %d\n", i_i, numbers_ia[i_i])
+        i_i = i_i + 1
+    }
+    
+    // Test 'do-while' loop for countdown
+    printf("Countdown with do-while loop...\n")
+    i_i = MAX_ENTITIES_i - 1
+    do {
+        printf("  ... %d\n", numbers_ia[i_i])
+        i_i = i_i - 1
+    } while (i_i >= 0)
+}
+
+
+// --- Main Program Entry ---
+func main_i() {
+    printf("--- Dust Comprehensive Test Suite ---\n\n")
+
+    // 1. Test structs on the stack
+    printf("--- Testing Stack-based Struct ---\n")
+    let player_Entity
+    player_Entity.id_i = 1
+    player_Entity.health_i = 100
+    player_Entity.type_EntityType = PLAYER
+    print_entity_v(&player_Entity) // Test address-of operator '&'
+
+    // 2. Test structs on the heap
+    printf("\n--- Testing Heap-based Struct ---\n")
+    let goblin_EntityPtr = create_entity_Entityp(2, GOBLIN_HEALTH_i, GOBLIN)
+    print_entity_v(goblin_EntityPtr)
+    
+    // 3. Test loops and arrays
+    test_loops_and_arrays_v()
+
+    // 4. Test FFI for random numbers (previously caused a type error)
+    printf("\n--- Testing FFI (rand) ---\n")
+    srand_v(time_t(null))
+    let random_damage_i = (rand_i() % 10) + 1
+    printf("Dealt %d damage to the goblin!\n", random_damage_i)
+    goblin_EntityPtr->health_i = goblin_EntityPtr->health_i - random_damage_i
+    print_entity_v(goblin_EntityPtr)
+
+    // 5. Clean up allocated memory
+    printf("\n--> Freeing heap-allocated entity.\n")
+    free_v(goblin_EntityPtr)
+    
+    printf("\n--- Test Suite Complete ---\n")
+    return 0
+}
