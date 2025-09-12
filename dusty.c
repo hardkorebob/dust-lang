@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 typedef struct Arena {
     char *data;
@@ -86,6 +87,144 @@ typedef struct {
     const char *c_type;
 } TypeMapping;
 
+// ============================================================================
+// AST - Abstract Syntax Tree
+// ============================================================================
+
+typedef enum {
+  AST_PROGRAM,
+  AST_FUNCTION,
+  AST_VAR_DECL,
+  AST_BLOCK,
+  AST_INITIALIZER_LIST,
+  AST_IF,
+  AST_WHILE,
+  AST_DO,
+  AST_FOR,
+  AST_CASE,
+  AST_SWITCH,
+  AST_BREAK,
+  AST_DEFAULT,
+  AST_CONTINUE,
+  AST_RETURN,
+  AST_EXPRESSION,
+  AST_BINARY_OP,
+  AST_UNARY_OP,
+  AST_CALL,
+  AST_SUBSCRIPT,
+  AST_IDENTIFIER,
+  AST_NUMBER,
+  AST_STRING,
+  AST_CHARACTER,
+  AST_SIZEOF,
+  AST_STRUCT_DEF,
+  AST_MEMBER_DECL,
+  AST_DIRECTIVE,
+  AST_MEMBER_ACCESS,
+  AST_TERNARY_OP,
+  AST_FUNC_PTR_DECL,
+  AST_TYPEDEF,
+  AST_PASSTHROUGH,
+  AST_NULL,
+  AST_CAST,
+  AST_ENUM_DEF,
+  AST_ENUM_VALUE,
+  AST_POSTFIX_OP,
+  AST_UNION_DEF,
+  AST_CONST_DECL,
+} ASTType;
+
+typedef struct ASTNode {
+  ASTType type;
+  char *value;
+  SuffixInfo suffix_info;
+  SuffixInfo resolved_type;
+  struct ASTNode **children;
+  int child_count;
+  int child_cap;
+  struct ASTNode *array_size_expr;
+} ASTNode;
+
+typedef enum {
+  TOKEN_EOF,
+  TOKEN_IDENTIFIER,
+  TOKEN_NUMBER,
+  TOKEN_STRING,
+  TOKEN_KEYWORD,
+  TOKEN_OPERATOR,
+  TOKEN_PUNCTUATION,
+  TOKEN_CHARACTER,
+  TOKEN_DIRECTIVE,
+  TOKEN_ARROW,
+  TOKEN_PASSTHROUGH,
+} TokenType;
+
+typedef struct {
+  TokenType type;
+  char *text;
+  char *base_name;
+  SuffixInfo suffix_info;
+  int line;
+} Token;
+
+typedef struct {
+  const char *source;
+  int pos;
+  int len;
+  int line;
+  const TypeTable *type_table;
+} Lexer;
+
+typedef struct {
+  Lexer *lexer;
+  Token *current;
+  TypeTable *type_table;
+  bool had_error;
+} Parser;
+
+typedef struct FuncDecl {
+  char *name;
+  SuffixInfo return_type;
+  ASTNode *params;
+  struct FuncDecl *next;
+} FuncDecl;
+
+typedef struct {
+    const char *op;
+    int precedence;
+    bool left_assoc;
+    bool is_binary;  // false for unary
+} OpInfo;
+
+typedef struct {
+    char first;
+    char second;
+    char third;  
+    const char *token;
+} MultiCharOp;
+
+typedef struct Symbol {
+    char *name;
+    SuffixInfo type_info;
+    ASTNode *decl_node;
+    struct Symbol *next; 
+} Symbol;
+
+typedef struct SymbolTable {
+    Symbol **buckets;
+    size_t num_buckets;
+    struct SymbolTable *parent;
+} SymbolTable;
+
+typedef struct TypeCheckContext {
+    SymbolTable *current_scope;
+    TypeTable *type_table;
+    const ASTNode *current_function; 
+    bool had_error;
+} TypeCheckContext;
+
+typedef SuffixInfo (*TypeCheckFunc)(TypeCheckContext *ctx, ASTNode *node);
+
 static const TypeMapping type_map[] = {
     {TYPE_VOID,       "void"},
     {TYPE_INT,        "int"},
@@ -137,69 +276,91 @@ static const SuffixMapping suffix_table[] = {
     {NULL,  TYPE_VOID,    ROLE_NONE,   false, false}
 };
 
-static void print_suffix_help(void) {
-    printf("Dust Language Suffix Reference\n");
-    printf("==============================\n\n");
-    
-    printf("PRIMITIVE TYPES:\n");
-    printf("  i     - int\n");
-    printf("  bl    - bool (as int)\n");
-    printf("  f     - float\n");
-    printf("  c     - char\n");
-    printf("  s     - string (char*)\n");
-    printf("  v     - void\n");
-    printf("  t    - size_t\n");
-    
-    printf("\nFIXED-WIDTH INTEGERS:\n");
-    printf("  u8    - uint8_t\n");
-    printf("  u16   - uint16_t\n");
-    printf("  u32   - uint32_t\n");
-    printf("  u64   - uint64_t\n");
-    printf("  i8    - int8_t\n");
-    printf("  i16   - int16_t\n");
-    printf("  i32   - int32_t\n");
-    printf("  i64   - int64_t\n");
-    
-    printf("\nARCHITECTURE TYPES:\n");
-    printf("  ux    - uintptr_t (native word)\n");
-    printf("  ix    - intptr_t\n");
-    printf("  off   - off_t\n");
-    
-    printf("\nPOINTER SUFFIXES:\n");
-    printf("  _p    - owned pointer (suffix: ip, cp, etc.)\n");
-    printf("  _pp   - pointer to pointer (Compositional: understands ppp pppp etc");
-    printf("  _b    - borrowed pointer (const)\n");
-    printf("  _r    - reference pointer (const)\n");
-    printf("  vp    - void pointer\n");
-    printf("  fp    - function pointer\n");
-    
-    printf("\nARRAY SUFFIX:\n");
-    printf("  _a    - array (suffix: ia, ca, u8a, etc.)\n");
-    printf("         Example: buffer_u8a for uint8_t array\n");
-    
-    printf("\nUSER-DEFINED TYPES:\n");
-    printf("  After 'struct Foo', you can use:\n");
-    printf("    _Foo  - Foo instance\n");
-    printf("    _Foop - Foo* (owned pointer)\n");
-    printf("    _Foob - const Foo* (borrowed)\n");
-    printf("    _Foor - const Foo* (reference)\n");
-    printf("    _Fooa - Foo array\n");
-    
-    printf("\nEXAMPLES:\n");
-    printf("  let count_i = 42");           
-    printf("  let name_s = \"Dust\"");     
-    printf("  let buffer_u8a[256]");       
-    printf("  let player_Playerp");      
-    printf("  let callback_fp");        
-    printf("  let gdt_base_pa = 0x1000");   
-    
-    printf("\nSPECIAL KEYWORDS:\n");
-    printf("  func name_<suffix>()  - function with return type\n");
-    printf("  let name_<suffix>     - variable declaration\n");
-    printf("  cast_<suffix>(expr)   - type cast\n");
-    printf("  null                  - NULL constant\n");
-    printf("  @c(...)              - inline C code escape hatch\n");
-}
+static const OpInfo operator_table[] = {  
+    {"*",   10, true,  true},
+    {"/",   10, true,  true},
+    {"%",   10, true,  true}, 
+    {"+",   9,  true,  true},
+    {"-",   9,  true,  true},    
+    {"<<",  8,  true,  true},
+    {">>",  8,  true,  true},   
+    {"<",   7,  true,  true},
+    {">",   7,  true,  true},
+    {"<=",  7,  true,  true},
+    {">=",  7,  true,  true},    
+    {"==",  6,  true,  true},
+    {"!=",  6,  true,  true},   
+    {"&",   5,  true,  true},  
+    {"^",   4,  true,  true},  
+    {"|",   3,  true,  true},   
+    {"&&",  2,  true,  true},    
+    {"||",  1,  true,  true},   
+    {"=",   0,  false, true},
+    {"+=",  0,  false, true},
+    {"-=",  0,  false, true},
+    {"*=",  0,  false, true},
+    {"/=",  0,  false, true},
+    {"%=",  0,  false, true},
+    {"&=",  0,  false, true},
+    {"|=",  0,  false, true},
+    {"^=",  0,  false, true},
+    {"<<=", 0,  false, true},
+    {">>=", 0,  false, true},   
+    {NULL,  0,  false, false}  
+};
+
+
+static const char *KEYWORDS[] = {
+    "if",
+    "else",
+    "while",
+    "do",
+    "for",
+    "return",
+    "break",
+    "continue",
+    "func",
+    "let",
+    "struct",
+    "sizeof",
+    "switch",
+    "case",
+    "default",
+    "typedef",
+    "cast",
+    "null",
+    "enum",
+    "union",
+    "const",
+    "extern",
+     NULL
+};
+
+static const MultiCharOp multi_char_ops[] = {
+    {'~', '\0', '\0', "~"}, 
+    {'<', '<', '=', "<<="},
+    {'>', '>', '=', ">>="}, 
+    {'=', '=', '\0', "=="},
+    {'!', '=', '\0', "!="},
+    {'<', '=', '\0', "<="},
+    {'>', '=', '\0', ">="},
+    {'&', '&', '\0', "&&"},
+    {'|', '|', '\0', "||"},
+    {'<', '<', '\0', "<<"},
+    {'>', '>', '\0', ">>"},
+    {'+', '+', '\0', "++"},
+    {'-', '-', '\0', "--"},
+    {'+', '=', '\0', "+="},
+    {'-', '=', '\0', "-="},
+    {'*', '=', '\0', "*="},
+    {'/', '=', '\0', "/="},
+    {'%', '=', '\0', "%="},
+    {'&', '=', '\0', "&="},
+    {'|', '=', '\0', "|="},
+    {'^', '=', '\0', "^="},
+    {'-', '>', '\0', "->"},    
+    {'\0', '\0', '\0', NULL}  
+};
 
 static Arena g_arena = {0};
 
@@ -407,90 +568,81 @@ const char *find_suffix_separator(const char *name) {
   return strrchr(name, '_');
 }
 
+// In dust.c
+
 bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, SuffixInfo *result_info) {
-    *result_info = (SuffixInfo){0};
+    // ALWAYS start with a clean slate.
+    memset(result_info, 0, sizeof(SuffixInfo));
+
     const char *separator = find_suffix_separator(full_variable_name);
     if (!separator) return false;
 
     const char *suffix_str = separator + 1;
-    size_t suffix_len = strlen(suffix_str);
-    if (suffix_len == 0) return false;
+    if (strlen(suffix_str) == 0) return false;
 
     const char *parse_ptr = suffix_str;
 
+    // 1. Parse prefixes (z, k, e)
     while (true) {
-        if (parse_ptr[0] == 'z') {
+        if (*parse_ptr == 'z') {
             result_info->is_static = true;
             parse_ptr++;
-        } else if (parse_ptr[0] == 'k') {
+        } else if (*parse_ptr == 'k') { // Using 'k' as per your code
             result_info->is_const = true;
             parse_ptr++;
-        } else if (parse_ptr[0] == 'e') {
+        } else if (*parse_ptr == 'e') {
             result_info->is_extern = true;
             parse_ptr++;
         } else {
-            // No more prefixes found, break the loop
             break;
         }
     }
 
-    // 2. Find the longest matching base type first 
+    // 2. Find the longest matching base type (user types take precedence)
     size_t best_match_len = 0;
+    bool match_found = false;
 
-    // Temporarily store the best match info
-    SuffixInfo temp_info = {0};
-    bool is_user_type = false;
-    const char* user_type_name_match = NULL;
-
-    // Check primitives
-    for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
-        size_t len = strlen(m->suffix);
-        if (len > best_match_len && strncmp(parse_ptr, m->suffix, len) == 0) {
-            best_match_len = len;
-            temp_info.type = m->type;
-            is_user_type = false;
-        }
-    }
-    // Check user-defined types and typedefs
-    const char* current_base = parse_ptr;
+    // Check user-defined types (structs, enums) and typedefs first
     for (size_t i = 0; i < type_table->struct_count; i++) {
         size_t len = strlen(type_table->struct_names[i]);
-        if (len > best_match_len && strncmp(current_base, type_table->struct_names[i], len) == 0) {
+        if (len > best_match_len && strncmp(parse_ptr, type_table->struct_names[i], len) == 0) {
             best_match_len = len;
-            is_user_type = true;
-            user_type_name_match = type_table->struct_names[i];
+            result_info->type = TYPE_USER;
+            result_info->user_type_name = type_table->struct_names[i];
+            match_found = true;
         }
     }
      for (size_t i = 0; i < type_table->typedef_count; i++) {
         size_t len = strlen(type_table->typedefs[i].name);
-        if (len > best_match_len && strncmp(current_base, type_table->typedefs[i].name, len) == 0) {
+        if (len > best_match_len && strncmp(parse_ptr, type_table->typedefs[i].name, len) == 0) {
             best_match_len = len;
-            temp_info = type_table->typedefs[i].type_info;
-            is_user_type = (temp_info.type == TYPE_USER);
-            user_type_name_match = temp_info.user_type_name;
+            // Copy the entire resolved type from the typedef
+            *result_info = type_table->typedefs[i].type_info;
+            match_found = true;
         }
     }
 
-    if (best_match_len == 0) return false;
+    // Only if no user type matched, check for primitives
+    if (!match_found) {
+        for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
+            size_t len = strlen(m->suffix);
+            if (len > best_match_len && strncmp(parse_ptr, m->suffix, len) == 0) {
+                best_match_len = len;
+                result_info->type = m->type;
+            }
+        }
+    }
 
-    // 3. The rest of the string is the modifiers
+    if (best_match_len == 0) return false; // No known base type found
+
+    // 3. The rest of the string is pointer/array modifiers
     const char* modifiers = parse_ptr + best_match_len;
     size_t modifiers_len = strlen(modifiers);
 
-    // Set the base type info
-    if (is_user_type) {
-        result_info->type = TYPE_USER;
-        result_info->user_type_name = user_type_name_match;
-    } else {
-        result_info->type = temp_info.type;
-    }
-
-
-    // 4. Parse the modifiers ('p', 'b', 'r', 'a')
     bool is_array = false;
     if (modifiers_len > 0 && modifiers[modifiers_len - 1] == 'a') {
         is_array = true;
-        modifiers_len--; // Don't process 'a' in the pointer loop
+        modifiers_len--;
     }
 
     for (size_t i = 0; i < modifiers_len; i++) {
@@ -498,7 +650,6 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
         if (mod == 'p') {
             result_info->pointer_level++;
             result_info->role = ROLE_OWNED;
-            result_info->is_const = false;
         } else if (mod == 'b') {
             result_info->pointer_level++;
             result_info->role = ROLE_BORROWED;
@@ -510,23 +661,21 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
         }
     }
 
-    // Handle special case for 's' suffix
+    // Special case for 's' suffix (char*)
     if(result_info->type == TYPE_STRING){
         result_info->pointer_level++;
     }
 
-    // Finalize array properties
     if (is_array) {
-        DataType original_base_type = result_info->type;
-        const char* original_user_name = result_info->user_type_name;
+        result_info->array_base_type = result_info->type;
+        result_info->array_user_type_name = result_info->user_type_name;
         result_info->type = TYPE_ARRAY;
-        result_info->array_base_type = original_base_type;
-        result_info->array_user_type_name = original_user_name;
+        // Pointers to arrays are handled by pointer level, so clear user name from base
+        if(result_info->pointer_level > 0) result_info->user_type_name = NULL;
     }
     
     return true;
 }
-
 const char *get_c_type(const SuffixInfo *info) {
     static char type_buffer[256];
     const char *base_type_str = "void";
@@ -567,93 +716,6 @@ const char *get_c_type(const SuffixInfo *info) {
 // ======
 // LEXER 
 // ======
-
-typedef enum {
-  TOKEN_EOF,
-  TOKEN_IDENTIFIER,
-  TOKEN_NUMBER,
-  TOKEN_STRING,
-  TOKEN_KEYWORD,
-  TOKEN_OPERATOR,
-  TOKEN_PUNCTUATION,
-  TOKEN_CHARACTER,
-  TOKEN_DIRECTIVE,
-  TOKEN_ARROW,
-  TOKEN_PASSTHROUGH,
-} TokenType;
-
-typedef struct {
-  TokenType type;
-  char *text;
-  char *base_name;
-  SuffixInfo suffix_info;
-  int line;
-} Token;
-
-typedef struct {
-  const char *source;
-  int pos;
-  int len;
-  int line;
-  const TypeTable *type_table;
-} Lexer;
-
-typedef struct {
-    char first;
-    char second;
-    char third;  
-    const char *token;
-} MultiCharOp;
-
-static const char *KEYWORDS[] = {
-    "if",
-    "else",
-    "while",
-    "do",
-    "for",
-    "return",
-    "break",
-    "continue",
-    "func",
-    "let",
-    "struct",
-    "sizeof",
-    "switch",
-    "case",
-    "default",
-    "typedef",
-    "cast",
-    "null",
-    "enum",
-    "union",
-     NULL
-};
-
-static const MultiCharOp multi_char_ops[] = {
-    {'~', '\0', '\0', "~"}, 
-    {'<', '<', '=', "<<="},
-    {'>', '>', '=', ">>="}, 
-    {'=', '=', '\0', "=="},
-    {'!', '=', '\0', "!="},
-    {'<', '=', '\0', "<="},
-    {'>', '=', '\0', ">="},
-    {'&', '&', '\0', "&&"},
-    {'|', '|', '\0', "||"},
-    {'<', '<', '\0', "<<"},
-    {'>', '>', '\0', ">>"},
-    {'+', '+', '\0', "++"},
-    {'-', '-', '\0', "--"},
-    {'+', '=', '\0', "+="},
-    {'-', '=', '\0', "-="},
-    {'*', '=', '\0', "*="},
-    {'/', '=', '\0', "/="},
-    {'%', '=', '\0', "%="},
-    {'&', '=', '\0', "&="},
-    {'|', '=', '\0', "|="},
-    {'^', '=', '\0', "^="},
-    {'-', '>', '\0', "->"},    
-    {'\0', '\0', '\0', NULL}  
-};
 
 static bool is_keyword(const char *word) {
   for (int i = 0; KEYWORDS[i]; i++) {
@@ -882,115 +944,6 @@ Token *lexer_next(Lexer *lex) {
     }
 }
 
-// ============================================================================
-// AST - Abstract Syntax Tree
-// ============================================================================
-
-typedef enum {
-  AST_PROGRAM,
-  AST_FUNCTION,
-  AST_VAR_DECL,
-  AST_BLOCK,
-  AST_INITIALIZER_LIST,
-  AST_IF,
-  AST_WHILE,
-  AST_DO,
-  AST_FOR,
-  AST_CASE,
-  AST_SWITCH,
-  AST_BREAK,
-  AST_DEFAULT,
-  AST_CONTINUE,
-  AST_RETURN,
-  AST_EXPRESSION,
-  AST_BINARY_OP,
-  AST_UNARY_OP,
-  AST_CALL,
-  AST_SUBSCRIPT,
-  AST_IDENTIFIER,
-  AST_NUMBER,
-  AST_STRING,
-  AST_CHARACTER,
-  AST_SIZEOF,
-  AST_STRUCT_DEF,
-  AST_MEMBER_DECL,
-  AST_DIRECTIVE,
-  AST_MEMBER_ACCESS,
-  AST_TERNARY_OP,
-  AST_FUNC_PTR_DECL,
-  AST_TYPEDEF,
-  AST_PASSTHROUGH,
-  AST_NULL,
-  AST_CAST,
-  AST_ENUM_DEF,
-  AST_ENUM_VALUE,
-  AST_POSTFIX_OP,
-  AST_UNION_DEF,
-} ASTType;
-
-typedef struct ASTNode {
-  ASTType type;
-  char *value;
-  SuffixInfo suffix_info;
-  struct ASTNode **children;
-  int child_count;
-  int child_cap;
-} ASTNode;
-
-typedef struct {
-  Lexer *lexer;
-  Token *current;
-  TypeTable *type_table;
-  bool had_error;
-} Parser;
-
-typedef struct FuncDecl {
-  char *name;
-  SuffixInfo return_type;
-  ASTNode *params;
-  struct FuncDecl *next;
-} FuncDecl;
-
-typedef struct {
-    const char *op;
-    int precedence;
-    bool left_assoc;
-    bool is_binary;  // false for unary
-} OpInfo;
-
-static const OpInfo operator_table[] = {  
-    {"*",   10, true,  true},
-    {"/",   10, true,  true},
-    {"%",   10, true,  true}, 
-    {"+",   9,  true,  true},
-    {"-",   9,  true,  true},    
-    {"<<",  8,  true,  true},
-    {">>",  8,  true,  true},   
-    {"<",   7,  true,  true},
-    {">",   7,  true,  true},
-    {"<=",  7,  true,  true},
-    {">=",  7,  true,  true},    
-    {"==",  6,  true,  true},
-    {"!=",  6,  true,  true},   
-    {"&",   5,  true,  true},  
-    {"^",   4,  true,  true},  
-    {"|",   3,  true,  true},   
-    {"&&",  2,  true,  true},    
-    {"||",  1,  true,  true},   
-    {"=",   0,  false, true},
-    {"+=",  0,  false, true},
-    {"-=",  0,  false, true},
-    {"*=",  0,  false, true},
-    {"/=",  0,  false, true},
-    {"%=",  0,  false, true},
-    {"&=",  0,  false, true},
-    {"|=",  0,  false, true},
-    {"^=",  0,  false, true},
-    {"<<=", 0,  false, true},
-    {">>=", 0,  false, true},   
-    {NULL,  0,  false, false}  
-};
-
 // =======
 // PARSER
 // =======
@@ -1007,7 +960,8 @@ static ASTNode *parse_enum_definition(Parser *p);
 static ASTNode *parse_unary(Parser *p);
 static ASTNode *parse_postfix(Parser *p);
 static ASTNode *parse_union_definition(Parser *p);
-
+static ASTNode *parse_const_decl(Parser *p);
+static ASTNode *parse_function(Parser *p, bool is_extern); 
 
 static ASTNode *create_node(ASTType type, const char *value) {
   ASTNode *node = arena_alloc(sizeof(ASTNode));
@@ -1221,9 +1175,18 @@ static ASTNode *parse_member_access(Parser *p) {
       if (member->type != TOKEN_IDENTIFIER) {
         parser_error(p, "Expected member name after '.'.");
       }
-      add_child(node, create_node(AST_IDENTIFIER, member->base_name ? member->base_name : member->text));
       
+      // --- THE FIX ---
+      // Create the node for the member itself.
+      ASTNode *member_node = create_node(AST_IDENTIFIER, member->base_name ? member->base_name : member->text);
+      if (member->base_name) {
+        // CORRECT: Annotate the MEMBER node with its type info.
+        member_node->suffix_info = member->suffix_info;
+        member_node->resolved_type = member->suffix_info;
+      }
+      add_child(node, member_node);
       left = node;
+
     } else if (match_and_consume(p, TOKEN_ARROW, "->")) {
       ASTNode *node = create_node(AST_MEMBER_ACCESS, "->");
       add_child(node, left);
@@ -1232,15 +1195,21 @@ static ASTNode *parse_member_access(Parser *p) {
       if (member->type != TOKEN_IDENTIFIER) {
         parser_error(p, "Expected member name after '->'.");
       }
+
+      // --- THE FIX ---
+      // Create the node for the member itself.
       ASTNode *member_node = create_node(AST_IDENTIFIER, member->base_name ? member->base_name : member->text);
       if (member->base_name) {
-        node->suffix_info = member->suffix_info;
+        // CORRECT: Annotate the MEMBER node with its type info.
+        member_node->suffix_info = member->suffix_info;
+        member_node->resolved_type = member->suffix_info;
       }
       add_child(node, member_node);
-      
       left = node;
+      
     } else if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "[") == 0) {
-         advance(p);
+      // This part for array subscripts is likely correct already
+      advance(p);
       ASTNode *subscript_node = create_node(AST_SUBSCRIPT, NULL);
       add_child(subscript_node, left);
       add_child(subscript_node, parse_expression(p));
@@ -1371,6 +1340,8 @@ static ASTNode *parse_initializer_list(Parser *p) {
   return list;
 }
 
+// In dust.c
+
 static ASTNode *parse_var_decl(Parser *p) {
     Token *name = advance(p);
     if (name->type != TOKEN_IDENTIFIER) {
@@ -1383,38 +1354,23 @@ static ASTNode *parse_var_decl(Parser *p) {
         node->suffix_info = name->suffix_info;
     }
     
-    // Handle array-specific syntax first (the brackets)
+    // --- THIS IS THE CORRECTED LOGIC ---
     if (node->suffix_info.type == TYPE_ARRAY) {
         if (match_and_consume(p, TOKEN_PUNCTUATION, "[")) {
             if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "]") == 0) {
-                add_child(node, NULL); // Unsized array
+                node->array_size_expr = NULL; // Unsized array
                 advance(p);
             } else {
-                add_child(node, parse_expression(p)); // Sized array
+                // Store the size expression in its dedicated field, NOT as a child.
+                node->array_size_expr = parse_expression(p);
                 expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after array size.");
             }
         }
     }
 
-    // Handle initializers for ALL variable types (arrays and regular)
+    // Now, the ONLY child will be the initializer.
     if (match_and_consume(p, TOKEN_OPERATOR, "=")) {
-        // Special case for char arrays initialized with a string literal
-        if (node->suffix_info.type == TYPE_ARRAY && 
-            node->suffix_info.array_base_type == TYPE_CHAR && 
-            check(p, TOKEN_STRING)) {
-            
-            Token *str_tok = advance(p);
-            ASTNode *str_node = create_node(AST_STRING, str_tok->text);
-            add_child(node, str_node);
-        }
-        // Case for arrays initialized with an initializer list
-        else if (node->suffix_info.type == TYPE_ARRAY) {
-            add_child(node, parse_initializer_list(p));
-        }
-        // Case for regular variables
-        else {
-            add_child(node, parse_expression(p));
-        }
+        add_child(node, parse_expression(p)); // parse_expression handles lists
     }
 
     return node;
@@ -1561,6 +1517,12 @@ static ASTNode *parse_statement(Parser *p) {
   }
 
   if (check(p, TOKEN_KEYWORD)) {
+    if (strcmp(p->current->text, "const") == 0) {
+        advance(p);
+        ASTNode *decl = parse_const_decl(p);
+        match_and_consume(p, TOKEN_PUNCTUATION, ";");
+        return decl;
+    }
     if (strcmp(p->current->text, "let") == 0) {
       advance(p);
       ASTNode *decl = parse_var_decl(p);
@@ -1659,7 +1621,6 @@ static ASTNode *parse_struct_definition(Parser *p) {
     }
     if (check(p, TOKEN_IDENTIFIER)) {
       Token *member_tok = advance(p);
-
       
       if (member_tok->suffix_info.type == TYPE_FUNC_POINTER) {
         ASTNode *fp_node = create_node(AST_FUNC_PTR_DECL, member_tok->base_name);
@@ -1684,18 +1645,19 @@ static ASTNode *parse_struct_definition(Parser *p) {
 
       } else { // It's a regular variable or array
         ASTNode *member_node = create_node(AST_VAR_DECL, member_tok->base_name ? member_tok->base_name : member_tok->text);
-        member_node->suffix_info = member_tok->suffix_info;
-
+        if (member_tok->base_name) {
+            member_node->suffix_info = member_tok->suffix_info;
+            member_node->resolved_type = member_tok->suffix_info; // Also set the resolved type
+        }
         // Check for array declaration
         if (match_and_consume(p, TOKEN_PUNCTUATION, "[")) {
           add_child(member_node, parse_expression(p));
           expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after array size.");
         }
         add_child(struct_node, member_node);
-      }
-
-      
+      }  
       match_and_consume(p, TOKEN_PUNCTUATION, ";");
+
     } else {
       parser_error(p, "Expected member declaration inside struct.");
       advance(p);
@@ -1823,7 +1785,9 @@ static ASTNode *parse_enum_definition(Parser *p) {
   return enum_node;
 }
 
-static ASTNode *parse_function(Parser *p) {
+// In dust.c
+
+static ASTNode *parse_function(Parser *p, bool is_extern) {
   Token *name = advance(p);
   if (name->type != TOKEN_IDENTIFIER) {
     parser_error(p, "Expected function name.");
@@ -1834,36 +1798,47 @@ static ASTNode *parse_function(Parser *p) {
   if (name->base_name) {
     func_node->suffix_info = name->suffix_info;
   }
+  func_node->suffix_info.is_extern = is_extern; // Set the extern flag on the AST node
 
+  // All functions, extern or not, have parentheses for their signature.
   expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' after function name.");
 
+  // For this implementation, we will not parse arguments for C functions,
+  // but we still need a placeholder "params" node for AST consistency.
   ASTNode *params_node = create_node(AST_VAR_DECL, "params");
   add_child(func_node, params_node);
-
-  if (!(check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ")") == 0)) {
-    do {
-      Token *param_tok = advance(p);
-      if (param_tok->type != TOKEN_IDENTIFIER) {
-        parser_error(p, "Expected parameter name.");
-        
-        break;
+  
+  // For regular Dust functions, parse the parameter list.
+  if (!is_extern) {
+      if (!(check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ")") == 0)) {
+        do {
+          Token *param_tok = advance(p);
+          if (param_tok->type != TOKEN_IDENTIFIER) {
+            // Allow func(void) syntax
+            if (strcmp(param_tok->text, "void") == 0) break; 
+            parser_error(p, "Expected parameter name.");
+            break;
+          }
+          ASTNode *param_node = create_node(AST_VAR_DECL, param_tok->base_name ? param_tok->base_name : param_tok->text);
+          if (param_tok->base_name) {
+            param_node->suffix_info = param_tok->suffix_info;
+          }
+          add_child(params_node, param_node);
+        } while (match_and_consume(p, TOKEN_PUNCTUATION, ","));
       }
-      ASTNode *param_node = create_node(AST_VAR_DECL, param_tok->base_name ? param_tok->base_name : param_tok->text);
-      if (param_tok->base_name) {
-        param_node->suffix_info = param_tok->suffix_info;
-      }
-      add_child(params_node, param_node);
-      
-    } while (match_and_consume(p, TOKEN_PUNCTUATION, ","));
   }
 
   expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after parameters.");
-  add_child(func_node, parse_block(p));
-
+  
+  // A regular function has a body block, an extern one has a semicolon.
+  if (is_extern) {
+    match_and_consume(p, TOKEN_PUNCTUATION, ";");
+  } else {
+    add_child(func_node, parse_block(p));
+  }
   
   return func_node;
 }
-
 Parser *parser_create(const char *source, const TypeTable *type_table) {
   Parser *p = arena_alloc(sizeof(Parser));
   p->type_table = (TypeTable *)type_table;
@@ -1871,6 +1846,25 @@ Parser *parser_create(const char *source, const TypeTable *type_table) {
   p->current = lexer_next(p->lexer);
   return p;
 }
+
+static ASTNode *parse_const_decl(Parser *p) {
+    Token *name = advance(p);
+    if (name->type != TOKEN_IDENTIFIER || !name->base_name) {
+        parser_error(p, "Expected a valid constant name with a type suffix (e.g., NAME_i).");
+        return NULL;
+    }
+
+    ASTNode *node = create_node(AST_CONST_DECL, name->base_name);
+    node->suffix_info = name->suffix_info;
+    node->suffix_info.is_const = true; // Mark it as const
+
+    expect(p, TOKEN_OPERATOR, "=", "Expected '=' after constant name.");
+    add_child(node, parse_expression(p));
+
+    return node;
+}
+
+// In dust.c
 
 ASTNode *parser_parse(Parser *p) {
   ASTNode *program = create_node(AST_PROGRAM, NULL);
@@ -1883,35 +1877,595 @@ ASTNode *parser_parse(Parser *p) {
       Token *pass = advance(p);
       add_child(program, create_node(AST_PASSTHROUGH, pass->text));
     } else if (check(p, TOKEN_KEYWORD)) {
-      if (strcmp(p->current->text, "let") == 0) {
-        advance(p);
-        ASTNode *global = parse_var_decl(p);
-        add_child(program, global);
-      } else if (strcmp(p->current->text, "typedef") == 0) {
-        add_child(program, parse_typedef(p));
-      } else if (strcmp(p->current->text, "func") == 0) {   
-        advance(p);
-        add_child(program, parse_function(p));
-      } else if (strcmp(p->current->text, "struct") == 0) {
-        advance(p);
-        add_child(program, parse_struct_definition(p));
-      } else if (strcmp(p->current->text, "union") == 0) {  
-        advance(p);
-        add_child(program, parse_union_definition(p));
-      } else if (strcmp(p->current->text, "enum") == 0) {  
-        advance(p);
-        add_child(program, parse_enum_definition(p));
-      } else {
-        parser_error(p, "Unexpected keyword at top level.");    
-        advance(p);
-      }
-    } 
+        if (strcmp(p->current->text, "extern") == 0) {
+            advance(p);
+            expect(p, TOKEN_KEYWORD, "func", "Expected 'func' after 'extern'");
+            add_child(program, parse_function(p, true));
+        } else if (strcmp(p->current->text, "const") == 0) {
+            advance(p);
+            ASTNode *decl = parse_const_decl(p);
+            add_child(program, decl);
+            match_and_consume(p, TOKEN_PUNCTUATION, ";");
+        } else if (strcmp(p->current->text, "let") == 0) {
+            parser_error(p, "Global 'let' declarations are not supported at the top level.");
+            advance(p);
+            ASTNode *global = parse_var_decl(p);
+            add_child(program, global);
+        } else if (strcmp(p->current->text, "typedef") == 0) {
+            add_child(program, parse_typedef(p));
+        } else if (strcmp(p->current->text, "func") == 0) {
+            advance(p);
+            add_child(program, parse_function(p, false));
+        } else if (strcmp(p->current->text, "struct") == 0) {
+            advance(p);
+            add_child(program, parse_struct_definition(p));
+        } else if (strcmp(p->current->text, "union") == 0) {
+            advance(p);
+            add_child(program, parse_union_definition(p));
+        } else if (strcmp(p->current->text, "enum") == 0) {
+            advance(p);
+            add_child(program, parse_enum_definition(p));
+        } else {
+            parser_error(p, "Unexpected keyword at top level.");
+            advance(p);
+        }
+    }
     else {
       parser_error(p, "Unexpected token at top level.");
       advance(p);
     }
   }
   return program;
+}
+// ====================
+// TYPE CHECKER
+// ====================
+
+static SuffixInfo typecheck_program_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_function_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_var_decl_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_return_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_binary_op_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_unary_op_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_postfix_op_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_call_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_member_access_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_subscript_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_cast_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_sizeof_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_ternary_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_identifier_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_literal_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_no_op_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_default_handler(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_node(TypeCheckContext *ctx, ASTNode *node);
+static SuffixInfo typecheck_initializer_list_handler(TypeCheckContext *ctx, ASTNode *node);
+
+
+static const SuffixInfo VOID_TYPE = {TYPE_VOID};
+
+// --- THE DISPATCH TABLE ---
+static const TypeCheckFunc typecheck_dispatch[] = {
+    [AST_PROGRAM]           = typecheck_program_handler,
+    [AST_FUNCTION]          = typecheck_function_handler,
+    [AST_VAR_DECL]          = typecheck_var_decl_handler,
+    [AST_RETURN]            = typecheck_return_handler,
+    [AST_BINARY_OP]         = typecheck_binary_op_handler,
+    [AST_UNARY_OP]          = typecheck_unary_op_handler,
+    [AST_POSTFIX_OP]        = typecheck_postfix_op_handler,
+    [AST_CALL]              = typecheck_call_handler,
+    [AST_MEMBER_ACCESS]     = typecheck_member_access_handler,
+    [AST_SUBSCRIPT]         = typecheck_subscript_handler,
+    [AST_CAST]              = typecheck_cast_handler,
+    [AST_SIZEOF]            = typecheck_sizeof_handler,
+    [AST_TERNARY_OP]        = typecheck_ternary_handler,
+    [AST_IDENTIFIER]        = typecheck_identifier_handler,
+    [AST_NUMBER]            = typecheck_literal_handler,
+    [AST_STRING]            = typecheck_literal_handler,
+    [AST_CHARACTER]         = typecheck_literal_handler,
+    [AST_NULL]              = typecheck_literal_handler,
+    
+    // Statements that just recurse on children
+    [AST_BLOCK]             = typecheck_default_handler,
+    [AST_IF]                = typecheck_default_handler,
+    [AST_WHILE]             = typecheck_default_handler,
+    [AST_DO]                = typecheck_default_handler,
+    [AST_FOR]               = typecheck_default_handler,
+    [AST_SWITCH]            = typecheck_default_handler,
+    [AST_CASE]              = typecheck_default_handler,
+    [AST_DEFAULT]           = typecheck_default_handler,
+    
+    // Statements and definitions that require no type checking action
+    [AST_STRUCT_DEF]        = typecheck_no_op_handler,
+    [AST_UNION_DEF]         = typecheck_no_op_handler,
+    [AST_ENUM_DEF]          = typecheck_no_op_handler,
+    [AST_TYPEDEF]           = typecheck_no_op_handler,
+    [AST_BREAK]             = typecheck_no_op_handler,
+    [AST_CONTINUE]          = typecheck_no_op_handler,
+    [AST_DIRECTIVE]         = typecheck_no_op_handler,
+    [AST_PASSTHROUGH]       = typecheck_no_op_handler,
+    [AST_INITIALIZER_LIST]  = typecheck_initializer_list_handler,
+    [AST_CONST_DECL]        = typecheck_var_decl_handler,
+};
+
+
+// --- Main Dispatcher Function 
+static SuffixInfo typecheck_node(TypeCheckContext *ctx, ASTNode *node) {
+    if (!node || ctx->had_error) return VOID_TYPE;
+
+    // Look up the handler in the dispatch table
+    if (node->type < sizeof(typecheck_dispatch) / sizeof(TypeCheckFunc)) {
+        TypeCheckFunc handler = typecheck_dispatch[node->type];
+        if (handler) {
+            return handler(ctx, node); // Call the specific handler
+        }
+    }
+    
+    // If no specific handler is found, use the default behavior
+    return typecheck_default_handler(ctx, node);
+}
+
+// Hash function for symbol table
+static unsigned symbol_hash(const char *name, size_t num_buckets) {
+    unsigned hash = 2166136261u;
+    while (*name) {
+        hash ^= (unsigned char)*name;
+        hash *= 16777619;
+        name++;
+    }
+    return hash % num_buckets;
+}
+
+// Create a new symbol table
+static SymbolTable *symbol_table_create(SymbolTable *parent) {
+    SymbolTable *table = arena_alloc(sizeof(SymbolTable));
+    table->num_buckets = 64;
+    table->buckets = arena_alloc(table->num_buckets * sizeof(Symbol*));
+    table->parent = parent;
+    return table;
+}
+
+// Add a symbol to the table
+static bool symbol_table_add(SymbolTable *table, const char *name, SuffixInfo type_info, ASTNode *decl_node) {
+    unsigned index = symbol_hash(name, table->num_buckets);
+    for (Symbol *sym = table->buckets[index]; sym; sym = sym->next) {
+        if (strcmp(sym->name, name) == 0) {
+            return false; // Symbol already declared in this scope
+        }
+    }
+    Symbol *new_sym = arena_alloc(sizeof(Symbol));
+    new_sym->name = clone_string(name);
+    new_sym->type_info = type_info;
+    new_sym->decl_node = decl_node;
+    new_sym->next = table->buckets[index];
+    table->buckets[index] = new_sym;
+    return true;
+}
+
+// Look up a symbol in the symbol table (searches parent scopes)
+static Symbol *symbol_table_lookup(SymbolTable *table, const char *name) {
+    for (SymbolTable *curr = table; curr; curr = curr->parent) {
+        unsigned index = symbol_hash(name, curr->num_buckets);
+        for (Symbol *sym = curr->buckets[index]; sym; sym = sym->next) {
+            if (strcmp(sym->name, name) == 0) {
+                return sym;
+            }
+        }
+    }
+    return NULL;
+}
+
+// Type check error reporting
+static void type_error(TypeCheckContext *ctx, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    fprintf(stderr, "Type error: ");
+    vfprintf(stderr, format, args);
+    fprintf(stderr, "\n");
+    ctx->had_error = true;
+    va_end(args);
+}
+
+static bool types_are_compatible(SuffixInfo *dest, SuffixInfo *src) {
+    if (dest->type != src->type) return false;
+    if (dest->pointer_level != src->pointer_level) return false;
+    // The const check is now gone.
+
+    if (dest->type == TYPE_USER) {
+        if (!dest->user_type_name || !src->user_type_name) return false;
+        return strcmp(dest->user_type_name, src->user_type_name) == 0;
+    }
+    return true;
+}
+
+// --- Handler Implementations ---
+
+static SuffixInfo typecheck_program_handler(TypeCheckContext *ctx, ASTNode *node) {
+    ctx->current_scope = symbol_table_create(NULL);
+    for (int i = 0; i < node->child_count; i++) {
+        typecheck_node(ctx, node->children[i]);
+    }
+    return VOID_TYPE; // Statements have no type
+}
+
+static SuffixInfo typecheck_var_decl_handler(TypeCheckContext *ctx, ASTNode *node) {
+    // --- FIX: Copy parser info to the checker's working type ---
+    node->resolved_type = node->suffix_info;
+    SuffixInfo declared_type = node->resolved_type;
+
+    if (!symbol_table_add(ctx->current_scope, node->value, declared_type, node)) {
+        type_error(ctx, "Redeclaration of variable '%s'", node->value);
+        return VOID_TYPE;
+    }
+    
+    if (node->child_count > 0 && node->children[0] != NULL) { // Initializer
+        ASTNode *initializer = node->children[0];
+        SuffixInfo initializer_type = typecheck_node(ctx, initializer);
+        
+        if (initializer_type.type != TYPE_VOID && !ctx->had_error) {
+            if (!types_are_compatible(&declared_type, &initializer_type)) {
+                type_error(ctx, "Type mismatch in initialization of '%s'", node->value);
+            }
+        }
+    }
+    return VOID_TYPE;
+}
+
+// --- Handler Implementations ---
+
+static SuffixInfo typecheck_function_handler(TypeCheckContext *ctx, ASTNode *node) {
+    // --- FIX: Copy parser info for the function's return type ---
+    node->resolved_type = node->suffix_info;
+    if (!symbol_table_add(ctx->current_scope, node->value, node->resolved_type, node)) {
+        type_error(ctx, "Redeclaration of function '%s'", node->value);
+        return VOID_TYPE;
+    }
+    
+    const ASTNode *previous_function = ctx->current_function;
+    ctx->current_function = node;
+    
+    SymbolTable *function_scope = symbol_table_create(ctx->current_scope);
+    ctx->current_scope = function_scope;
+    
+    if (node->child_count > 0) { // Parameters
+        ASTNode *params = node->children[0];
+        for (int i = 0; i < params->child_count; i++) {
+            ASTNode *param = params->children[i];
+            // --- FIX: Copy parser info for each parameter's type ---
+            param->resolved_type = param->suffix_info;
+            if (!symbol_table_add(ctx->current_scope, param->value, param->resolved_type, param)) {
+                type_error(ctx, "Redeclaration of parameter '%s'", param->value);
+            }
+        }
+    }
+    
+    if (node->child_count > 1) { // Body
+        typecheck_node(ctx, node->children[1]);
+    }
+    
+    ctx->current_scope = function_scope->parent;
+    ctx->current_function = previous_function;
+    return VOID_TYPE;
+}
+
+static SuffixInfo typecheck_return_handler(TypeCheckContext *ctx, ASTNode *node) {
+    if (!ctx->current_function) {
+        type_error(ctx, "'return' statement outside of a function.");
+        return VOID_TYPE;
+    }
+
+    SuffixInfo func_return_type = ctx->current_function->resolved_type;
+
+    if (node->child_count > 0) { // return <expression>;
+        SuffixInfo expr_type = typecheck_node(ctx, node->children[0]);
+        if (func_return_type.type == TYPE_VOID) {
+            type_error(ctx, "Function with void return type cannot return a value.");
+        } else if (!types_are_compatible(&func_return_type, &expr_type)) {
+            type_error(ctx, "Type mismatch in return statement.");
+        }
+    } else { // return;
+        if (func_return_type.type != TYPE_VOID) {
+            type_error(ctx, "Function with non-void return type must return a value.");
+        }
+    }
+    return VOID_TYPE;
+}
+
+static SuffixInfo typecheck_unary_op_handler(TypeCheckContext *ctx, ASTNode *node) {
+    SuffixInfo operand_type = typecheck_node(ctx, node->children[0]);
+    const char* op = node->value;
+
+    if (strcmp(op, "&") == 0) { // Address-of
+        operand_type.pointer_level++;
+    } else if (strcmp(op, "*") == 0) { // Dereference
+        if (operand_type.pointer_level == 0) {
+            type_error(ctx, "Cannot dereference a non-pointer type.");
+            return VOID_TYPE;
+        }
+        operand_type.pointer_level--;
+    } else if (strcmp(op, "!") == 0) { // Logical NOT
+        if (operand_type.type != TYPE_INT && operand_type.type != TYPE_BOOL) {
+             type_error(ctx, "Operator '!' requires an integer or boolean operand.");
+        }
+        operand_type = (SuffixInfo){.type = TYPE_BOOL}; // Result is always a boolean
+    }
+    // Other ops like -, ++, -- result in the same type as the operand
+    
+    node->resolved_type = operand_type;
+    return operand_type;
+}
+
+static SuffixInfo typecheck_postfix_op_handler(TypeCheckContext *ctx, ASTNode *node) {
+    // For ++ and --, the type of the expression is the same as the operand's type
+    SuffixInfo operand_type = typecheck_node(ctx, node->children[0]);
+    node->resolved_type = operand_type;
+    return operand_type;
+}
+
+static SuffixInfo typecheck_call_handler(TypeCheckContext *ctx, ASTNode *node) {
+    ASTNode *func_name_node = node->children[0];
+    Symbol *func_sym = symbol_table_lookup(ctx->current_scope, func_name_node->value);
+
+    // If the function is not in the symbol table, it's an error. No more guessing.
+    if (!func_sym) {
+        type_error(ctx, "Call to undeclared function '%s'.", func_name_node->value);
+        return VOID_TYPE;
+    }
+    
+    // For known Dust functions, perform strict argument checking.
+    // We will skip this for C functions in this implementation.
+    if (!func_sym->type_info.is_extern) {
+        ASTNode *params = func_sym->decl_node->children[0];
+        int expected_args = params->child_count;
+        int actual_args = node->child_count - 1;
+
+        if (actual_args != expected_args) {
+            type_error(ctx, "Wrong number of arguments for '%s': expected %d, got %d", 
+                       func_name_node->value, expected_args, actual_args);
+            return VOID_TYPE;
+        }
+
+        for (int i = 0; i < actual_args; i++) {
+            SuffixInfo arg_type = typecheck_node(ctx, node->children[i + 1]);
+            SuffixInfo param_type = params->children[i]->resolved_type;
+            if (!types_are_compatible(&param_type, &arg_type)) {
+                type_error(ctx, "Type mismatch for argument %d in call to '%s'", i + 1, func_name_node->value);
+            }
+        }
+    } else {
+        // Even for C functions, we should still type-check the arguments
+        // to ensure they are valid expressions.
+        for (int i = 1; i < node->child_count; i++) {
+            typecheck_node(ctx, node->children[i]);
+        }
+    }
+
+    // The return type is whatever the declaration in the symbol table says it is.
+    node->resolved_type = func_sym->type_info;
+    return func_sym->type_info;
+}
+
+static SuffixInfo typecheck_member_access_handler(TypeCheckContext *ctx, ASTNode *node) {
+    SuffixInfo lhs_type = typecheck_node(ctx, node->children[0]);
+    ASTNode *member_node = node->children[1];
+    
+    if (strcmp(node->value, "->") == 0 && lhs_type.pointer_level == 0) {
+        type_error(ctx, "Cannot use '->' on a non-pointer type.");
+        return VOID_TYPE;
+    }
+    if (strcmp(node->value, ".") == 0 && lhs_type.pointer_level > 0) {
+        type_error(ctx, "Cannot use '.' on a pointer type. Use '->' instead.");
+        return VOID_TYPE;
+    }
+    if (lhs_type.type != TYPE_USER) {
+        type_error(ctx, "Member access requires a struct or union type.");
+        return VOID_TYPE;
+    }
+    
+    // A full implementation would look up the member in the struct definition.
+    // For now, we trust the suffix on the member name.
+    node->resolved_type = member_node->resolved_type;
+    return member_node->resolved_type;
+}
+
+
+static SuffixInfo typecheck_initializer_list_handler(TypeCheckContext *ctx, ASTNode *node) {
+    if (node->child_count == 0) {
+        // An empty initializer list is valid but has no specific type yet.
+        // It's compatible with any array type.
+        return (SuffixInfo){.type = TYPE_ARRAY, .array_base_type = TYPE_VOID};
+    }
+
+    // Determine the type of the list from its first element.
+    SuffixInfo base_type = typecheck_node(ctx, node->children[0]);
+
+    // Ensure all other elements in the list have the same type.
+    for (int i = 1; i < node->child_count; i++) {
+        SuffixInfo element_type = typecheck_node(ctx, node->children[i]);
+        if (!types_are_compatible(&base_type, &element_type)) {
+            type_error(ctx, "Inconsistent types in initializer list.");
+            return VOID_TYPE;
+        }
+    }
+
+    // The type of the initializer list is an array of the base type.
+    SuffixInfo array_type = {
+        .type = TYPE_ARRAY,
+        .array_base_type = base_type.type,
+        .user_type_name = base_type.user_type_name // for struct arrays
+    };
+    
+    node->resolved_type = array_type;
+    return array_type;
+}
+
+static SuffixInfo typecheck_subscript_handler(TypeCheckContext *ctx, ASTNode *node) {
+    SuffixInfo base_type = typecheck_node(ctx, node->children[0]);
+    SuffixInfo index_type = typecheck_node(ctx, node->children[1]);
+
+    if (base_type.type != TYPE_ARRAY && base_type.pointer_level == 0) {
+        type_error(ctx, "Subscript operator [] requires an array or pointer.");
+        return VOID_TYPE;
+    }
+    if (index_type.type != TYPE_INT) {
+        type_error(ctx, "Array subscript must be an integer.");
+        return VOID_TYPE; // Stop if index is not an integer
+    }
+
+    SuffixInfo result_type = {0};
+    if (base_type.type == TYPE_ARRAY) {
+        // This logic for arrays is correct
+        result_type.type = base_type.array_base_type;
+        result_type.user_type_name = base_type.array_user_type_name;
+    } else { // It's a pointer
+        // --- THE FIX ---
+        // The result of a subscript is the type the pointer points to.
+        result_type = base_type;
+        result_type.pointer_level--; // This is always correct.
+
+        // If the original pointer was a string (char*), the resulting
+        // dereferenced type is a single char.
+        if (base_type.type == TYPE_STRING) {
+            result_type.type = TYPE_CHAR;
+        }
+    }
+    
+    node->resolved_type = result_type;
+    return result_type;
+}
+
+static SuffixInfo typecheck_cast_handler(TypeCheckContext *ctx, ASTNode *node) {
+    typecheck_node(ctx, node->children[0]); // Check the expression being cast
+    // The type of the cast expression is the type specified in the cast itself.
+    node->resolved_type = node->resolved_type; // The parser already set this.
+    return node->resolved_type;
+}
+
+static SuffixInfo typecheck_sizeof_handler(TypeCheckContext *ctx, ASTNode *node) {
+    (void)ctx;
+    node->resolved_type = (SuffixInfo){.type = TYPE_SIZE_T};
+    return node->resolved_type;
+}
+
+static SuffixInfo typecheck_ternary_handler(TypeCheckContext *ctx, ASTNode *node) {
+    typecheck_node(ctx, node->children[0]); // condition
+    SuffixInfo true_type = typecheck_node(ctx, node->children[1]);
+    SuffixInfo false_type = typecheck_node(ctx, node->children[2]);
+
+    if (!types_are_compatible(&true_type, &false_type)) {
+        type_error(ctx, "Type mismatch between expressions in ternary operator.");
+    }
+    node->resolved_type = true_type; // Result is the type of the expressions
+    return true_type;
+}
+
+static SuffixInfo typecheck_no_op_handler(TypeCheckContext *ctx, ASTNode *node) {
+    (void)ctx; (void)node; // Suppress unused parameter warnings
+    return VOID_TYPE;
+}
+
+static SuffixInfo typecheck_identifier_handler(TypeCheckContext *ctx, ASTNode *node) {
+    Symbol *sym = symbol_table_lookup(ctx->current_scope, node->value);
+    if (!sym) {
+        type_error(ctx, "Undefined variable '%s'", node->value);
+        return VOID_TYPE;
+    }
+    node->resolved_type = sym->type_info; // Annotate node
+    return sym->type_info;
+}
+
+static SuffixInfo typecheck_literal_handler(TypeCheckContext *ctx, ASTNode *node) {
+    (void)ctx; // Context is not needed for literals
+    if (node->type == AST_NUMBER) {
+        node->resolved_type = (SuffixInfo){.type = TYPE_INT};
+    } else if (node->type == AST_STRING) {
+        node->resolved_type = (SuffixInfo){.type = TYPE_STRING, .pointer_level = 1};
+    } else if (node->type == AST_CHARACTER) {
+        node->resolved_type = (SuffixInfo){.type = TYPE_CHAR};
+    } else if (node->type == AST_NULL) {
+        // FIX: Assign the type of a generic void pointer to 'null'.
+        node->resolved_type = (SuffixInfo){.type = TYPE_VOID, .pointer_level = 1};
+    }
+    return node->resolved_type;
+}
+
+static SuffixInfo typecheck_default_handler(TypeCheckContext *ctx, ASTNode *node) {
+    // For statements like if/while/block, just check their children.
+    for (int i = 0; i < node->child_count; i++) {
+        typecheck_node(ctx, node->children[i]);
+    }
+    return VOID_TYPE; // Statements have no return type.
+}
+
+// In dust.c
+
+static SuffixInfo typecheck_binary_op_handler(TypeCheckContext *ctx, ASTNode *node) {
+    SuffixInfo left_type = typecheck_node(ctx, node->children[0]);
+    SuffixInfo right_type = typecheck_node(ctx, node->children[1]);
+
+    // If there was an error resolving either side, stop immediately.
+    if (ctx->had_error) {
+        return VOID_TYPE;
+    }
+
+    // --- Path 1: Handle assignment operator (=) ---
+    if (strcmp(node->value, "=") == 0) {
+        // Check 1: Can't assign to a constant.
+        if (left_type.is_const) {
+            type_error(ctx, "Cannot assign to a constant variable.");
+            return VOID_TYPE;
+        }
+        // Check 2: Are the types compatible for assignment?
+        if (!types_are_compatible(&left_type, &right_type)) {
+            type_error(ctx, "Type mismatch in assignment.");
+            return VOID_TYPE;
+        }
+        // The type of an assignment expression is the type of the left-hand side.
+        node->resolved_type = left_type;
+        return left_type;
+   } else if (strcmp(node->value, "==") == 0 || strcmp(node->value, "!=") == 0 ||
+               strcmp(node->value, "<")  == 0 || strcmp(node->value, "<=") == 0 ||
+               strcmp(node->value, ">")  == 0 || strcmp(node->value, ">=") == 0 ||
+               strcmp(node->value, "&&") == 0 || strcmp(node->value, "||") == 0) {
+        
+        // Operands must still be compatible with each other
+        if (!types_are_compatible(&left_type, &right_type)) {
+            type_error(ctx, "Type mismatch for operands in comparison/logical operation '%s'.", node->value);
+            return VOID_TYPE;
+        }
+        
+        // The result of any comparison or logical operation is always a boolean.
+        SuffixInfo bool_type = {.type = TYPE_BOOL};
+        node->resolved_type = bool_type;
+        return bool_type;
+
+    } else {
+        // --- Path 2: Handle all other binary operators (+, -, *, etc.) ---
+        if (!types_are_compatible(&left_type, &right_type)) {
+            type_error(ctx, "Type mismatch in binary operation '%s'", node->value);
+            return VOID_TYPE;
+        }
+        // For now, the result type is the same as the operands.
+        // A more advanced checker would handle type promotion (e.g., int + float = float).
+        node->resolved_type = left_type;
+        return left_type;
+    }
+}
+
+// --- Public API ---
+
+bool type_check(ASTNode *ast, TypeTable *type_table) {
+    TypeCheckContext ctx = {
+        .current_scope = NULL,
+        .type_table = type_table,
+        .had_error = false
+    };
+    
+    typecheck_node(&ctx, ast);
+    
+    // Here you would free the symbol table arenas if they were separate
+    
+    return !ctx.had_error;
 }
 
 // ============================================================================
@@ -1970,6 +2524,7 @@ static void emit_postfix_op(ASTNode *node);
 static void emit_node(ASTNode *node);
 static void emit_statement(ASTNode *node);
 
+
 static const EmitFunc emit_dispatch[] = {
     [AST_PROGRAM]           = emit_program,
     [AST_FUNCTION]          = emit_function,
@@ -2009,6 +2564,7 @@ static const EmitFunc emit_dispatch[] = {
     [AST_ENUM_DEF]          = emit_enum_def,
     [AST_ENUM_VALUE]        = emit_enum_value,
     [AST_POSTFIX_OP]        = emit_postfix_op,
+    [AST_CONST_DECL]        = emit_var_decl,
     [AST_UNION_DEF]         = emit_union_def,
 };
 
@@ -2054,8 +2610,9 @@ static void emit_statement(ASTNode *node) {
 
 static void emit_function(ASTNode *node) {
     if (node->suffix_info.is_static) fprintf(output_file, "static ");
-    if (node->suffix_info.is_extern) fprintf(output_file, "extern ");
-
+    if (node->suffix_info.is_extern) {
+        return; 
+    }
     const char *return_type = get_c_type(&node->suffix_info);
     fprintf(output_file, "%s %s(", return_type, node->value);
 
@@ -2118,7 +2675,9 @@ static void emit_var_decl(ASTNode *node) {
         // If it's a simple array (not an array of pointers handled by get_c_type), add brackets.
         if (node->suffix_info.type == TYPE_ARRAY) {
             fprintf(output_file, "[");
-            // Emit size if it's provided and isn't the initializer itself.
+            if (node->array_size_expr != NULL) {
+                emit_node(node->array_size_expr);
+            }
             if (node->child_count > 0 && node->children[0] != NULL &&
                 node->children[0]->type != AST_INITIALIZER_LIST) {
                 emit_node(node->children[0]);
@@ -2222,7 +2781,7 @@ static void emit_program(ASTNode *node) {
     // Stage 3: Emit the full definitions for all global variables.
     // Because functions are now forward-declared, initializers can use them.
     for (int i = 0; i < node->child_count; i++) {
-        if (node->children[i]->type == AST_VAR_DECL) {
+        if (node->children[i]->type == AST_VAR_DECL || node->children[i]->type == AST_CONST_DECL) {
             emit_node(node->children[i]);
             fprintf(output_file, ";\n");
         }
@@ -2672,63 +3231,72 @@ static char *read_file(const char *path) {
 }
 
 int main(int argc, char **argv) {
-    if (argc == 2 && (strcmp(argv[1], "--help") == 0 || 
-                      strcmp(argv[1], "-h") == 0 ||
-                      strcmp(argv[1], "--suffixes") == 0)) {
-        print_suffix_help();
-        return 0;
-    }
-    
+
     if (argc != 2) {
         fprintf(stderr, "Usage: dustc <file.dust>\n");
         fprintf(stderr, "       dustc --help     (show suffix reference)\n");
         return 1;
     }
-  arena_init(10 * 1024 * 1024);
-  char *source = read_file(argv[1]);
-  if (!source) {
-    fprintf(stderr, "Error: Cannot read file '%s'\n", argv[1]);
+
+    arena_init(20 * 1024 * 1024); // Give it plenty of memory
+    char *source = read_file(argv[1]);
+    if (!source) {
+        fprintf(stderr, "Error: Cannot read file '%s'\n", argv[1]);
+        arena_free_all();
+        return 1;
+    }
+
+    // --- STAGE 1: PARSING ---
+    TypeTable *type_table = type_table_create();
+    pre_scan_for_types(source, type_table);
+    Parser *parser = parser_create(source, type_table);
+    ASTNode *ast = parser_parse(parser);
+    
+    if (parser->had_error) {
+        fprintf(stderr, "\nCompilation failed during parsing.\n");
+        type_table_destroy(type_table);
+        arena_free_all();
+        return 1;
+    }
+
+    // --- STAGE 2: TYPE CHECKING (THE NEW PART!) ---
+    // You'll need to include your "type.h" or have the function declared.
+    printf("--- Running Type Checker ---\n");
+    if (!type_check(ast, type_table)) {
+        fprintf(stderr, "\nCompilation failed during type checking.\n");
+        type_table_destroy(type_table);
+        arena_free_all();
+        return 1;
+    }
+    printf("--- Type Check Passed ---\n\n");
+
+
+    // --- STAGE 3: CODE GENERATION ---
+    char outname[256];
+    strncpy(outname, argv[1], sizeof(outname) - 3);
+    outname[sizeof(outname) - 3] = '\0';
+    char *dot = strrchr(outname, '.');
+    if (dot) {
+        strcpy(dot, ".c");
+    } else {
+        strcat(outname, ".c");
+    }
+
+    FILE *out = fopen(outname, "w");
+    if (!out) {
+        fprintf(stderr, "Error: Cannot create output file '%s'\n", outname);
+        type_table_destroy(type_table);
+        arena_free_all();
+        return 1;
+    }
+
+    codegen(ast, type_table, out);
+    fclose(out);
+    printf("Successfully compiled '%s' to '%s'\n", argv[1], outname);
+
+    // Cleanup
+    type_table_destroy(type_table);
     arena_free_all();
-    return 1;
-  }
-
-  TypeTable *type_table = type_table_create();
-  pre_scan_for_types(source, type_table);
-  Parser *parser = parser_create(source, type_table);
-  printf("--- DEBUG: Types found by pre-scanner ---\n");
-  for (size_t i = 0; i < type_table->struct_count; i++) {
-      printf("  [%zu]: %s\n", i, type_table->struct_names[i]);
-  }
-  printf("--- END DEBUG ---\n\n");
-  ASTNode *ast = parser_parse(parser);
-  if (parser->had_error) {
-    fprintf(stderr, "Compilation failed.\n");
-    arena_free_all();
-    return 1;
-  }
-
-  char outname[256];
-  strncpy(outname, argv[1], sizeof(outname) - 3);
-  outname[sizeof(outname) - 3] = '\0';
-  char *dot = strrchr(outname, '.');
-  if (dot) {
-    strcpy(dot, ".c");
-  } else {
-    strcat(outname, ".c");
-  }
-
-  FILE *out = fopen(outname, "w");
-  if (!out) {
-    fprintf(stderr, "Error: Cannot create output file '%s'\n", outname);
-    arena_free_all();
-    return 1;
-  }
-
-  codegen(ast, type_table, out);
-  fclose(out);
-  printf("Successfully compiled '%s' to '%s'\n", argv[1], outname);
-  type_table_destroy(type_table);
-  arena_free_all();
-  return 0;
+    return 0;
 }
-/* Thanks for playing! :-) <3 #allerrorsmatter #dustlang $hardkorebob (2025/9/9)*/
+/* Thanks for playing! :-) <3 #allerrorsmatter #dustlang $hardkorebob (2025/9/11)*/
