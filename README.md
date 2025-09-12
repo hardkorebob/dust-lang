@@ -1,11 +1,3 @@
-```
-A transpiled language that explores radical type transparency through mandatory type suffixes,
-trading verbosity for absolute clarity about data types at every point in the code.
-The philosophical claims about transcending complexity and eliminating
-type checking don't match the reality of what the code does.
-We built an enforced naming convention, not a new paradigm for type safety.
-```
-
 # The Dust Manifesto
 
 From dust our bodies spring and to dust we return. 
