@@ -81,4 +81,5 @@ struct TypeMapping {
 DataType type;
 const char* cType;
 };
-static const TypeMapping* typeMap[] = { { TYPEVOID, "void" }, { TYPEINT, "int" }, { TYPEFLOAT, "float" }, { TYPECHAR, "char" }, { TYPESTRING, "char*" }, { TYPESIZET, "size_t" }, { TYPEUINT8, "uint8_t" }, { TYPEUINT16, "uint16_t" }, { TYPEUINT32, "uint32_t" }, { TYPEUINT64, "uint64_t" }, { TYPEINT8, "int8_t" }, { TYPEINT16, "int16_t" }, { TYPEINT32, "int32_t" }, { TYPEINT64, "int64_t" }, { TYPEUINTPTR, "uintptr_t" }, { TYPEINTPTR, "intptr_t" }, { TYPEOFF, "off_t" }, { TYPEBOOL, "bool" }, { TYPEVOID, NULL } };
+static const TypeMapping typeMap[] = { { TYPEVOID, "void" }, { TYPEINT, "int" }, { TYPEFLOAT, "float" }, { TYPECHAR, "char" }, { TYPESTRING, "char*" }, { TYPESIZET, "size_t" }, { TYPEUINT8, "uint8_t" }, { TYPEUINT16, "uint16_t" }, { TYPEUINT32, "uint32_t" }, { TYPEUINT64, "uint64_t" }, { TYPEINT8, "int8_t" }, { TYPEINT16, "int16_t" }, { TYPEINT32, "int32_t" }, { TYPEINT64, "int64_t" }, { TYPEUINTPTR, "uintptr_t" }, { TYPEINTPTR, "intptr_t" }, { TYPEOFF, "off_t" }, { TYPEBOOL, "bool" }, { TYPEVOID, NULL } };
+static Arena thing;

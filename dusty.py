@@ -12,9 +12,11 @@ class DustEditor:
         self.current_file = None
         self._highlight_job = None
         self.selected_suffix = None
+        self.prefix_var = tk.StringVar(value='')
+        self.primitive_var = tk.StringVar(value='i')
         self.left_pressed = False
         self.highlight_rules = {
-            'keyword': r'\b(func|let)\b',
+            'keyword': r'\b(func|let|struct|enum)\b',
             'suffix':  r'_[a-zA-Z0-9]+'
         }
         self.colors = {
@@ -48,6 +50,7 @@ class DustEditor:
             # Add visual feedback to the suffix list
             self.suffix_widget.tag_remove('selected', '1.0', tk.END)
             self.suffix_widget.tag_add('selected', f"{clicked_index} linestart", f"{clicked_index} lineend")
+            self.primitive_var.set(None) 
         self.suffix_widget.config(state='disabled')
 
     def _setup_ui(self):
@@ -70,6 +73,32 @@ class DustEditor:
         menubar.add_cascade(label="Build", menu=build_menu)
         build_menu.add_command(label="Full Build & Run", command=self.full_build_run, accelerator="F8")
 
+        style = ttk.Style()
+        style.configure('Prefix.TRadiobutton', indicatorcolor='white', background=self.colors['bg']) 
+        style.map('Prefix.TRadiobutton', indicatorcolor=[('selected', '#6060ff')]) 
+        style.configure('Primitive.TRadiobutton', indicatorcolor='white', background=self.colors['bg']) 
+        style.map('Primitive.TRadiobutton', indicatorcolor=[('selected', '#ff6060')]) 
+
+        # --- Radio Button Bar ---
+        radio_bar_frame = tk.Frame(self.root, bg=self.colors['bg'])
+        radio_bar_frame.pack(side=tk.TOP, fill=tk.X, pady=10, padx=40)
+
+        # -- Prefix Modifiers 
+        prefix_frame = tk.Frame(radio_bar_frame, relief="flat", bg=self.colors['bg'])
+        prefix_frame.pack(side=tk.LEFT, padx=(0, 10))
+        prefixes = ['', 'z', 'k', 'e']
+        for p in prefixes:
+            rb = ttk.Radiobutton(prefix_frame, text=p, value=p, variable=self.prefix_var, style='Prefix.TRadiobutton')
+            rb.pack(side=tk.LEFT, padx=5, pady=2)
+
+        # -- Primitives --
+        primitive_frame = tk.Frame(radio_bar_frame, relief="flat", bg=self.colors['bg'])
+        primitive_frame.pack(side=tk.LEFT, fill=tk.X)
+        primitives = ['i', 'f', 'c', 's', 'v', 't', 'bl', 'fp', 'u8', 'u16', 'u32', 'u64', 'i8', 'i16', 'i32', 'i64']
+        for p in primitives:
+            rb = ttk.Radiobutton(primitive_frame, text=p, value=p, variable=self.primitive_var, style='Primitive.TRadiobutton')
+            rb.pack(side=tk.LEFT, padx=10, pady=2)
+
         # --- Paned Layout ---
         main_paned = tk.PanedWindow(self.root, orient=tk.VERTICAL, bg=self.colors['bg'], sashwidth=8)
         main_paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -82,8 +111,8 @@ class DustEditor:
         self.line_numbers.pack(side=tk.LEFT, fill=tk.Y)
         
         # --- Types ---
-        self.suffix_widget = tk.Text(editor_frame, width=15, padx=5, takefocus=0, cursor="gumby",
-                             font=('Iosevka', 12), bg=self.colors['output_bg'], highlightbackground=self.colors['bg'],
+        self.suffix_widget = tk.Text(editor_frame, width=15, takefocus=0, cursor="gumby",
+                             font=('Iosevka', 12), bg=self.colors['bg'], highlightbackground=self.colors['bg'],
                              fg='#404040', state='disabled', borderwidth=0, highlightthickness=0)
         self.suffix_widget.pack(side=tk.RIGHT, fill=tk.Y)
 
@@ -93,8 +122,6 @@ class DustEditor:
                             borderwidth=0, highlightthickness=0, cursor="heart")
         self.text.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         main_paned.add(editor_frame)
-
-       
         
         # --- Output Pane ---
         output_frame = tk.Frame(main_paned, bg=self.colors['bg'])
@@ -103,12 +130,9 @@ class DustEditor:
                                                      fg=self.colors['output_fg'], state='disabled')
         self.output_text.pack(fill=tk.BOTH, expand=True)   
         main_paned.add(output_frame)
+
         self.root.update()
         main_paned.sash_place(0, 0, int(self.root.winfo_height() * 0.75))
-
-        # --- Status Bar ---
-        self.status = tk.Label(self.root, text="Ready", bg=self.colors['status_bg'], anchor='w', padx=5)
-        self.status.pack(side=tk.BOTTOM, fill=tk.X)
 
         self._setup_highlighting_tags()
         self._setup_bindings_and_scroll()
@@ -123,7 +147,7 @@ class DustEditor:
 
     def _setup_bindings_and_scroll(self):
         """Set up keyboard bindings and scroll synchronization."""
-        self.text.bind('_', self._on_underscore_press)
+        self.text.bind('`', self._insert_suffix)
         self.suffix_widget.bind('<Button-1>', self._on_suffix_select)
         self.root.bind('<Control-n>', lambda e: self.new_file())
         self.root.bind('<Control-o>', lambda e: self.open_file())
@@ -137,11 +161,39 @@ class DustEditor:
         self.text.bind('<Button-2>', self.on_middle_click)
         self.text.bind('<Button-3>', self.on_right_click)
 
-    def _on_underscore_press(self, event=None):
-        """On underscore, insert the currently selected suffix."""
+    def _insert_suffix(self, event=None):
+        """On key press, insert a suffix from the sidebar selection or radio buttons."""
+        prefix = self.prefix_var.get()
+        primitive = self.primitive_var.get()
+
         if self.selected_suffix:
-            self.text.insert(tk.INSERT, f"_{self.selected_suffix}")
+            prefix_str = f"{prefix}" if prefix and prefix != 'None' else ""
+            suffix_to_insert = f"_{prefix_str}{self.selected_suffix}"
+            
+            self.text.insert(tk.INSERT, suffix_to_insert)
+            self.log(f"Inserted suffix: {suffix_to_insert}")
+            
+            # Reset selections so the radio buttons are the default for the next time.
+            self.selected_suffix = None
+            self.prefix_var.set(None)
             self.on_key_release()
+            return "break"
+
+        # ONLY if no sidebar item was selected, do we fall back to the radio buttons.
+        if primitive and primitive != 'None':
+            prefix_str = f"{prefix}" if prefix and prefix != 'None' else ""
+            suffix_to_insert = f"_{prefix_str}{primitive}"
+            
+            self.text.insert(tk.INSERT, suffix_to_insert)
+            self.log(f"Inserted suffix: {suffix_to_insert}")
+            
+            # Reset prefix after use.
+            self.prefix_var.set(None)
+            self.on_key_release()
+            return "break"
+
+        # This is the final fallback just in case.
+        self.text.insert(tk.INSERT, "_")
         return "break"
 
     def _scroll_text(self, *args):
@@ -155,18 +207,11 @@ class DustEditor:
         self.suffix_widget.config(state='normal')
         self.suffix_widget.delete('1.0', tk.END)
 
-        primitives = ['i', 'f', 'c', 's', 'v', 't', 'bl', 'fp', 'u8', 'u16', 'u32', 'u64', 'i8', 'i16', 'i32', 'i64']
-
-        self.suffix_widget.insert(tk.END, "# Primitives\n")
-        for p in primitives:
-            self.suffix_widget.insert(tk.END, f"{p}\n")
-
         content = self.text.get('1.0', tk.END)
-        # Use a set to get unique type names
         user_types = set(re.findall(r'\b(?:struct|enum)\s+(\w+)', content))
 
         if user_types:
-            self.suffix_widget.insert(tk.END, "\n# User Types\n")
+            self.suffix_widget.insert(tk.END, "User Types\n\n")
             for ut in sorted(list(user_types)):
                 self.suffix_widget.insert(tk.END, f"{ut}\n")
 
@@ -205,8 +250,6 @@ class DustEditor:
         self.output_text.insert(tk.END, f"{message}\n")
         self.output_text.see(tk.END)
         self.output_text.config(state='disabled')
-        if message:
-            self.status.config(text=message.split('\n')[0])
 
     def clear_log(self):
         self.output_text.config(state='normal')

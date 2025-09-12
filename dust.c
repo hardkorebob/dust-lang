@@ -418,14 +418,20 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
 
     const char *parse_ptr = suffix_str;
 
-    // 1. Check for and strip linkage prefixes (z, e) from the beginning
-
-    if (parse_ptr[0] == 'z' && ((size_t)(parse_ptr - suffix_str) + 1 < suffix_len)) {
-        result_info->is_static = true;
-        parse_ptr++;
-    } else if (parse_ptr[0] == 'e' && ((size_t)(parse_ptr - suffix_str) + 1 < suffix_len)) {
-        result_info->is_extern = true;
-        parse_ptr++;
+    while (true) {
+        if (parse_ptr[0] == 'z') {
+            result_info->is_static = true;
+            parse_ptr++;
+        } else if (parse_ptr[0] == 'k') {
+            result_info->is_const = true;
+            parse_ptr++;
+        } else if (parse_ptr[0] == 'e') {
+            result_info->is_extern = true;
+            parse_ptr++;
+        } else {
+            // No more prefixes found, break the loop
+            break;
+        }
     }
 
     // 2. Find the longest matching base type first 

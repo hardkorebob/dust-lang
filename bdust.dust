@@ -88,7 +88,7 @@ struct TypeMapping {
 	cType_cb
 }
 
-let typeMap_zTypeMappingba[] = {
+let typeMap_zkTypeMappinga[] = {
     {TYPEVOID,       "void"}
     {TYPEINT,        "int"}
     {TYPEFLOAT,      "float"}
