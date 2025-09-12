@@ -1,7 +1,8 @@
 ```
-A transpiled language that explores radical type transparency through mandatory type suffixes, trading verbosity for absolute clarity about data types at every point in the code."
-This would be honest about what Dust actually does while still highlighting what makes it an interesting experiment.
-The technical implementation is impressive. The philosophical claims about transcending complexity and eliminating type checking don't match the reality of what the code does. You've built an enforced naming convention, not a new paradigm for type safety.
+A transpiled language that explores radical type transparency through mandatory type suffixes, trading verbosity for absolute clarity about data types at every point in the code.
+The technical implementation is impressive.
+The philosophical claims about transcending complexity and eliminating type checking don't match the reality of what the code does.
+You've built an enforced naming convention, not a new paradigm for type safety.
 ```
 
 # The Dust Manifesto
