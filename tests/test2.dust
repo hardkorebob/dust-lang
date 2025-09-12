@@ -7,8 +7,14 @@
 #include <time.h>
 #include <stdbool.h>
 
-#define MIN_NUMBER 1
-#define MAX_NUMBER 10
+// --- Dust FFI Declarations for C Functions ---
+// We are explicitly telling the Dust compiler about the C functions we will use.
+// This allows the type checker to validate our calls to them.
+
+// --- Dust Constants ---
+// We use Dust's native, type-safe const instead of C's #define.
+const MINNUMBER_i = 1
+const MAXNUMBER_i = 10
 
 // The Game struct holds all the information about a single game session.
 struct Game {
@@ -22,21 +28,18 @@ func printWelcome_v() {
     printf("=============================\n")
     printf("= Welcome to Guess the Number =\n")
     printf("=============================\n")
-    printf("I'm thinking of a number between %d and %d.\n", MIN_NUMBER, MAX_NUMBER)
+    printf("I'm thinking of a number between %d and %d.\n", MINNUMBER_i, MAXNUMBER_i)
 }
 
 // Prompts the player for their guess and returns the integer they enter.
 func getPlayerGuess_i() {
-    let guess_i = 0
+    let guess_i = 0;
     printf("Enter your guess: ")
     scanf("%d", &guess_i)
     return guess_i
 }
 
 // Checks the guess against the secret number and prints the result.
-// ===== test2.dust (Corrected Snippet) =====
-
-// The function signature is now unambiguous.
 func checkGuess_v(game_Gameb, guess_i) {
     if (guess_i < game_Gameb->secret_number_i) {
         printf("--> Too low! Try again.\n")
@@ -50,13 +53,13 @@ func checkGuess_v(game_Gameb, guess_i) {
 // The main entry point of our program.
 func main_i() {
     // Seed the random number generator using the current time
-    srand(time(NULL))
+    srand(time(null))
 
     printWelcome_v()
 
     // Create a new game instance on the stack
     let game_Game
-    let secret_i = (rand() % MAX_NUMBER) + MIN_NUMBER
+    let secret_i = (rand() % MAXNUMBER_i) + MINNUMBER_i
     game_Game.secret_number_i = secret_i
 
     // Get the player's guess
@@ -73,5 +76,3 @@ func main_i() {
 
     return 0
 }
-
-

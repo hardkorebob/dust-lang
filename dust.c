@@ -131,6 +131,7 @@ typedef enum {
   AST_ENUM_VALUE,
   AST_POSTFIX_OP,
   AST_UNION_DEF,
+  AST_CONST_DECL,
 } ASTType;
 
 typedef struct ASTNode {
@@ -330,6 +331,8 @@ static const char *KEYWORDS[] = {
     "null",
     "enum",
     "union",
+    "const",
+    "extern",
      NULL
 };
 
@@ -565,90 +568,81 @@ const char *find_suffix_separator(const char *name) {
   return strrchr(name, '_');
 }
 
+// In dust.c
+
 bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, SuffixInfo *result_info) {
-    *result_info = (SuffixInfo){0};
+    // ALWAYS start with a clean slate.
+    memset(result_info, 0, sizeof(SuffixInfo));
+
     const char *separator = find_suffix_separator(full_variable_name);
     if (!separator) return false;
 
     const char *suffix_str = separator + 1;
-    size_t suffix_len = strlen(suffix_str);
-    if (suffix_len == 0) return false;
+    if (strlen(suffix_str) == 0) return false;
 
     const char *parse_ptr = suffix_str;
 
+    // 1. Parse prefixes (z, k, e)
     while (true) {
-        if (parse_ptr[0] == 'z') {
+        if (*parse_ptr == 'z') {
             result_info->is_static = true;
             parse_ptr++;
-        } else if (parse_ptr[0] == 'k') {
+        } else if (*parse_ptr == 'k') { // Using 'k' as per your code
             result_info->is_const = true;
             parse_ptr++;
-        } else if (parse_ptr[0] == 'e') {
+        } else if (*parse_ptr == 'e') {
             result_info->is_extern = true;
             parse_ptr++;
         } else {
-            // No more prefixes found, break the loop
             break;
         }
     }
 
-    // 2. Find the longest matching base type first 
+    // 2. Find the longest matching base type (user types take precedence)
     size_t best_match_len = 0;
+    bool match_found = false;
 
-    // Temporarily store the best match info
-    SuffixInfo temp_info = {0};
-    bool is_user_type = false;
-    const char* user_type_name_match = NULL;
-
-    // Check primitives
-    for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
-        size_t len = strlen(m->suffix);
-        if (len > best_match_len && strncmp(parse_ptr, m->suffix, len) == 0) {
-            best_match_len = len;
-            temp_info.type = m->type;
-            is_user_type = false;
-        }
-    }
-    // Check user-defined types and typedefs
-    const char* current_base = parse_ptr;
+    // Check user-defined types (structs, enums) and typedefs first
     for (size_t i = 0; i < type_table->struct_count; i++) {
         size_t len = strlen(type_table->struct_names[i]);
-        if (len > best_match_len && strncmp(current_base, type_table->struct_names[i], len) == 0) {
+        if (len > best_match_len && strncmp(parse_ptr, type_table->struct_names[i], len) == 0) {
             best_match_len = len;
-            is_user_type = true;
-            user_type_name_match = type_table->struct_names[i];
+            result_info->type = TYPE_USER;
+            result_info->user_type_name = type_table->struct_names[i];
+            match_found = true;
         }
     }
      for (size_t i = 0; i < type_table->typedef_count; i++) {
         size_t len = strlen(type_table->typedefs[i].name);
-        if (len > best_match_len && strncmp(current_base, type_table->typedefs[i].name, len) == 0) {
+        if (len > best_match_len && strncmp(parse_ptr, type_table->typedefs[i].name, len) == 0) {
             best_match_len = len;
-            temp_info = type_table->typedefs[i].type_info;
-            is_user_type = (temp_info.type == TYPE_USER);
-            user_type_name_match = temp_info.user_type_name;
+            // Copy the entire resolved type from the typedef
+            *result_info = type_table->typedefs[i].type_info;
+            match_found = true;
         }
     }
 
-    if (best_match_len == 0) return false;
+    // Only if no user type matched, check for primitives
+    if (!match_found) {
+        for (const SuffixMapping *m = suffix_table; m->suffix; m++) {
+            size_t len = strlen(m->suffix);
+            if (len > best_match_len && strncmp(parse_ptr, m->suffix, len) == 0) {
+                best_match_len = len;
+                result_info->type = m->type;
+            }
+        }
+    }
 
-    // 3. The rest of the string is the modifiers
+    if (best_match_len == 0) return false; // No known base type found
+
+    // 3. The rest of the string is pointer/array modifiers
     const char* modifiers = parse_ptr + best_match_len;
     size_t modifiers_len = strlen(modifiers);
 
-    // Set the base type info
-    if (is_user_type) {
-        result_info->type = TYPE_USER;
-        result_info->user_type_name = user_type_name_match;
-    } else {
-        result_info->type = temp_info.type;
-    }
-
-
-    // 4. Parse the modifiers ('p', 'b', 'r', 'a')
     bool is_array = false;
     if (modifiers_len > 0 && modifiers[modifiers_len - 1] == 'a') {
         is_array = true;
-        modifiers_len--; // Don't process 'a' in the pointer loop
+        modifiers_len--;
     }
 
     for (size_t i = 0; i < modifiers_len; i++) {
@@ -656,7 +650,6 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
         if (mod == 'p') {
             result_info->pointer_level++;
             result_info->role = ROLE_OWNED;
-            result_info->is_const = false;
         } else if (mod == 'b') {
             result_info->pointer_level++;
             result_info->role = ROLE_BORROWED;
@@ -668,23 +661,21 @@ bool suffix_parse(const char *full_variable_name, const TypeTable *type_table, S
         }
     }
 
-    // Handle special case for 's' suffix
+    // Special case for 's' suffix (char*)
     if(result_info->type == TYPE_STRING){
         result_info->pointer_level++;
     }
 
-    // Finalize array properties
     if (is_array) {
-        DataType original_base_type = result_info->type;
-        const char* original_user_name = result_info->user_type_name;
+        result_info->array_base_type = result_info->type;
+        result_info->array_user_type_name = result_info->user_type_name;
         result_info->type = TYPE_ARRAY;
-        result_info->array_base_type = original_base_type;
-        result_info->array_user_type_name = original_user_name;
+        // Pointers to arrays are handled by pointer level, so clear user name from base
+        if(result_info->pointer_level > 0) result_info->user_type_name = NULL;
     }
     
     return true;
 }
-
 const char *get_c_type(const SuffixInfo *info) {
     static char type_buffer[256];
     const char *base_type_str = "void";
@@ -969,7 +960,8 @@ static ASTNode *parse_enum_definition(Parser *p);
 static ASTNode *parse_unary(Parser *p);
 static ASTNode *parse_postfix(Parser *p);
 static ASTNode *parse_union_definition(Parser *p);
-
+static ASTNode *parse_const_decl(Parser *p);
+static ASTNode *parse_function(Parser *p, bool is_extern); 
 
 static ASTNode *create_node(ASTType type, const char *value) {
   ASTNode *node = arena_alloc(sizeof(ASTNode));
@@ -1171,60 +1163,63 @@ static ASTNode *parse_subscript(Parser *p) {
   return expr;
 }
 
-// In dust.c
-
 static ASTNode *parse_member_access(Parser *p) {
-    ASTNode *left = parse_subscript(p);
+  ASTNode *left = parse_subscript(p);
 
-    while (true) {
-        if (match_and_consume(p, TOKEN_PUNCTUATION, ".")) {
-            ASTNode *node = create_node(AST_MEMBER_ACCESS, ".");
-            add_child(node, left);
+  while (true) {
+    if (match_and_consume(p, TOKEN_PUNCTUATION, ".")) {
+      ASTNode *node = create_node(AST_MEMBER_ACCESS, ".");
+      add_child(node, left);
 
-            Token *member = advance(p);
-            if (member->type != TOKEN_IDENTIFIER) {
-                parser_error(p, "Expected member name after '.'.");
-            }
-            // --- FIX IS APPLIED HERE ---
-            ASTNode *member_node = create_node(AST_IDENTIFIER, member->base_name ? member->base_name : member->text);
-            if (member->base_name) {
-                // Correctly annotate the member node with its type
-                member_node->suffix_info = member->suffix_info;
-                member_node->resolved_type = member->suffix_info;
-            }
-            add_child(node, member_node);
-            left = node;
+      Token *member = advance(p);
+      if (member->type != TOKEN_IDENTIFIER) {
+        parser_error(p, "Expected member name after '.'.");
+      }
+      
+      // --- THE FIX ---
+      // Create the node for the member itself.
+      ASTNode *member_node = create_node(AST_IDENTIFIER, member->base_name ? member->base_name : member->text);
+      if (member->base_name) {
+        // CORRECT: Annotate the MEMBER node with its type info.
+        member_node->suffix_info = member->suffix_info;
+        member_node->resolved_type = member->suffix_info;
+      }
+      add_child(node, member_node);
+      left = node;
 
-        } else if (match_and_consume(p, TOKEN_ARROW, "->")) {
-            ASTNode *node = create_node(AST_MEMBER_ACCESS, "->");
-            add_child(node, left);
+    } else if (match_and_consume(p, TOKEN_ARROW, "->")) {
+      ASTNode *node = create_node(AST_MEMBER_ACCESS, "->");
+      add_child(node, left);
 
-            Token *member = advance(p);
-            if (member->type != TOKEN_IDENTIFIER) {
-                parser_error(p, "Expected member name after '->'.");
-            }
-            // --- AND THE FIX IS APPLIED HERE ---
-            ASTNode *member_node = create_node(AST_IDENTIFIER, member->base_name ? member->base_name : member->text);
-            if (member->base_name) {
-                // Correctly annotate the member node with its type
-                member_node->suffix_info = member->suffix_info;
-                member_node->resolved_type = member->suffix_info;
-            }
-            add_child(node, member_node);
-            left = node;
+      Token *member = advance(p);
+      if (member->type != TOKEN_IDENTIFIER) {
+        parser_error(p, "Expected member name after '->'.");
+      }
 
-        } else if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "[") == 0) {
-            advance(p);
-            ASTNode *subscript_node = create_node(AST_SUBSCRIPT, NULL);
-            add_child(subscript_node, left);
-            add_child(subscript_node, parse_expression(p));
-            expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after subscript index.");
-            left = subscript_node;
-        } else {
-            break;
-        }
+      // --- THE FIX ---
+      // Create the node for the member itself.
+      ASTNode *member_node = create_node(AST_IDENTIFIER, member->base_name ? member->base_name : member->text);
+      if (member->base_name) {
+        // CORRECT: Annotate the MEMBER node with its type info.
+        member_node->suffix_info = member->suffix_info;
+        member_node->resolved_type = member->suffix_info;
+      }
+      add_child(node, member_node);
+      left = node;
+      
+    } else if (check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, "[") == 0) {
+      // This part for array subscripts is likely correct already
+      advance(p);
+      ASTNode *subscript_node = create_node(AST_SUBSCRIPT, NULL);
+      add_child(subscript_node, left);
+      add_child(subscript_node, parse_expression(p));
+      expect(p, TOKEN_PUNCTUATION, "]", "Expected ']' after subscript index.");
+      left = subscript_node;
+    } else {
+      break;
     }
-    return left;
+  }
+  return left;
 }
 
 static ASTNode *parse_typedef(Parser *p) {
@@ -1522,6 +1517,12 @@ static ASTNode *parse_statement(Parser *p) {
   }
 
   if (check(p, TOKEN_KEYWORD)) {
+    if (strcmp(p->current->text, "const") == 0) {
+        advance(p);
+        ASTNode *decl = parse_const_decl(p);
+        match_and_consume(p, TOKEN_PUNCTUATION, ";");
+        return decl;
+    }
     if (strcmp(p->current->text, "let") == 0) {
       advance(p);
       ASTNode *decl = parse_var_decl(p);
@@ -1784,7 +1785,9 @@ static ASTNode *parse_enum_definition(Parser *p) {
   return enum_node;
 }
 
-static ASTNode *parse_function(Parser *p) {
+// In dust.c
+
+static ASTNode *parse_function(Parser *p, bool is_extern) {
   Token *name = advance(p);
   if (name->type != TOKEN_IDENTIFIER) {
     parser_error(p, "Expected function name.");
@@ -1795,32 +1798,46 @@ static ASTNode *parse_function(Parser *p) {
   if (name->base_name) {
     func_node->suffix_info = name->suffix_info;
   }
+  func_node->suffix_info.is_extern = is_extern;
 
-  expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' after function name.");
+  // --- THE FIX ---
+  // The logic is now cleanly separated.
+  if (is_extern) {
+    // For an extern function, we only parse the name.
+    // We add a dummy "params" child so the AST structure is consistent for the type checker.
+    ASTNode *params_node = create_node(AST_VAR_DECL, "params");
+    add_child(func_node, params_node);
+  } else {
+    // For a regular Dust function, we parse the full signature and body.
+    expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' after function name.");
+    ASTNode *params_node = create_node(AST_VAR_DECL, "params");
+    add_child(func_node, params_node);
 
-  ASTNode *params_node = create_node(AST_VAR_DECL, "params");
-  add_child(func_node, params_node);
+    // MOVE THE PARAMETER PARSING LOGIC INSIDE THE ELSE BLOCK
+    if (!(check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ")") == 0)) {
+      do {
+        Token *param_tok = advance(p);
+        if (param_tok->type != TOKEN_IDENTIFIER) {
+          if (strcmp(param_tok->text, "void") == 0) break;
+          parser_error(p, "Expected parameter name.");
+          break;
+        }
+        ASTNode *param_node = create_node(AST_VAR_DECL, param_tok->base_name ? param_tok->base_name : param_tok->text);
+        if (param_tok->base_name) {
+          // This was the original bug from the error message.
+          // It should be param_node->suffix_info, not params_node.
+          param_node->suffix_info = param_tok->suffix_info;
+        }
+        add_child(params_node, param_node);
+      } while (match_and_consume(p, TOKEN_PUNCTUATION, ","));
+    }
 
-  if (!(check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ")") == 0)) {
-    do {
-      Token *param_tok = advance(p);
-      if (param_tok->type != TOKEN_IDENTIFIER) {
-        parser_error(p, "Expected parameter name.");
-        
-        break;
-      }
-      ASTNode *param_node = create_node(AST_VAR_DECL, param_tok->base_name ? param_tok->base_name : param_tok->text);
-      if (param_tok->base_name) {
-        param_node->suffix_info = param_tok->suffix_info;
-      }
-      add_child(params_node, param_node);
-      
-    } while (match_and_consume(p, TOKEN_PUNCTUATION, ","));
+    // MOVE THE CLOSING PARENTHESIS EXPECTATION INSIDE THE ELSE BLOCK
+    expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after parameters.");
+    
+    // The body is only parsed for non-extern functions.
+    add_child(func_node, parse_block(p));
   }
-
-  expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after parameters.");
-  add_child(func_node, parse_block(p));
-
   
   return func_node;
 }
@@ -1833,6 +1850,25 @@ Parser *parser_create(const char *source, const TypeTable *type_table) {
   return p;
 }
 
+static ASTNode *parse_const_decl(Parser *p) {
+    Token *name = advance(p);
+    if (name->type != TOKEN_IDENTIFIER || !name->base_name) {
+        parser_error(p, "Expected a valid constant name with a type suffix (e.g., NAME_i).");
+        return NULL;
+    }
+
+    ASTNode *node = create_node(AST_CONST_DECL, name->base_name);
+    node->suffix_info = name->suffix_info;
+    node->suffix_info.is_const = true; // Mark it as const
+
+    expect(p, TOKEN_OPERATOR, "=", "Expected '=' after constant name.");
+    add_child(node, parse_expression(p));
+
+    return node;
+}
+
+// In dust.c
+
 ASTNode *parser_parse(Parser *p) {
   ASTNode *program = create_node(AST_PROGRAM, NULL);
 
@@ -1844,7 +1880,21 @@ ASTNode *parser_parse(Parser *p) {
       Token *pass = advance(p);
       add_child(program, create_node(AST_PASSTHROUGH, pass->text));
     } else if (check(p, TOKEN_KEYWORD)) {
-      if (strcmp(p->current->text, "let") == 0) {
+        if (strcmp(p->current->text, "extern") == 0) { 
+            advance(p);
+            expect(p, TOKEN_KEYWORD, "func", "Expected 'func' after 'extern'");
+            ASTNode *func_decl = parse_function(p, true); 
+            add_child(program, func_decl);
+      }
+      if (strcmp(p->current->text, "const") == 0) {
+        advance(p);
+        ASTNode *decl = parse_const_decl(p);
+        // FIX: Add the constant as a child of the program, do NOT return.
+        add_child(program, decl); 
+        match_and_consume(p, TOKEN_PUNCTUATION, ";");
+      } else if (strcmp(p->current->text, "let") == 0) {
+        parser_error(p, "Global 'let' declarations are not supported at the top level.");
+        // We still parse it to try and recover and find more errors.
         advance(p);
         ASTNode *global = parse_var_decl(p);
         add_child(program, global);
@@ -1852,7 +1902,7 @@ ASTNode *parser_parse(Parser *p) {
         add_child(program, parse_typedef(p));
       } else if (strcmp(p->current->text, "func") == 0) {   
         advance(p);
-        add_child(program, parse_function(p));
+        add_child(program, parse_function(p, false));
       } else if (strcmp(p->current->text, "struct") == 0) {
         advance(p);
         add_child(program, parse_struct_definition(p));
@@ -1874,7 +1924,6 @@ ASTNode *parser_parse(Parser *p) {
   }
   return program;
 }
-
 // ====================
 // TYPE CHECKER
 // ====================
@@ -1898,6 +1947,8 @@ static SuffixInfo typecheck_no_op_handler(TypeCheckContext *ctx, ASTNode *node);
 static SuffixInfo typecheck_default_handler(TypeCheckContext *ctx, ASTNode *node);
 static SuffixInfo typecheck_node(TypeCheckContext *ctx, ASTNode *node);
 static SuffixInfo typecheck_initializer_list_handler(TypeCheckContext *ctx, ASTNode *node);
+
+
 static const SuffixInfo VOID_TYPE = {TYPE_VOID};
 
 // --- THE DISPATCH TABLE ---
@@ -1941,6 +1992,7 @@ static const TypeCheckFunc typecheck_dispatch[] = {
     [AST_DIRECTIVE]         = typecheck_no_op_handler,
     [AST_PASSTHROUGH]       = typecheck_no_op_handler,
     [AST_INITIALIZER_LIST]  = typecheck_initializer_list_handler,
+    [AST_CONST_DECL]        = typecheck_var_decl_handler,
 };
 
 
@@ -2351,19 +2403,59 @@ static SuffixInfo typecheck_default_handler(TypeCheckContext *ctx, ASTNode *node
     return VOID_TYPE; // Statements have no return type.
 }
 
+// In dust.c
+
 static SuffixInfo typecheck_binary_op_handler(TypeCheckContext *ctx, ASTNode *node) {
     SuffixInfo left_type = typecheck_node(ctx, node->children[0]);
     SuffixInfo right_type = typecheck_node(ctx, node->children[1]);
 
-    if (left_type.type == TYPE_VOID || right_type.type == TYPE_VOID) return VOID_TYPE;
-    
-    if (!types_are_compatible(&left_type, &right_type)) {
-        type_error(ctx, "Type mismatch in binary operation '%s'", node->value);
+    // If there was an error resolving either side, stop immediately.
+    if (ctx->had_error) {
         return VOID_TYPE;
     }
-    
-    node->resolved_type = left_type; // Result type is type of operands
-    return left_type;
+
+    // --- Path 1: Handle assignment operator (=) ---
+    if (strcmp(node->value, "=") == 0) {
+        // Check 1: Can't assign to a constant.
+        if (left_type.is_const) {
+            type_error(ctx, "Cannot assign to a constant variable.");
+            return VOID_TYPE;
+        }
+        // Check 2: Are the types compatible for assignment?
+        if (!types_are_compatible(&left_type, &right_type)) {
+            type_error(ctx, "Type mismatch in assignment.");
+            return VOID_TYPE;
+        }
+        // The type of an assignment expression is the type of the left-hand side.
+        node->resolved_type = left_type;
+        return left_type;
+   } else if (strcmp(node->value, "==") == 0 || strcmp(node->value, "!=") == 0 ||
+               strcmp(node->value, "<")  == 0 || strcmp(node->value, "<=") == 0 ||
+               strcmp(node->value, ">")  == 0 || strcmp(node->value, ">=") == 0 ||
+               strcmp(node->value, "&&") == 0 || strcmp(node->value, "||") == 0) {
+        
+        // Operands must still be compatible with each other
+        if (!types_are_compatible(&left_type, &right_type)) {
+            type_error(ctx, "Type mismatch for operands in comparison/logical operation '%s'.", node->value);
+            return VOID_TYPE;
+        }
+        
+        // The result of any comparison or logical operation is always a boolean.
+        SuffixInfo bool_type = {.type = TYPE_BOOL};
+        node->resolved_type = bool_type;
+        return bool_type;
+
+    } else {
+        // --- Path 2: Handle all other binary operators (+, -, *, etc.) ---
+        if (!types_are_compatible(&left_type, &right_type)) {
+            type_error(ctx, "Type mismatch in binary operation '%s'", node->value);
+            return VOID_TYPE;
+        }
+        // For now, the result type is the same as the operands.
+        // A more advanced checker would handle type promotion (e.g., int + float = float).
+        node->resolved_type = left_type;
+        return left_type;
+    }
 }
 
 // --- Public API ---
@@ -2438,6 +2530,7 @@ static void emit_postfix_op(ASTNode *node);
 static void emit_node(ASTNode *node);
 static void emit_statement(ASTNode *node);
 
+
 static const EmitFunc emit_dispatch[] = {
     [AST_PROGRAM]           = emit_program,
     [AST_FUNCTION]          = emit_function,
@@ -2477,6 +2570,7 @@ static const EmitFunc emit_dispatch[] = {
     [AST_ENUM_DEF]          = emit_enum_def,
     [AST_ENUM_VALUE]        = emit_enum_value,
     [AST_POSTFIX_OP]        = emit_postfix_op,
+    [AST_CONST_DECL]        = emit_var_decl,
     [AST_UNION_DEF]         = emit_union_def,
 };
 
@@ -2522,8 +2616,9 @@ static void emit_statement(ASTNode *node) {
 
 static void emit_function(ASTNode *node) {
     if (node->suffix_info.is_static) fprintf(output_file, "static ");
-    if (node->suffix_info.is_extern) fprintf(output_file, "extern ");
-
+    if (node->suffix_info.is_extern) {
+        return; 
+    }
     const char *return_type = get_c_type(&node->suffix_info);
     fprintf(output_file, "%s %s(", return_type, node->value);
 
