@@ -1798,50 +1798,47 @@ static ASTNode *parse_function(Parser *p, bool is_extern) {
   if (name->base_name) {
     func_node->suffix_info = name->suffix_info;
   }
-  func_node->suffix_info.is_extern = is_extern;
+  func_node->suffix_info.is_extern = is_extern; // Set the extern flag on the AST node
 
-  // --- THE FIX ---
-  // The logic is now cleanly separated.
+  // All functions, extern or not, have parentheses for their signature.
+  expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' after function name.");
+
+  // For this implementation, we will not parse arguments for C functions,
+  // but we still need a placeholder "params" node for AST consistency.
+  ASTNode *params_node = create_node(AST_VAR_DECL, "params");
+  add_child(func_node, params_node);
+  
+  // For regular Dust functions, parse the parameter list.
+  if (!is_extern) {
+      if (!(check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ")") == 0)) {
+        do {
+          Token *param_tok = advance(p);
+          if (param_tok->type != TOKEN_IDENTIFIER) {
+            // Allow func(void) syntax
+            if (strcmp(param_tok->text, "void") == 0) break; 
+            parser_error(p, "Expected parameter name.");
+            break;
+          }
+          ASTNode *param_node = create_node(AST_VAR_DECL, param_tok->base_name ? param_tok->base_name : param_tok->text);
+          if (param_tok->base_name) {
+            param_node->suffix_info = param_tok->suffix_info;
+          }
+          add_child(params_node, param_node);
+        } while (match_and_consume(p, TOKEN_PUNCTUATION, ","));
+      }
+  }
+
+  expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after parameters.");
+  
+  // A regular function has a body block, an extern one has a semicolon.
   if (is_extern) {
-    // For an extern function, we only parse the name.
-    // We add a dummy "params" child so the AST structure is consistent for the type checker.
-    ASTNode *params_node = create_node(AST_VAR_DECL, "params");
-    add_child(func_node, params_node);
+    match_and_consume(p, TOKEN_PUNCTUATION, ";");
   } else {
-    // For a regular Dust function, we parse the full signature and body.
-    expect(p, TOKEN_PUNCTUATION, "(", "Expected '(' after function name.");
-    ASTNode *params_node = create_node(AST_VAR_DECL, "params");
-    add_child(func_node, params_node);
-
-    // MOVE THE PARAMETER PARSING LOGIC INSIDE THE ELSE BLOCK
-    if (!(check(p, TOKEN_PUNCTUATION) && strcmp(p->current->text, ")") == 0)) {
-      do {
-        Token *param_tok = advance(p);
-        if (param_tok->type != TOKEN_IDENTIFIER) {
-          if (strcmp(param_tok->text, "void") == 0) break;
-          parser_error(p, "Expected parameter name.");
-          break;
-        }
-        ASTNode *param_node = create_node(AST_VAR_DECL, param_tok->base_name ? param_tok->base_name : param_tok->text);
-        if (param_tok->base_name) {
-          // This was the original bug from the error message.
-          // It should be param_node->suffix_info, not params_node.
-          param_node->suffix_info = param_tok->suffix_info;
-        }
-        add_child(params_node, param_node);
-      } while (match_and_consume(p, TOKEN_PUNCTUATION, ","));
-    }
-
-    // MOVE THE CLOSING PARENTHESIS EXPECTATION INSIDE THE ELSE BLOCK
-    expect(p, TOKEN_PUNCTUATION, ")", "Expected ')' after parameters.");
-    
-    // The body is only parsed for non-extern functions.
     add_child(func_node, parse_block(p));
   }
   
   return func_node;
 }
-
 Parser *parser_create(const char *source, const TypeTable *type_table) {
   Parser *p = arena_alloc(sizeof(Parser));
   p->type_table = (TypeTable *)type_table;
@@ -1880,43 +1877,39 @@ ASTNode *parser_parse(Parser *p) {
       Token *pass = advance(p);
       add_child(program, create_node(AST_PASSTHROUGH, pass->text));
     } else if (check(p, TOKEN_KEYWORD)) {
-        if (strcmp(p->current->text, "extern") == 0) { 
+        if (strcmp(p->current->text, "extern") == 0) {
             advance(p);
             expect(p, TOKEN_KEYWORD, "func", "Expected 'func' after 'extern'");
-            ASTNode *func_decl = parse_function(p, true); 
-            add_child(program, func_decl);
-      }
-      if (strcmp(p->current->text, "const") == 0) {
-        advance(p);
-        ASTNode *decl = parse_const_decl(p);
-        // FIX: Add the constant as a child of the program, do NOT return.
-        add_child(program, decl); 
-        match_and_consume(p, TOKEN_PUNCTUATION, ";");
-      } else if (strcmp(p->current->text, "let") == 0) {
-        parser_error(p, "Global 'let' declarations are not supported at the top level.");
-        // We still parse it to try and recover and find more errors.
-        advance(p);
-        ASTNode *global = parse_var_decl(p);
-        add_child(program, global);
-      } else if (strcmp(p->current->text, "typedef") == 0) {
-        add_child(program, parse_typedef(p));
-      } else if (strcmp(p->current->text, "func") == 0) {   
-        advance(p);
-        add_child(program, parse_function(p, false));
-      } else if (strcmp(p->current->text, "struct") == 0) {
-        advance(p);
-        add_child(program, parse_struct_definition(p));
-      } else if (strcmp(p->current->text, "union") == 0) {  
-        advance(p);
-        add_child(program, parse_union_definition(p));
-      } else if (strcmp(p->current->text, "enum") == 0) {  
-        advance(p);
-        add_child(program, parse_enum_definition(p));
-      } else {
-        parser_error(p, "Unexpected keyword at top level.");    
-        advance(p);
-      }
-    } 
+            add_child(program, parse_function(p, true));
+        } else if (strcmp(p->current->text, "const") == 0) {
+            advance(p);
+            ASTNode *decl = parse_const_decl(p);
+            add_child(program, decl);
+            match_and_consume(p, TOKEN_PUNCTUATION, ";");
+        } else if (strcmp(p->current->text, "let") == 0) {
+            parser_error(p, "Global 'let' declarations are not supported at the top level.");
+            advance(p);
+            ASTNode *global = parse_var_decl(p);
+            add_child(program, global);
+        } else if (strcmp(p->current->text, "typedef") == 0) {
+            add_child(program, parse_typedef(p));
+        } else if (strcmp(p->current->text, "func") == 0) {
+            advance(p);
+            add_child(program, parse_function(p, false));
+        } else if (strcmp(p->current->text, "struct") == 0) {
+            advance(p);
+            add_child(program, parse_struct_definition(p));
+        } else if (strcmp(p->current->text, "union") == 0) {
+            advance(p);
+            add_child(program, parse_union_definition(p));
+        } else if (strcmp(p->current->text, "enum") == 0) {
+            advance(p);
+            add_child(program, parse_enum_definition(p));
+        } else {
+            parser_error(p, "Unexpected keyword at top level.");
+            advance(p);
+        }
+    }
     else {
       parser_error(p, "Unexpected token at top level.");
       advance(p);
@@ -2209,14 +2202,19 @@ static SuffixInfo typecheck_postfix_op_handler(TypeCheckContext *ctx, ASTNode *n
     return operand_type;
 }
 
-// In type.c
-
 static SuffixInfo typecheck_call_handler(TypeCheckContext *ctx, ASTNode *node) {
     ASTNode *func_name_node = node->children[0];
     Symbol *func_sym = symbol_table_lookup(ctx->current_scope, func_name_node->value);
+
+    // If the function is not in the symbol table, it's an error. No more guessing.
+    if (!func_sym) {
+        type_error(ctx, "Call to undeclared function '%s'.", func_name_node->value);
+        return VOID_TYPE;
+    }
     
-    if (func_sym) {
-        // --- PATH 1: It's a known Dust function. Check it strictly. ---
+    // For known Dust functions, perform strict argument checking.
+    // We will skip this for C functions in this implementation.
+    if (!func_sym->type_info.is_extern) {
         ASTNode *params = func_sym->decl_node->children[0];
         int expected_args = params->child_count;
         int actual_args = node->child_count - 1;
@@ -2234,22 +2232,17 @@ static SuffixInfo typecheck_call_handler(TypeCheckContext *ctx, ASTNode *node) {
                 type_error(ctx, "Type mismatch for argument %d in call to '%s'", i + 1, func_name_node->value);
             }
         }
-        node->resolved_type = func_sym->type_info;
-        return func_sym->type_info;
-
     } else {
-        // --- PATH 2: It's an unknown function. Trust the programmer. ---
-        // Assume it's a C function. Do not error.
-        
-        // Still type-check the arguments to make sure they are valid expressions.
+        // Even for C functions, we should still type-check the arguments
+        // to ensure they are valid expressions.
         for (int i = 1; i < node->child_count; i++) {
             typecheck_node(ctx, node->children[i]);
         }
-        
-        SuffixInfo c_return_type = {.type = TYPE_VOID, .pointer_level = 1};
-        node->resolved_type = c_return_type;
-        return c_return_type;
     }
+
+    // The return type is whatever the declaration in the symbol table says it is.
+    node->resolved_type = func_sym->type_info;
+    return func_sym->type_info;
 }
 
 static SuffixInfo typecheck_member_access_handler(TypeCheckContext *ctx, ASTNode *node) {

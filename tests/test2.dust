@@ -11,6 +11,12 @@
 // We are explicitly telling the Dust compiler about the C functions we will use.
 // This allows the type checker to validate our calls to them.
 
+extern func srand_v
+extern func time_t
+extern func rand_i
+extern func scanf_i
+extern func printf_i
+
 // --- Dust Constants ---
 // We use Dust's native, type-safe const instead of C's #define.
 const MINNUMBER_i = 1
